@@ -58,7 +58,7 @@ If arc isn't installed locally, use the full path:
 ```bash
 arc init --prefix myproj     # Initialize .arc/ with prefix
 arc list                     # Hierarchical view of open outcomes and actions
-arc list --ready             # Only items ready to work on (not waiting)
+arc list --ready             # Actions with no waiting_for (outcomes always shown)
 arc show ID                  # Full details including brief
 arc new "title" --why W --what X --done D       # Create outcome
 arc new "title" --for PARENT --why W --what X --done D  # Create action

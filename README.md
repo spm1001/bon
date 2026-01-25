@@ -66,11 +66,26 @@ uv run arc done arc-ghijkl
 ### List Filters
 
 ```bash
-arc list              # Open outcomes + their actions
-arc list --ready      # Only items ready to work on (no waiting)
-arc list --waiting    # Only items blocked/waiting
+arc list              # Open outcomes + their actions (default)
+arc list --ready      # Only items ready to work on
+arc list --waiting    # Only items that are waiting
 arc list --all        # Include done items
 ```
+
+**What `--ready` shows:**
+- All open outcomes (always visible for context)
+- Actions where `status=open` AND `waiting_for` is empty
+- If some actions are hidden, shows "+N waiting" count
+
+**Example:**
+```
+○ API Improvements (arc-abc)
+  1. ○ Add rate limiting (arc-def)      # ready - shown
+  2. ○ Add logging (arc-ghi)            # ready - shown
+  (+1 waiting)                          # arc-jkl waiting for review - hidden
+```
+
+Use `--ready` to answer "what can I work on right now?" without clutter from blocked items.
 
 ## Data Model
 
