@@ -53,6 +53,23 @@ class TestNewOutcome:
         assert result.returncode == 1
         assert "Title cannot be empty" in result.stderr
 
+    def test_multiline_title_normalized(self, arc_dir, monkeypatch):
+        """Multi-line titles are normalized to single line."""
+        monkeypatch.chdir(arc_dir)
+
+        # Title with newlines and extra spaces
+        result = run_arc(
+            "new", "This is\na multi-line\n\ntitle  with   spaces",
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+
+        # Verify title was normalized
+        item = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())
+        assert item["title"] == "This is a multi-line title with spaces"
+
 
 class TestNewAction:
     def test_create_action_under_outcome(self, arc_dir, monkeypatch):

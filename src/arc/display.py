@@ -1,5 +1,7 @@
 """Display formatting for arc output."""
 
+from arc.queries import filter_ready, filter_waiting
+
 
 def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
     """Format items as hierarchical text output.
@@ -37,10 +39,10 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
 
         # Filter actions based on mode
         if filter_mode == "ready":
-            visible_actions = [a for a in all_actions if a["status"] == "open" and not a.get("waiting_for")]
-            waiting_count = len([a for a in all_actions if a["status"] == "open" and a.get("waiting_for")])
+            visible_actions = filter_ready(all_actions)
+            waiting_count = len(filter_waiting([a for a in all_actions if a["status"] == "open"]))
         elif filter_mode == "waiting":
-            visible_actions = [a for a in all_actions if a.get("waiting_for")]
+            visible_actions = filter_waiting(all_actions)
             waiting_count = 0
         else:
             # default and all: show all actions
@@ -85,17 +87,15 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
         lines = result_lines
 
     # Standalone actions (no parent)
+    standalone_base = [i for i in items if i["type"] == "action" and not i.get("parent")]
     if filter_mode == "ready":
-        standalone = [i for i in items if i["type"] == "action" and not i.get("parent")
-                      and i["status"] == "open" and not i.get("waiting_for")]
+        standalone = filter_ready(standalone_base)
     elif filter_mode == "waiting":
-        standalone = [i for i in items if i["type"] == "action" and not i.get("parent")
-                      and i.get("waiting_for")]
+        standalone = filter_waiting(standalone_base)
     elif filter_mode == "all":
-        standalone = [i for i in items if i["type"] == "action" and not i.get("parent")]
+        standalone = standalone_base
     else:
-        standalone = [i for i in items if i["type"] == "action" and not i.get("parent")
-                      and i["status"] == "open"]
+        standalone = [a for a in standalone_base if a["status"] == "open"]
 
     if standalone:
         if lines:
