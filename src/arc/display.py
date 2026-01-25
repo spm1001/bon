@@ -1,6 +1,38 @@
 """Display formatting for arc output."""
+import json
 
 from arc.queries import filter_ready, filter_waiting
+
+
+def format_json(items: list[dict]) -> str:
+    """Format as nested JSON structure."""
+    outcomes = []
+    for outcome in sorted(
+        [i for i in items if i["type"] == "outcome"],
+        key=lambda x: x.get("order", 999)
+    ):
+        actions = sorted(
+            [i for i in items if i.get("parent") == outcome["id"]],
+            key=lambda x: x.get("order", 999)
+        )
+        outcome_copy = dict(outcome)
+        outcome_copy["actions"] = actions
+        outcomes.append(outcome_copy)
+
+    standalone = sorted(
+        [i for i in items if i["type"] == "action" and not i.get("parent")],
+        key=lambda x: x.get("order", 999)
+    )
+
+    return json.dumps({"outcomes": outcomes, "standalone": standalone}, indent=2, ensure_ascii=False)
+
+
+def format_jsonl(items: list[dict]) -> str:
+    """Format as flat JSONL, one item per line."""
+    lines = []
+    for item in items:
+        lines.append(json.dumps(item, ensure_ascii=False))
+    return "\n".join(lines)
 
 
 def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:

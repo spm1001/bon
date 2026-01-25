@@ -21,7 +21,33 @@ from arc.storage import (
     apply_reorder,
 )
 from arc.ids import generate_unique_id, next_order
-from arc.display import format_hierarchical
+from arc.display import format_hierarchical, format_json, format_jsonl
+
+
+def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
+    """Filter items based on mode for output.
+
+    Used by --json and --jsonl to respect filter flags.
+    """
+    if filter_mode == "ready":
+        # Open outcomes + ready actions only
+        outcomes = [i for i in items if i["type"] == "outcome" and i["status"] == "open"]
+        actions = [i for i in items if i["type"] == "action" and i["status"] == "open" and not i.get("waiting_for")]
+        return outcomes + actions
+    elif filter_mode == "waiting":
+        # Open outcomes + waiting actions only
+        outcomes = [i for i in items if i["type"] == "outcome" and i["status"] == "open"]
+        actions = [i for i in items if i["type"] == "action" and i.get("waiting_for")]
+        return outcomes + actions
+    elif filter_mode == "all":
+        return items
+    else:
+        # Default: open outcomes and all their actions
+        outcomes = [i for i in items if i["type"] == "outcome" and i["status"] == "open"]
+        outcome_ids = {o["id"] for o in outcomes}
+        actions = [i for i in items if i["type"] == "action" and
+                   (i.get("parent") in outcome_ids or (not i.get("parent") and i["status"] == "open"))]
+        return outcomes + actions
 
 
 def cmd_init(args):
@@ -139,7 +165,10 @@ def cmd_new(args):
 
     items.append(item)
     save_items(items)
-    print(f"Created: {item['id']}")
+    if args.quiet:
+        print(item["id"])
+    else:
+        print(f"Created: {item['id']}")
 
 
 def cmd_list(args):
@@ -158,8 +187,16 @@ def cmd_list(args):
     else:
         filter_mode = "default"
 
-    output = format_hierarchical(items, filter_mode)
-    print(output)
+    # Handle output format
+    if args.json:
+        filtered = filter_items_for_output(items, filter_mode)
+        print(format_json(filtered))
+    elif args.jsonl:
+        filtered = filter_items_for_output(items, filter_mode)
+        print(format_jsonl(filtered))
+    else:
+        output = format_hierarchical(items, filter_mode)
+        print(output)
 
 
 def cmd_show(args):
@@ -172,6 +209,19 @@ def cmd_show(args):
 
     if not item:
         error(f"Item '{args.id}' not found")
+
+    if args.json:
+        # For outcomes, include actions
+        if item["type"] == "outcome":
+            item_copy = dict(item)
+            item_copy["actions"] = sorted(
+                [i for i in items if i.get("parent") == item["id"]],
+                key=lambda x: x.get("order", 999)
+            )
+            print(json.dumps(item_copy, indent=2, ensure_ascii=False))
+        else:
+            print(json.dumps(item, indent=2, ensure_ascii=False))
+        return
 
     # Header
     status_icon = "✓" if item["status"] == "done" else "○"
@@ -298,6 +348,54 @@ def validate_edit(original: dict, edited: dict, all_items: list[dict]):
             error(f"Parent must be an outcome, got {parent['type']}")
 
 
+def cmd_help(args, parser):
+    """Show help."""
+    if args.command_name:
+        # Find the subparser for this command
+        subparsers_actions = [
+            action for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        ]
+        if subparsers_actions:
+            subparsers = subparsers_actions[0]
+            if args.command_name in subparsers.choices:
+                subparsers.choices[args.command_name].print_help()
+            else:
+                print(f"Unknown command: {args.command_name}", file=sys.stderr)
+                sys.exit(1)
+    else:
+        parser.print_help()
+
+
+def cmd_status(args):
+    """Show status overview."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+
+    outcomes = [i for i in items if i["type"] == "outcome"]
+    actions = [i for i in items if i["type"] == "action"]
+
+    open_outcomes = [i for i in outcomes if i["status"] == "open"]
+    done_outcomes = [i for i in outcomes if i["status"] == "done"]
+
+    open_actions = [i for i in actions if i["status"] == "open"]
+    done_actions = [i for i in actions if i["status"] == "done"]
+    waiting_actions = [i for i in open_actions if i.get("waiting_for")]
+    ready_actions = [i for i in open_actions if not i.get("waiting_for")]
+
+    standalone = [i for i in actions if not i.get("parent")]
+
+    print(f"Arc status (prefix: {prefix})")
+    print()
+    print(f"Outcomes:   {len(open_outcomes)} open, {len(done_outcomes)} done")
+    print(f"Actions:    {len(open_actions)} open ({len(ready_actions)} ready, {len(waiting_actions)} waiting), {len(done_actions)} done")
+    if standalone:
+        open_standalone = [s for s in standalone if s["status"] == "open"]
+        print(f"Standalone: {len(open_standalone)} open")
+
+
 def cmd_edit(args):
     """Edit item in $EDITOR."""
     check_initialized()
@@ -351,6 +449,23 @@ def cmd_edit(args):
         os.unlink(temp_path)
 
 
+def add_output_flags(subparser, json=False, jsonl=False, quiet=False):
+    """Add output format flags to a subparser.
+
+    Args:
+        subparser: The argparse subparser to add flags to
+        json: If True, add --json flag
+        jsonl: If True, add --jsonl flag
+        quiet: If True, add --quiet/-q flag
+    """
+    if json:
+        subparser.add_argument("--json", action="store_true", help="Output as nested JSON")
+    if jsonl:
+        subparser.add_argument("--jsonl", action="store_true", help="Output as flat JSONL")
+    if quiet:
+        subparser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -371,6 +486,7 @@ def main():
     new_parser.add_argument("--why", help="Brief: why are we doing this?")
     new_parser.add_argument("--what", help="Brief: what will we produce?")
     new_parser.add_argument("--done", help="Brief: how do we know it's done?")
+    add_output_flags(new_parser, quiet=True)
     new_parser.set_defaults(func=cmd_new)
 
     # list
@@ -378,11 +494,13 @@ def main():
     list_parser.add_argument("--ready", action="store_true", help="Show only ready items")
     list_parser.add_argument("--waiting", action="store_true", help="Show only waiting items")
     list_parser.add_argument("--all", action="store_true", help="Include done items")
+    add_output_flags(list_parser, json=True, jsonl=True)
     list_parser.set_defaults(func=cmd_list)
 
     # show
     show_parser = subparsers.add_parser("show", help="View item details")
     show_parser.add_argument("id", help="Item ID to show")
+    add_output_flags(show_parser, json=True)
     show_parser.set_defaults(func=cmd_show)
 
     # done
@@ -405,6 +523,15 @@ def main():
     edit_parser = subparsers.add_parser("edit", help="Edit item in $EDITOR")
     edit_parser.add_argument("id", help="Item ID to edit")
     edit_parser.set_defaults(func=cmd_edit)
+
+    # status
+    status_parser = subparsers.add_parser("status", help="Show status overview")
+    status_parser.set_defaults(func=cmd_status)
+
+    # help
+    help_parser = subparsers.add_parser("help", help="Show help")
+    help_parser.add_argument("command_name", nargs="?", help="Command to get help for")
+    help_parser.set_defaults(func=lambda args: cmd_help(args, parser))
 
     args = parser.parse_args()
 
