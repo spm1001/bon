@@ -164,3 +164,37 @@ def check_initialized() -> None:
     """Check if .arc/ is initialized. Exit with error if not."""
     if not Path(".arc").is_dir():
         error("Not initialized. Run `arc init` first.")
+
+
+def get_siblings(items: list[dict], item_type: str, parent: str | None = None) -> list[dict]:
+    """Get sibling items for ordering context."""
+    if parent:
+        return [i for i in items if i.get("parent") == parent]
+    elif item_type == "outcome":
+        return [i for i in items if i["type"] == "outcome"]
+    else:
+        return [i for i in items if i["type"] == "action" and not i.get("parent")]
+
+
+def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):
+    """Shift siblings to accommodate order change.
+
+    Moving from 5 to 2: items at 2, 3, 4 shift to 3, 4, 5.
+    Moving from 2 to 5: items at 3, 4, 5 shift to 2, 3, 4.
+    """
+    if old_order == new_order:
+        return
+
+    siblings = [i for i in get_siblings(items, edited["type"], edited.get("parent"))
+                if i["id"] != edited["id"]]
+
+    if new_order < old_order:
+        # Moving up: shift items in [new, old) down by 1
+        for s in siblings:
+            if new_order <= s.get("order", 0) < old_order:
+                s["order"] += 1
+    else:
+        # Moving down: shift items in (old, new] up by 1
+        for s in siblings:
+            if old_order < s.get("order", 0) <= new_order:
+                s["order"] -= 1

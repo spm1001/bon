@@ -1,6 +1,10 @@
 """Arc CLI - main entry point."""
 import argparse
+import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from arc.storage import (
@@ -12,6 +16,9 @@ from arc.storage import (
     now_iso,
     error,
     check_initialized,
+    ValidationError,
+    validate_item,
+    apply_reorder,
 )
 from arc.ids import generate_unique_id, next_order
 from arc.display import format_hierarchical
@@ -229,6 +236,121 @@ def cmd_done(args):
         print(f"Unblocked: {', '.join(unblocked)}")
 
 
+def cmd_wait(args):
+    """Mark item as waiting."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+    item = find_by_id(items, args.id, prefix)
+
+    if not item:
+        error(f"Item '{args.id}' not found")
+
+    item["waiting_for"] = args.reason
+    save_items(items)
+    print(f"{item['id']} now waiting for: {args.reason}")
+
+
+def cmd_unwait(args):
+    """Clear waiting status."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+    item = find_by_id(items, args.id, prefix)
+
+    if not item:
+        error(f"Item '{args.id}' not found")
+
+    item["waiting_for"] = None
+    save_items(items)
+    print(f"{item['id']} no longer waiting")
+
+
+def validate_edit(original: dict, edited: dict, all_items: list[dict]):
+    """Validate edited item. Raises error on invalid changes."""
+    # ID cannot change
+    if edited.get("id") != original["id"]:
+        error("Cannot change item ID")
+
+    # Type cannot change
+    if edited.get("type") != original["type"]:
+        error("Cannot change item type")
+
+    # Full validation including brief subfields
+    try:
+        validate_item(edited, strict=True)
+    except ValidationError as e:
+        error(str(e))
+
+    # Additional required fields for edit
+    for field in ["order", "created_at", "created_by"]:
+        if field not in edited:
+            error(f"Missing required field: {field}")
+
+    # Parent must exist if specified
+    if edited.get("parent"):
+        parent = find_by_id(all_items, edited["parent"])
+        if not parent:
+            error(f"Parent '{edited['parent']}' not found")
+        if parent["type"] != "outcome":
+            error(f"Parent must be an outcome, got {parent['type']}")
+
+
+def cmd_edit(args):
+    """Edit item in $EDITOR."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+    item = find_by_id(items, args.id, prefix)
+
+    if not item:
+        error(f"Item '{args.id}' not found")
+
+    old_order = item.get("order")
+
+    # Write to temp file as formatted JSON
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        json.dump(item, f, indent=2, ensure_ascii=False)
+        f.write('\n')
+        temp_path = f.name
+
+    try:
+        # Open in editor
+        editor = os.environ.get("EDITOR", "vim")
+        result = subprocess.run([editor, temp_path])
+        if result.returncode != 0:
+            error(f"Editor exited with code {result.returncode}")
+
+        # Read back
+        with open(temp_path) as f:
+            try:
+                edited = json.load(f)
+            except json.JSONDecodeError as e:
+                error(f"Invalid JSON: {e}")
+
+        # Validate
+        validate_edit(item, edited, items)
+
+        # Handle reorder if order changed
+        new_order = edited.get("order")
+        if old_order != new_order:
+            apply_reorder(items, edited, old_order, new_order)
+
+        # Update in list
+        for i, existing in enumerate(items):
+            if existing["id"] == item["id"]:
+                items[i] = edited
+                break
+
+        save_items(items)
+        print(f"Updated: {item['id']}")
+    finally:
+        os.unlink(temp_path)
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -267,6 +389,22 @@ def main():
     done_parser = subparsers.add_parser("done", help="Complete item")
     done_parser.add_argument("id", help="Item ID to mark done")
     done_parser.set_defaults(func=cmd_done)
+
+    # wait
+    wait_parser = subparsers.add_parser("wait", help="Mark item as waiting")
+    wait_parser.add_argument("id", help="Item ID")
+    wait_parser.add_argument("reason", help="What it's waiting for (ID or text)")
+    wait_parser.set_defaults(func=cmd_wait)
+
+    # unwait
+    unwait_parser = subparsers.add_parser("unwait", help="Clear waiting status")
+    unwait_parser.add_argument("id", help="Item ID")
+    unwait_parser.set_defaults(func=cmd_unwait)
+
+    # edit
+    edit_parser = subparsers.add_parser("edit", help="Edit item in $EDITOR")
+    edit_parser.add_argument("id", help="Item ID to edit")
+    edit_parser.set_defaults(func=cmd_edit)
 
     args = parser.parse_args()
 
