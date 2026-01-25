@@ -123,22 +123,59 @@ arc new "Fix the API thing" --for arc-gaBdur
 # Error: Brief required. Missing: --why, --what, --done
 ```
 
-## Session Boundaries
+## Session Start Protocol (Integration with /open)
 
-**At session start:**
-1. `arc list --ready` — see what's available
-2. Pick an action
-3. **Draw-down** — read brief, create TodoWrite items
+**Arc is loaded automatically by /open when `.arc/` exists.** The startup hook generates context at `~/.claude/.session-context/<encoded-cwd>/arc.txt`.
+
+### What to Check
+
+1. **Read the arc context file** — shows ready work and full hierarchy
+2. **Check for handoff** — previous session may have left "Next" suggestions
+3. **Present ready items** — outcomes and actions that can be worked on now
+
+### Presenting Arc Items to User
+
+Show hierarchy with outcomes (desired results) containing actions (concrete steps):
+
+```
+Ready work:
+
+○ Migration UX (arc-Dowepu)
+  1. ○ Add arc migrate subcommand (arc-gutowa)
+  2. ○ Add --dry-run to migration (arc-pezehi)
+
+○ Arc v1.1 CLI (arc-FumaGa)
+  1. ○ Add --db option (arc-MiboRo)
+
+Which would you like to work on?
+```
+
+### After User Picks
+
+**STOP. Do the draw-down before writing any code:**
+
+1. `arc show <id>` — read the brief (why/what/done)
+2. Create TodoWrite items from `brief.what` and `brief.done`
+3. Show user: "Breaking this down into: [list]. Sound right?"
+4. **VERIFY:** TodoWrite is not empty
+5. Then start working
+
+## Session Close Protocol
 
 **At session close:**
-1. Update arc items with progress
-2. File new actions discovered during work
+1. Complete finished items: `arc done <id>`
+2. File new actions discovered during work (with full briefs)
 3. **Draw-up** — ensure briefs are complete for next Claude
+4. Handoff mentions arc items worked on
 
-**Between actions (mid-session):**
+## Mid-Session Transitions
+
+**Between actions:**
 1. Complete current action: `arc done <id>`
 2. Check what's unblocked: `arc list --ready`
 3. If continuing, **draw-down the next action** before starting
+
+**The gap this fills:** Draw-down happens at session start because /open commands it. But mid-session transitions need the same discipline.
 
 ## Brief Quality
 
