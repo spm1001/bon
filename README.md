@@ -142,7 +142,7 @@ See `ORCHESTRATION.md` for patterns used to build arc with Claude.
 uv run pytest
 
 # Run specific test
-uv run pytest tests/test_cli.py -k "test_done"
+uv run pytest tests/test_done.py -k "test_done"
 ```
 
 ## License

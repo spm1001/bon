@@ -1,12 +1,12 @@
 """Tests for migration script."""
 import json
+import sys
 from io import StringIO
+from pathlib import Path
 
 import pytest
 
-# Import from scripts directory
-import sys
-from pathlib import Path
+# Add scripts directory to path for migrate module
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from migrate import migrate_item, migrate_stream, extract_parent
@@ -97,15 +97,15 @@ class TestMigrateItem:
         assert result["brief"]["what"] == "See title"
         assert result["brief"]["done"] == "When complete"
 
-    def test_multiline_brief_takes_first_line(self):
-        """Multi-line fields take first line only."""
+    def test_multiline_brief_preserved(self):
+        """Multi-line fields are preserved in full."""
         item = {
             "id": "x",
             "title": "Test",
             "description": "First line\nSecond line\nThird line"
         }
         result = migrate_item(item)
-        assert result["brief"]["why"] == "First line"
+        assert result["brief"]["why"] == "First line\nSecond line\nThird line"
 
     def test_order_from_id_suffix(self):
         """Order extracted from ID suffix (x.1 → 1)."""

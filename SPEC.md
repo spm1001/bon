@@ -1526,15 +1526,22 @@ arc/
 │   ├── queries.py      # filter_ready, filter_waiting
 │   └── display.py      # format_hierarchical, format_json
 ├── tests/
-│   ├── unit/
-│   │   ├── test_ids.py
-│   │   ├── test_queries.py
-│   │   └── test_display.py
-│   └── integration/
-│       ├── test_cli_init.py
-│       ├── test_cli_new.py
-│       ├── test_cli_done.py
-│       └── test_cli_list.py
+│   ├── conftest.py         # Fixtures and run_arc helper
+│   ├── test_ids.py         # ID generation
+│   ├── test_storage.py     # Storage operations
+│   ├── test_init.py        # arc init
+│   ├── test_new.py         # arc new
+│   ├── test_done.py        # arc done
+│   ├── test_list.py        # arc list
+│   ├── test_show.py        # arc show
+│   ├── test_wait.py        # arc wait
+│   ├── test_unwait.py      # arc unwait
+│   ├── test_edit.py        # arc edit
+│   ├── test_status.py      # arc status
+│   ├── test_help.py        # arc help
+│   ├── test_output_flags.py # --json, --jsonl, --quiet
+│   ├── test_interactive.py # TTY prompt_brief
+│   └── test_migrate.py     # Migration script
 ├── fixtures/
 │   ├── empty.jsonl
 │   ├── single_outcome.jsonl

@@ -1,10 +1,7 @@
 """Tests for ID generation."""
-import pytest
+from unittest.mock import patch
 
-# Need to add src to path for imports
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+import pytest
 
 from arc.ids import generate_id, generate_unique_id, next_order, get_siblings
 
@@ -48,11 +45,13 @@ class TestGenerateUniqueId:
         assert new_id.startswith("arc-")
 
     def test_raises_after_max_attempts(self):
-        """Raises RuntimeError if can't generate unique ID."""
-        # Create a set that would be impossible to avoid with real implementation
-        # This test is somewhat synthetic but validates the safety limit
-        # In practice, this would never happen with the ID space size
-        pass  # Skip - hard to test without mocking
+        """Raises RuntimeError if can't generate unique ID after 100 attempts."""
+        # Mock generate_id to always return the same ID
+        with patch('arc.ids.generate_id', return_value='arc-bababa'):
+            existing = {"arc-bababa"}
+
+            with pytest.raises(RuntimeError, match="Failed to generate unique ID after 100 attempts"):
+                generate_unique_id("arc", existing)
 
 
 class TestNextOrder:

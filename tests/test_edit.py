@@ -224,6 +224,107 @@ class TestEditReorder:
         assert items["arc-bbb"]["order"] == 1
 
 
+class TestEditReparent:
+    """Test arc edit reparenting."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["multiple_outcomes"], indirect=True)
+    def test_reparent_action_to_different_outcome(self, arc_dir_with_fixture, mock_editor, monkeypatch):
+        """Reparenting action moves it to new outcome at end."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+        # arc-ccc is under arc-aaa, move it to arc-bbb
+        make_editor_script(mock_editor, "data['parent'] = 'arc-bbb'")
+        monkeypatch.setenv("EDITOR", str(mock_editor))
+
+        result = run_arc("edit", "arc-ccc", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+
+        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+
+        # arc-ccc should now be under arc-bbb
+        assert items["arc-ccc"]["parent"] == "arc-bbb"
+        # arc-ccc should be at order 2 (after arc-ddd which is at order 1)
+        assert items["arc-ccc"]["order"] == 2
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_reparent_closes_gap_in_old_parent(self, arc_dir_with_fixture, mock_editor, monkeypatch, tmp_path):
+        """Reparenting closes the gap left in old parent's ordering."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        # First, create a second outcome to reparent to
+        run_arc("new", "Second outcome",
+                "--why", "w", "--what", "x", "--done", "d",
+                cwd=arc_dir_with_fixture)
+
+        # Get the new outcome's ID
+        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        new_outcome_id = None
+        for line in lines:
+            item = json.loads(line)
+            if item["title"] == "Second outcome":
+                new_outcome_id = item["id"]
+                break
+
+        # Now create another action under arc-aaa to have order 3
+        run_arc("new", "Third action",
+                "--for", "arc-aaa",
+                "--why", "w", "--what", "x", "--done", "d",
+                cwd=arc_dir_with_fixture)
+
+        # Verify setup: arc-bbb (order 1), arc-ccc (order 2), new action (order 3)
+        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        actions_under_aaa = [json.loads(l) for l in lines
+                           if json.loads(l).get("parent") == "arc-aaa"]
+        assert len(actions_under_aaa) == 3
+
+        # Now reparent arc-ccc (order 2) to the new outcome
+        make_editor_script(mock_editor, f"data['parent'] = '{new_outcome_id}'")
+        monkeypatch.setenv("EDITOR", str(mock_editor))
+
+        result = run_arc("edit", "arc-ccc", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+
+        # Check that the third action (was order 3) is now order 2
+        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+
+        third_action = [i for i in items.values()
+                       if i.get("parent") == "arc-aaa" and i["title"] == "Third action"][0]
+        assert third_action["order"] == 2  # Gap closed
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["multiple_outcomes"], indirect=True)
+    def test_reparent_to_outcome_with_no_actions(self, arc_dir_with_fixture, mock_editor, monkeypatch, tmp_path):
+        """Reparenting to outcome with no actions sets order to 1."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        # Create a third outcome with no actions
+        run_arc("new", "Empty outcome",
+                "--why", "w", "--what", "x", "--done", "d",
+                cwd=arc_dir_with_fixture)
+
+        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        empty_outcome_id = None
+        for line in lines:
+            item = json.loads(line)
+            if item["title"] == "Empty outcome":
+                empty_outcome_id = item["id"]
+                break
+
+        # Reparent arc-ccc to the empty outcome
+        make_editor_script(mock_editor, f"data['parent'] = '{empty_outcome_id}'")
+        monkeypatch.setenv("EDITOR", str(mock_editor))
+
+        result = run_arc("edit", "arc-ccc", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+
+        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+
+        assert items["arc-ccc"]["parent"] == empty_outcome_id
+        assert items["arc-ccc"]["order"] == 1
+
+
 class TestEditErrors:
     """Test arc edit error cases."""
 

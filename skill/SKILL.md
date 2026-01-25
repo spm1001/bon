@@ -1,54 +1,14 @@
 ---
 name: arc
-description: Lightweight work tracker for Claude-human collaboration using GTD vocabulary. Triggers on 'arc command', 'arc list', 'arc new', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'waiting for', or when starting/finishing arc items. Use when tracking outcomes and actions across sessions. For single-session linear tasks, use TodoWrite directly.
+description: Lightweight work tracker for Claude-human collaboration using GTD vocabulary. Triggers on 'arc init', 'arc new', 'arc list', 'arc done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'waiting for', 'track this work', or when starting/finishing arc items. Use when tracking outcomes and actions across sessions. For single-session linear tasks, use TodoWrite directly.
 ---
 
 # Arc Work Tracking
 
 Arc organizes work as **Outcomes** (desired results) and **Actions** (concrete next steps). No sprints, no story points, no priority levels — just ordering and a clear answer to "what can I work on now?"
 
-## When to Use Arc vs TodoWrite
+## Quick Example: Draw-Down in Action
 
-| Use Arc | Use TodoWrite |
-|---------|---------------|
-| Multi-session work | Single-session tasks |
-| Work needing handoff to future Claude | Immediate execution |
-| Complex outcomes with multiple actions | Linear step-by-step |
-| Creating work for others to pick up | Just need a checklist |
-
-**The test:** If work will take >10 minutes, create arc items. If resuming after 2 weeks would be difficult without arc, use arc.
-
-## Core Commands
-
-```bash
-arc list              # Hierarchical view of open outcomes and actions
-arc list --ready      # Only items that can be worked on now
-arc show ID           # Full details including brief
-arc new "title" --why W --what X --done D       # Create outcome
-arc new "title" --for PARENT --why W --what X --done D  # Create action
-arc done ID           # Complete item
-arc wait ID REASON    # Mark as waiting
-arc unwait ID         # Clear waiting
-arc status            # Overview counts
-```
-
-All commands support `--json` for structured output.
-
-## The Draw-Down Pattern
-
-**When you pick up an action to work on:**
-
-1. **Read the brief:** `arc show <id>` — understand `why`, `what`, and `done`
-2. **Create TodoWrite items** from `brief.what` and `brief.done`
-3. **Show user the breakdown:** "I'm reading this as: [list]. Sound right?"
-4. **VERIFY:** TodoWrite is not empty before proceeding
-5. **Work through items with checkpoints** — pause at each completion to confirm direction
-
-**The test:** If work will take >10 minutes, it needs TodoWrite items.
-
-**Why this matters:** Without draw-down, you work from the arc item directly, context accumulates, and by close you've drifted. TodoWrite creates checkpoints where course-correction happens.
-
-**Example:**
 ```
 arc show arc-zoKte
 # Why: OAuth flow causing race conditions...
@@ -64,7 +24,78 @@ arc show arc-zoKte
 6. Test: --guard aborts on duplicate
 ```
 
-Each TodoWrite item is a checkpoint. When you complete item 3 and start item 4, pause: "Still on track?"
+Read the arc item → Break into TodoWrite checkpoints → Work with pauses. That's the pattern.
+
+## Running Arc
+
+Arc is a Python CLI. If it's installed in the project:
+
+```bash
+uv run arc list              # If arc is a project dependency
+arc list                     # If arc is in PATH
+```
+
+If arc isn't installed locally, use the full path:
+
+```bash
+/Users/modha/Repos/arc/.venv/bin/arc list
+# Or add alias: alias arc='/Users/modha/Repos/arc/.venv/bin/arc'
+```
+
+## When to Use Arc vs TodoWrite
+
+| Use Arc | Use TodoWrite |
+|---------|---------------|
+| Multi-session work | Single-session tasks |
+| Work needing handoff to future Claude | Immediate execution |
+| Complex outcomes with multiple actions | Linear step-by-step |
+| Creating work for others to pick up | Just need a checklist |
+
+**The test:** If work will take >10 minutes, create arc items. If resuming after 2 weeks would be difficult without arc, use arc.
+
+## Core Commands
+
+```bash
+arc init --prefix myproj     # Initialize .arc/ with prefix
+arc list                     # Hierarchical view of open outcomes and actions
+arc list --ready             # Only items ready to work on (not waiting)
+arc show ID                  # Full details including brief
+arc new "title" --why W --what X --done D       # Create outcome
+arc new "title" --for PARENT --why W --what X --done D  # Create action
+arc done ID                  # Complete item (also unblocks waiters)
+arc wait ID REASON           # Mark as waiting
+arc unwait ID                # Clear waiting
+arc edit ID                  # Edit in $EDITOR
+arc status                   # Overview counts
+```
+
+All commands support `--json` for structured output. `arc new` supports `-q` for quiet mode (just prints ID).
+
+## Migrating from Beads
+
+If you have existing beads data:
+
+```bash
+bd export --format jsonl | python /Users/modha/Repos/arc/scripts/migrate.py > .arc/items.jsonl
+```
+
+Maps: `epic` → outcome, `task` → action, `description/design/acceptance` → `why/what/done`. Preserves parent relationships from dependencies.
+
+**Note:** Run `arc init --prefix yourprefix` first to create the `.arc/` directory.
+
+## The Draw-Down Pattern
+
+**When you pick up an action to work on:**
+
+1. **Read the brief:** `arc show <id>` — understand `why`, `what`, and `done`
+2. **Create TodoWrite items** from `brief.what` and `brief.done`
+3. **Show user the breakdown:** "I'm reading this as: [list]. Sound right?"
+4. **VERIFY:** TodoWrite is not empty before proceeding
+5. **Work through items with checkpoints** — pause at each completion to confirm direction
+
+**The test:** If work will take >10 minutes, it needs TodoWrite items.
+
+**Why this matters:** Without draw-down, you work from the arc item directly, context accumulates, and by close you've drifted. TodoWrite creates checkpoints where course-correction happens.
 
 ## The Draw-Up Pattern
 

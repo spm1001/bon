@@ -4,10 +4,6 @@ from pathlib import Path
 
 import pytest
 
-# Need to add src to path for imports
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from arc.storage import (
     load_items,
     save_items,

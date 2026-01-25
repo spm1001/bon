@@ -50,14 +50,15 @@ def migrate_item(item: dict) -> dict:
         result["status"] = "open"
 
     # Brief from description/design/acceptance_criteria
+    # Preserve full content, not just first line
     desc = item.get("description") or ""
     design = item.get("design") or ""
     acceptance = item.get("acceptance_criteria") or ""
 
     result["brief"] = {
-        "why": desc.split("\n")[0] if desc else "Migrated from beads",
-        "what": design.split("\n")[0] if design else "See title",
-        "done": acceptance.split("\n")[0] if acceptance else "When complete",
+        "why": desc if desc else "Migrated from beads",
+        "what": design if design else "See title",
+        "done": acceptance if acceptance else "When complete",
     }
 
     # Timestamps

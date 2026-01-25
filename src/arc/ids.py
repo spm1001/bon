@@ -1,8 +1,11 @@
-"""ID generation for arc items."""
+"""ID generation and ordering for arc items."""
 import random
 
 CONSONANTS = "bcdfghjklmnprstvwz"  # No ambiguous: q, x, y
 VOWELS = "aeiou"
+
+# Default order for items without explicit order (sorts last)
+DEFAULT_ORDER = 999
 
 
 def generate_id(prefix: str = "arc") -> str:

@@ -1,6 +1,7 @@
 """Display formatting for arc output."""
 import json
 
+from arc.ids import DEFAULT_ORDER
 from arc.queries import filter_ready, filter_waiting
 
 
@@ -9,11 +10,11 @@ def format_json(items: list[dict]) -> str:
     outcomes = []
     for outcome in sorted(
         [i for i in items if i["type"] == "outcome"],
-        key=lambda x: x.get("order", 999)
+        key=lambda x: x.get("order", DEFAULT_ORDER)
     ):
         actions = sorted(
             [i for i in items if i.get("parent") == outcome["id"]],
-            key=lambda x: x.get("order", 999)
+            key=lambda x: x.get("order", DEFAULT_ORDER)
         )
         outcome_copy = dict(outcome)
         outcome_copy["actions"] = actions
@@ -21,7 +22,7 @@ def format_json(items: list[dict]) -> str:
 
     standalone = sorted(
         [i for i in items if i["type"] == "action" and not i.get("parent")],
-        key=lambda x: x.get("order", 999)
+        key=lambda x: x.get("order", DEFAULT_ORDER)
     )
 
     return json.dumps({"outcomes": outcomes, "standalone": standalone}, indent=2, ensure_ascii=False)
@@ -55,7 +56,7 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
     # Get outcomes sorted by order
     outcomes = sorted(
         [i for i in items if i["type"] == "outcome" and (include_done_outcomes or i["status"] == "open")],
-        key=lambda x: x.get("order", 999)
+        key=lambda x: x.get("order", DEFAULT_ORDER)
     )
 
     for outcome in outcomes:
@@ -66,7 +67,7 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
         # Get actions for this outcome
         all_actions = sorted(
             [i for i in items if i.get("parent") == outcome["id"]],
-            key=lambda x: x.get("order", 999)
+            key=lambda x: x.get("order", DEFAULT_ORDER)
         )
 
         # Filter actions based on mode
@@ -133,7 +134,7 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
         if lines:
             lines.append("")
         lines.append("Standalone:")
-        for action in sorted(standalone, key=lambda x: x.get("order", 999)):
+        for action in sorted(standalone, key=lambda x: x.get("order", DEFAULT_ORDER)):
             status_icon = "✓" if action["status"] == "done" else "○"
             waiting_suffix = f" ⏳ {action['waiting_for']}" if action.get("waiting_for") else ""
             lines.append(f"  {status_icon} {action['title']} ({action['id']}){waiting_suffix}")

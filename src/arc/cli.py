@@ -19,8 +19,9 @@ from arc.storage import (
     ValidationError,
     validate_item,
     apply_reorder,
+    apply_reparent,
 )
-from arc.ids import generate_unique_id, next_order
+from arc.ids import generate_unique_id, next_order, DEFAULT_ORDER
 from arc.display import format_hierarchical, format_json, format_jsonl
 
 
@@ -54,10 +55,13 @@ def cmd_init(args):
     """Initialize .arc/ directory."""
     prefix = args.prefix
 
+    # Validate prefix: alphanumeric only, no spaces or hyphens
+    if not prefix.isalnum():
+        error(f"Prefix must be alphanumeric (no spaces or hyphens), got '{prefix}'")
+
     arc_dir = Path(".arc")
     if arc_dir.exists():
-        print(f".arc/ already exists")
-        return
+        error(".arc/ already exists. Use --force to reinitialize.")
 
     arc_dir.mkdir()
     (arc_dir / "items.jsonl").touch()
@@ -216,7 +220,7 @@ def cmd_show(args):
             item_copy = dict(item)
             item_copy["actions"] = sorted(
                 [i for i in items if i.get("parent") == item["id"]],
-                key=lambda x: x.get("order", 999)
+                key=lambda x: x.get("order", DEFAULT_ORDER)
             )
             print(json.dumps(item_copy, indent=2, ensure_ascii=False))
         else:
@@ -244,7 +248,7 @@ def cmd_show(args):
     if item["type"] == "outcome":
         actions = sorted(
             [i for i in items if i.get("parent") == item["id"]],
-            key=lambda x: x.get("order", 999)
+            key=lambda x: x.get("order", DEFAULT_ORDER)
         )
         if actions:
             print("\n   Actions:")
@@ -318,7 +322,7 @@ def cmd_unwait(args):
     print(f"{item['id']} no longer waiting")
 
 
-def validate_edit(original: dict, edited: dict, all_items: list[dict]):
+def validate_edit(original: dict, edited: dict, all_items: list[dict], prefix: str | None = None):
     """Validate edited item. Raises error on invalid changes."""
     # ID cannot change
     if edited.get("id") != original["id"]:
@@ -339,9 +343,13 @@ def validate_edit(original: dict, edited: dict, all_items: list[dict]):
         if field not in edited:
             error(f"Missing required field: {field}")
 
+    # Order must be positive
+    if edited.get("order", 1) < 1:
+        error(f"Order must be positive, got {edited.get('order')}")
+
     # Parent must exist if specified
     if edited.get("parent"):
-        parent = find_by_id(all_items, edited["parent"])
+        parent = find_by_id(all_items, edited["parent"], prefix)
         if not parent:
             error(f"Parent '{edited['parent']}' not found")
         if parent["type"] != "outcome":
@@ -408,6 +416,7 @@ def cmd_edit(args):
         error(f"Item '{args.id}' not found")
 
     old_order = item.get("order")
+    old_parent = item.get("parent")
 
     # Write to temp file as formatted JSON
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -430,11 +439,16 @@ def cmd_edit(args):
                 error(f"Invalid JSON: {e}")
 
         # Validate
-        validate_edit(item, edited, items)
+        validate_edit(item, edited, items, prefix)
 
-        # Handle reorder if order changed
+        new_parent = edited.get("parent")
         new_order = edited.get("order")
-        if old_order != new_order:
+
+        # Handle reparenting (closes gap in old parent, appends to new parent)
+        if old_parent != new_parent:
+            apply_reparent(items, edited, old_parent, new_parent)
+        # Handle reorder within same parent
+        elif old_order != new_order:
             apply_reorder(items, edited, old_order, new_order)
 
         # Update in list

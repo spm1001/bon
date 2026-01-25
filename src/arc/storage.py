@@ -166,14 +166,10 @@ def check_initialized() -> None:
         error("Not initialized. Run `arc init` first.")
 
 
-def get_siblings(items: list[dict], item_type: str, parent: str | None = None) -> list[dict]:
-    """Get sibling items for ordering context."""
-    if parent:
-        return [i for i in items if i.get("parent") == parent]
-    elif item_type == "outcome":
-        return [i for i in items if i["type"] == "outcome"]
-    else:
-        return [i for i in items if i["type"] == "action" and not i.get("parent")]
+from arc.ids import get_siblings
+
+# Default order for items without explicit order (sorts last)
+DEFAULT_ORDER = 999
 
 
 def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):
@@ -198,3 +194,36 @@ def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: in
         for s in siblings:
             if old_order < s.get("order", 0) <= new_order:
                 s["order"] -= 1
+
+
+def apply_reparent(items: list[dict], edited: dict, old_parent: str | None, new_parent: str | None):
+    """Handle parent change: close gap in old parent, append to new parent.
+
+    When an action moves from one outcome to another:
+    1. Close the gap left behind (shift old siblings up)
+    2. Append at end of new parent's children
+    """
+    if old_parent == new_parent:
+        return
+
+    old_order = edited.get("order", 1)
+
+    # Close gap in old parent's children
+    old_siblings = [i for i in items
+                    if i["type"] == "action"
+                    and i.get("parent") == old_parent
+                    and i["id"] != edited["id"]]
+    for s in old_siblings:
+        if s.get("order", 0) > old_order:
+            s["order"] -= 1
+
+    # Append to end of new parent's children
+    new_siblings = [i for i in items
+                    if i["type"] == "action"
+                    and i.get("parent") == new_parent
+                    and i["id"] != edited["id"]]
+    if new_siblings:
+        max_order = max(s.get("order", 0) for s in new_siblings)
+        edited["order"] = max_order + 1
+    else:
+        edited["order"] = 1
