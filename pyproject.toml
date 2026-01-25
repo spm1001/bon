@@ -3,6 +3,9 @@ name = "arc"
 version = "0.1.0"
 description = "Lightweight work tracker for Claude-human collaboration"
 requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0.3",
+]
 
 [project.scripts]
 arc = "arc.cli:main"

@@ -67,23 +67,61 @@ arc wait ID REASON           # Mark as waiting
 arc unwait ID                # Clear waiting
 arc edit ID                  # Edit in $EDITOR
 arc status                   # Overview counts
+arc migrate --from-beads F --draft  # Generate migration manifest
+arc migrate --from-draft F   # Import completed manifest
 ```
 
 All commands support `--json` for structured output. `arc new` supports `-q` for quiet mode (just prints ID).
 
 ## Migrating from Beads
 
-If you have existing beads data:
+Migration is a two-phase process — the tool extracts structure, you write proper briefs.
+
+### Phase 1: Generate Draft Manifest
 
 ```bash
-arc init --prefix yourprefix
-bd export | python /Users/modha/Repos/arc/scripts/migrate.py > .arc/items.jsonl
-arc list  # verify
+bd export --format jsonl > beads-export.jsonl
+arc migrate --from-beads beads-export.jsonl --draft > manifest.yaml
 ```
 
-Maps: `epic` → outcome, `task` → action, `description/design/acceptance` → `why/what/done`. Preserves parent relationships from dependencies.
+This produces a YAML manifest with:
+- **Structure preserved:** epics → outcomes, tasks → actions, parent relationships
+- **`_beads` context:** raw description/design/acceptance_criteria/notes for reference
+- **Empty `brief` placeholders:** you must fill why/what/done
 
-**Note:** `notes` field from beads is not migrated — copy important context manually if needed.
+**Orphan actions are excluded.** Standalone tasks/bugs with no parent epic are reported but not included — they need an outcome to live under.
+
+### Phase 2: Complete Briefs and Import
+
+Review `manifest.yaml`. For each item, use `_beads` context to write proper briefs:
+
+```yaml
+- id: proj-abc
+  title: User Authentication
+  _beads:
+    description: Add OAuth to the app
+    design: Use passport.js with JWT
+    notes: "COMPLETED: research. NEXT: implement"
+  brief:
+    why: Users need secure, frictionless login    # ← Fill this
+    what: OAuth2 flow with Google/GitHub options  # ← Fill this
+    done: Users can login, tokens refresh correctly  # ← Fill this
+```
+
+Then import:
+
+```bash
+arc migrate --from-draft manifest.yaml
+```
+
+**Validation enforced:**
+- All briefs must be complete (why/what/done non-empty)
+- `.arc/` must not already exist
+- `_beads` context is stripped on import
+
+### Why This Pattern?
+
+Beads fields don't map cleanly to arc's opinionated brief structure. Rather than auto-generating weak briefs, the manifest pattern forces you to think about each item's why/what/done — resulting in items that future Claudes can actually execute.
 
 ## The Draw-Down Pattern
 
@@ -140,12 +178,12 @@ Show hierarchy with outcomes (desired results) containing actions (concrete step
 ```
 Ready work:
 
-○ Migration UX (arc-Dowepu)
-  1. ○ Add arc migrate subcommand (arc-gutowa)
-  2. ○ Add --dry-run to migration (arc-pezehi)
+○ API Improvements (arc-abc123)
+  1. ○ Add rate limiting (arc-def456)
+  2. ○ Add request logging (arc-ghi789)
 
-○ Arc v1.1 CLI (arc-FumaGa)
-  1. ○ Add --db option (arc-MiboRo)
+○ Documentation (arc-jkl012)
+  1. ○ Write API reference (arc-mno345)
 
 Which would you like to work on?
 ```
