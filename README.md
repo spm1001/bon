@@ -12,9 +12,24 @@ git clone https://github.com/spm1001/arc.git
 cd arc
 uv sync
 
-# Run
+# Run from project
 uv run arc --help
 ```
+
+### Add to PATH (optional)
+
+To use `arc` from anywhere:
+
+```bash
+# Option 1: Symlink to ~/.local/bin (recommended)
+mkdir -p ~/.local/bin
+ln -s /path/to/arc/.venv/bin/arc ~/.local/bin/arc
+
+# Option 2: Shell alias
+echo 'alias arc="/path/to/arc/.venv/bin/arc"' >> ~/.zshrc
+```
+
+Then just `arc list` from any project with `.arc/`.
 
 ## Quick Start
 

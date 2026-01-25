@@ -35,12 +35,7 @@ uv run arc list              # If arc is a project dependency
 arc list                     # If arc is in PATH
 ```
 
-If arc isn't installed locally, use the full path:
-
-```bash
-/Users/modha/Repos/arc/.venv/bin/arc list
-# Or add alias: alias arc='/Users/modha/Repos/arc/.venv/bin/arc'
-```
+If arc isn't in PATH, see README.md "Add to PATH" section for symlink/alias options.
 
 ## When to Use Arc vs TodoWrite
 
@@ -90,6 +85,8 @@ This produces a YAML manifest with:
 - **Empty `brief` placeholders:** you must fill why/what/done
 
 **Orphan actions are excluded.** Standalone tasks/bugs with no parent epic are reported but not included — they need an outcome to live under.
+
+**Field reports don't migrate.** Field reports (Claude-to-Claude knowledge transfer) aren't actionable work — they belong in skill docs, not a work tracker. Close them in beads rather than migrating.
 
 ### Phase 2: Complete Briefs and Import
 

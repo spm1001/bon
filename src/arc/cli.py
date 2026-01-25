@@ -578,9 +578,12 @@ def migrate_to_draft(beads_path: str):
 
     # Record orphans (excluded from migration)
     for orphan in orphans:
+        desc = orphan.get("description") or ""
+        context = desc[:80] + "..." if len(desc) > 80 else desc
         manifest["orphans_excluded"].append({
             "id": orphan["id"],
             "title": orphan.get("title", "Untitled"),
+            "context": context if context else "(no description)",
             "reason": "standalone action (no parent outcome)",
         })
 

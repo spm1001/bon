@@ -278,11 +278,12 @@ class TestMigrateDraft:
         assert manifest["outcomes"][0]["children"][0]["id"] == "proj-abc.1"
 
     def test_excludes_orphan_actions(self, tmp_path):
-        """Standalone non-epics are excluded with reason."""
+        """Standalone non-epics are excluded with reason and context."""
         beads_file = tmp_path / "beads.jsonl"
         beads_file.write_text(
             '{"id": "proj-abc", "title": "Epic", "issue_type": "epic"}\n'
-            '{"id": "proj-orphan", "title": "Orphan Bug", "issue_type": "bug"}\n'
+            '{"id": "proj-orphan", "title": "Orphan Bug", "issue_type": "bug", '
+            '"description": "This bug causes problems"}\n'
         )
 
         result = run_arc("migrate", "--from-beads", str(beads_file), "--draft")
@@ -291,6 +292,7 @@ class TestMigrateDraft:
         assert len(manifest["outcomes"]) == 1
         assert len(manifest["orphans_excluded"]) == 1
         assert manifest["orphans_excluded"][0]["id"] == "proj-orphan"
+        assert manifest["orphans_excluded"][0]["context"] == "This bug causes problems"
         assert "standalone" in manifest["orphans_excluded"][0]["reason"]
 
     def test_maps_closed_to_done(self, tmp_path):
