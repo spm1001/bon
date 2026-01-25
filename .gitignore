@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Arc itself
+.arc/
+
+# Editor
+*.swp
+*~
+.DS_Store
