@@ -500,6 +500,115 @@ arc new "Fix the bug described in rpt-miFola" --for arc-gaBdur
 arc done rpt-miFola
 ```
 
+### `arc show`
+
+```bash
+arc show ID
+```
+
+Displays a single item with full details. For outcomes, includes all actions.
+
+```python
+def show(item_id: str):
+    items = load_items()
+    item = find_by_id(items, item_id)
+    if not item:
+        error(f"Item '{item_id}' not found")
+
+    # Header
+    status_icon = "✓" if item["status"] == "done" else "○"
+    print(f"{status_icon} {item['title']} ({item['id']})")
+    print(f"   Type: {item['type']}")
+    print(f"   Status: {item['status']}")
+    print(f"   Created: {item['created_at']} by {item['created_by']}")
+
+    if item.get("waiting_for"):
+        print(f"   Waiting for: {item['waiting_for']}")
+
+    if item.get("description"):
+        print(f"\n   {item['description']}")
+
+    # For outcomes, show actions
+    if item["type"] == "outcome":
+        actions = sorted(
+            [i for i in items if i.get("parent") == item_id],
+            key=lambda x: x.get("order", 999)
+        )
+        if actions:
+            print("\n   Actions:")
+            for action in actions:
+                a_icon = "✓" if action["status"] == "done" else "○"
+                waiting = f" ⏳ {action['waiting_for']}" if action.get("waiting_for") else ""
+                print(f"   {action.get('order', '?')}. {a_icon} {action['title']} ({action['id']}){waiting}")
+```
+
+**Example output for outcome:**
+```
+○ User authentication (arc-gaBdur)
+   Type: outcome
+   Status: open
+   Created: 2026-01-25T10:30:00Z by sameer
+
+   OAuth flow for GitHub login. Include token refresh.
+
+   Actions:
+   1. ✓ Add OAuth endpoint (arc-zoKte)
+   2. ○ Add token refresh (arc-miFola) ⏳ arc-zoKte
+   3. ○ Add logout (arc-haVone)
+```
+
+**Example output for action:**
+```
+○ Add OAuth endpoint (arc-zoKte)
+   Type: action
+   Status: open
+   Created: 2026-01-25T10:31:00Z by claude-session-abc123
+   Waiting for: arc-miFola
+```
+
+### `arc status`
+
+```bash
+arc status
+```
+
+Shows overview of current state.
+
+```python
+def status():
+    items = load_items()
+    prefix = load_prefix()
+
+    outcomes = [i for i in items if i["type"] == "outcome"]
+    actions = [i for i in items if i["type"] == "action"]
+    reports = [i for i in items if i["type"] == "report"]
+
+    open_outcomes = [i for i in outcomes if i["status"] == "open"]
+    done_outcomes = [i for i in outcomes if i["status"] == "done"]
+
+    open_actions = [i for i in actions if i["status"] == "open"]
+    done_actions = [i for i in actions if i["status"] == "done"]
+    waiting_actions = [i for i in actions if i.get("waiting_for")]
+    ready_actions = [i for i in open_actions if not i.get("waiting_for")]
+
+    open_reports = [i for i in reports if i["status"] == "open"]
+
+    print(f"Arc status (prefix: {prefix})")
+    print()
+    print(f"Outcomes:  {len(open_outcomes)} open, {len(done_outcomes)} done")
+    print(f"Actions:   {len(open_actions)} open ({len(ready_actions)} ready, {len(waiting_actions)} waiting), {len(done_actions)} done")
+    print(f"Reports:   {len(open_reports)} pending")
+```
+
+**Example output:**
+```
+Arc status (prefix: arc)
+
+Outcomes:  3 open, 2 done
+Actions:   8 open (5 ready, 3 waiting), 12 done
+Reports:   2 pending
+```
+
 ---
 
 ## Output Format
@@ -647,6 +756,44 @@ def load_prefix() -> str:
     if path.exists():
         return path.read_text()
     return "arc"
+
+def get_creator() -> str:
+    """Get creator identifier for new items.
+
+    Priority:
+    1. ARC_USER env var (explicit override)
+    2. git config user.name (most common)
+    3. USER env var (fallback)
+    4. "unknown" (last resort)
+    """
+    import os
+    import subprocess
+
+    # Explicit override
+    if arc_user := os.environ.get("ARC_USER"):
+        return arc_user
+
+    # Git user name
+    try:
+        result = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True, text=True, timeout=2
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+
+    # System user
+    if user := os.environ.get("USER"):
+        return user
+
+    return "unknown"
+
+def now_iso() -> str:
+    """Current time in ISO8601 format."""
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 ```
 
 ---
