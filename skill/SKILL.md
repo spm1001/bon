@@ -76,12 +76,14 @@ All commands support `--json` for structured output. `arc new` supports `-q` for
 If you have existing beads data:
 
 ```bash
-bd export --format jsonl | python /Users/modha/Repos/arc/scripts/migrate.py > .arc/items.jsonl
+arc init --prefix yourprefix
+bd export | python /Users/modha/Repos/arc/scripts/migrate.py > .arc/items.jsonl
+arc list  # verify
 ```
 
 Maps: `epic` → outcome, `task` → action, `description/design/acceptance` → `why/what/done`. Preserves parent relationships from dependencies.
 
-**Note:** Run `arc init --prefix yourprefix` first to create the `.arc/` directory.
+**Note:** `notes` field from beads is not migrated — copy important context manually if needed.
 
 ## The Draw-Down Pattern
 
