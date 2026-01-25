@@ -718,12 +718,16 @@ def add_output_flags(subparser, json=False, jsonl=False, quiet=False):
         subparser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
 
 
+__version__ = "0.1.0"
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="arc",
         description="Work tracker for Claude-human collaboration"
     )
+    parser.add_argument("--version", action="version", version=f"arc {__version__}")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # init
