@@ -4,7 +4,9 @@ import random
 CONSONANTS = "bcdfghjklmnprstvwz"  # No ambiguous: q, x, y
 VOWELS = "aeiou"
 
-# Default order for items without explicit order (sorts last)
+# Default order for items without explicit order.
+# Why 999: Items missing order should sort last in listings.
+# Any value > typical item count works; 999 is readable sentinel.
 DEFAULT_ORDER = 999
 
 
