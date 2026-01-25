@@ -7,13 +7,32 @@ description: Lightweight work tracker for Claude-human collaboration using GTD v
 
 Arc organizes work as **Outcomes** (desired results) and **Actions** (concrete next steps). No sprints, no story points, no priority levels — just ordering and a clear answer to "what can I work on now?"
 
+## The Three Questions
+
+Every arc item answers three questions. These are CLI flags when creating, and the structure you read when picking up work:
+
+| Flag | Question |
+|------|----------|
+| `--why` | Why are we doing this? |
+| `--what` | What will we produce? |
+| `--done` | How do we know it's complete? |
+
+```bash
+arc new "Add rate limiting" \
+  --why "Users hitting 429s, server under load" \
+  --what "Redis limiter, 100 req/min, Retry-After header" \
+  --done "Load test passes, header present"
+```
+
+These three fields are stored together as the item's "brief" — but you always interact via the flags.
+
 ## Quick Example: Draw-Down in Action
 
 ```
 arc show arc-zoKte
-# Why: OAuth flow causing race conditions...
-# What: 1. processes list command 2. --guard flag 3. --force flag
-# Done: Can see running processes, duplicates prevented
+# --why: OAuth flow causing race conditions...
+# --what: 1. processes list command 2. --guard flag 3. --force flag
+# --done: Can see running processes, duplicates prevented
 
 --> TodoWrite:
 1. Add script.processes scope to auth
@@ -124,8 +143,8 @@ Beads fields don't map cleanly to arc's opinionated brief structure. Rather than
 
 **When you pick up an action to work on:**
 
-1. **Read the brief:** `arc show <id>` — understand `why`, `what`, and `done`
-2. **Create TodoWrite items** from `brief.what` and `brief.done`
+1. **Read the item:** `arc show <id>` — understand `--why`, `--what`, and `--done`
+2. **Create TodoWrite items** from `--what` and `--done` criteria
 3. **Show user the breakdown:** "I'm reading this as: [list]. Sound right?"
 4. **VERIFY:** TodoWrite is not empty before proceeding
 5. **Work through items with checkpoints** — pause at each completion to confirm direction
@@ -138,11 +157,11 @@ Beads fields don't map cleanly to arc's opinionated brief structure. Rather than
 
 **When you're filing work for a future Claude:**
 
-1. **Write the brief thoroughly** — `why`/`what`/`done` must stand alone
+1. **All three flags required** — `--why`/`--what`/`--done` must stand alone
 2. **Include concrete details** — file paths, API endpoints, error messages
-3. **Define done clearly** — verifiable criteria, not vague "it works"
+3. **Define `--done` clearly** — verifiable criteria, not vague "it works"
 
-**The test:** Could a Claude with zero context execute this from the brief alone?
+**The test:** Could a Claude with zero context execute this from the three flags alone?
 
 **Good draw-up:**
 ```bash
@@ -212,17 +231,17 @@ Which would you like to work on?
 
 **The gap this fills:** Draw-down happens at session start because /open commands it. But mid-session transitions need the same discipline.
 
-## Brief Quality
+## Quality: The Three Flags
 
-The `brief` field has three required subfields:
+Every item needs all three flags — no shortcuts, no `--brief` flag:
 
-| Subfield | Question it answers |
-|----------|---------------------|
-| `why` | Why are we doing this? |
-| `what` | What will we produce/achieve? |
-| `done` | How do we know it's complete? |
+| Flag | Question | Bad | Good |
+|------|----------|-----|------|
+| `--why` | Why are we doing this? | "Needs fixing" | "Users hitting 429s during peak load" |
+| `--what` | What will we produce? | "Fix it" | "1. Redis limiter 2. 100 req/min 3. Retry-After header" |
+| `--done` | How do we know? | "It works" | "Load test: 429 after 100 requests, header present" |
 
-**For AI-created items**, briefs should include:
+**For AI-created items**, include:
 - **Concrete details:** File paths, function names, API endpoints
 - **Numbered steps** in `what` when multiple deliverables exist
 - **Verifiable criteria** in `done` — not "it works" but "returns 200 with valid token"
