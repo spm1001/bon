@@ -22,9 +22,9 @@ class TestShowOutcome:
         assert "Created:" in result.stdout
 
         # Check brief
-        assert "Why: New devs struggling with auth setup" in result.stdout
-        assert "What: Simplified OAuth flow" in result.stdout
-        assert "Done: Setup takes < 10 minutes" in result.stdout
+        assert "--why: New devs struggling with auth setup" in result.stdout
+        assert "--what: Simplified OAuth flow" in result.stdout
+        assert "--done: Setup takes < 10 minutes" in result.stdout
 
         # Check actions
         assert "Actions:" in result.stdout

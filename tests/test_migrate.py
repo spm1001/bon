@@ -511,3 +511,103 @@ outcomes:
 
         assert result.returncode == 1
         assert "not found" in result.stderr.lower()
+
+
+class TestMigrateOrphanHandling:
+    """Tests for orphan handling options."""
+
+    def test_promote_orphans_to_outcomes(self, tmp_path):
+        """--promote-orphans converts orphan tasks to outcomes."""
+        beads_file = tmp_path / "beads.jsonl"
+        beads_file.write_text(
+            '{"id": "proj-abc", "title": "Epic", "issue_type": "epic"}\n'
+            '{"id": "proj-orphan", "title": "Orphan Bug", "issue_type": "bug", '
+            '"description": "Bug description"}\n'
+        )
+
+        result = run_arc("migrate", "--from-beads", str(beads_file), "--draft", "--promote-orphans")
+
+        assert result.returncode == 0
+        manifest = yaml.safe_load(result.stdout)
+        assert len(manifest["outcomes"]) == 2
+        assert len(manifest.get("orphans_excluded", [])) == 0
+
+        orphan_outcome = next(o for o in manifest["outcomes"] if o["id"] == "proj-orphan")
+        assert orphan_outcome["type"] == "outcome"
+        assert orphan_outcome["_promoted_from_orphan"] is True
+        assert "PROMOTED" in result.stderr
+
+    def test_orphan_parent_assigns_to_outcome(self, tmp_path):
+        """--orphan-parent assigns orphans to specified outcome."""
+        beads_file = tmp_path / "beads.jsonl"
+        beads_file.write_text(
+            '{"id": "proj-abc", "title": "Epic", "issue_type": "epic"}\n'
+            '{"id": "proj-orphan", "title": "Orphan Bug", "issue_type": "bug"}\n'
+        )
+
+        result = run_arc("migrate", "--from-beads", str(beads_file), "--draft",
+                        "--orphan-parent", "proj-abc")
+
+        assert result.returncode == 0
+        manifest = yaml.safe_load(result.stdout)
+        assert len(manifest["outcomes"]) == 1
+        assert len(manifest.get("orphans_excluded", [])) == 0
+
+        children = manifest["outcomes"][0]["children"]
+        assert len(children) == 1
+        assert children[0]["id"] == "proj-orphan"
+        assert children[0]["_adopted_orphan"] is True
+        assert "ADOPTED" in result.stderr
+
+    def test_error_both_orphan_flags(self, tmp_path):
+        """Errors when both --promote-orphans and --orphan-parent used."""
+        beads_file = tmp_path / "beads.jsonl"
+        beads_file.write_text('{"id": "proj-abc", "title": "Epic", "issue_type": "epic"}\n')
+
+        result = run_arc("migrate", "--from-beads", str(beads_file), "--draft",
+                        "--promote-orphans", "--orphan-parent", "proj-abc")
+
+        assert result.returncode == 1
+        assert "Cannot use both" in result.stderr
+
+    def test_error_orphan_parent_not_found(self, tmp_path):
+        """Errors when --orphan-parent references non-existent epic."""
+        beads_file = tmp_path / "beads.jsonl"
+        beads_file.write_text(
+            '{"id": "proj-abc", "title": "Epic", "issue_type": "epic"}\n'
+            '{"id": "proj-orphan", "title": "Orphan", "issue_type": "bug"}\n'
+        )
+
+        result = run_arc("migrate", "--from-beads", str(beads_file), "--draft",
+                        "--orphan-parent", "proj-nonexistent")
+
+        assert result.returncode == 1
+        assert "not found" in result.stderr.lower()
+
+
+class TestMigrateDirectoryShorthand:
+    """Tests for .beads/ directory shorthand."""
+
+    def test_accepts_directory_with_issues_jsonl(self, tmp_path):
+        """Accepts .beads/ directory and finds issues.jsonl inside."""
+        beads_dir = tmp_path / ".beads"
+        beads_dir.mkdir()
+        (beads_dir / "issues.jsonl").write_text(
+            '{"id": "proj-abc", "title": "Epic", "issue_type": "epic"}\n'
+        )
+
+        result = run_arc("migrate", "--from-beads", str(beads_dir), "--draft")
+
+        assert result.returncode == 0
+        manifest = yaml.safe_load(result.stdout)
+        assert len(manifest["outcomes"]) == 1
+
+    def test_error_directory_without_issues_jsonl(self, tmp_path):
+        """Errors when directory has no issues.jsonl."""
+        beads_dir = tmp_path / ".beads"
+        beads_dir.mkdir()
+
+        result = run_arc("migrate", "--from-beads", str(beads_dir), "--draft")
+
+        assert result.returncode == 1
+        assert "no issues.jsonl" in result.stderr

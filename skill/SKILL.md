@@ -79,7 +79,10 @@ arc new "title" --for PARENT --why W --what X --done D  # Create action
 arc done ID                  # Complete item (also unblocks waiters)
 arc wait ID REASON           # Mark as waiting
 arc unwait ID                # Clear waiting
-arc edit ID                  # Edit in $EDITOR
+arc edit ID --title T        # Change title
+arc edit ID --why/--what/--done  # Edit brief fields
+arc edit ID --parent P       # Reparent (use 'none' for standalone)
+arc edit ID --order N        # Reorder within parent
 arc status                   # Overview counts
 arc migrate --from-beads F --draft  # Generate migration manifest
 arc migrate --from-draft F   # Import completed manifest
@@ -94,8 +97,11 @@ Migration is a two-phase process — the tool extracts structure, you write prop
 ### Phase 1: Generate Draft Manifest
 
 ```bash
-bd export --format jsonl > beads-export.jsonl
+# From exported JSONL
 arc migrate --from-beads beads-export.jsonl --draft > manifest.yaml
+
+# Or directly from .beads/ directory
+arc migrate --from-beads .beads/ --draft > manifest.yaml
 ```
 
 This produces a YAML manifest with:
@@ -103,7 +109,17 @@ This produces a YAML manifest with:
 - **`_beads` context:** raw description/design/acceptance_criteria/notes for reference
 - **Empty `brief` placeholders:** you must fill why/what/done
 
-**Orphan actions are excluded.** Standalone tasks/bugs with no parent epic are reported but not included — they need an outcome to live under.
+**Orphan handling options:**
+```bash
+# Default: orphans excluded, listed in orphans_excluded section
+arc migrate --from-beads .beads/ --draft
+
+# Promote orphans to outcomes (empty children)
+arc migrate --from-beads .beads/ --draft --promote-orphans
+
+# Assign orphans to a specific parent outcome
+arc migrate --from-beads .beads/ --draft --orphan-parent proj-abc
+```
 
 **Field reports don't migrate.** Field reports (Claude-to-Claude knowledge transfer) aren't actionable work — they belong in skill docs, not a work tracker. Close them in beads rather than migrating.
 
@@ -189,6 +205,8 @@ arc new "Fix the API thing" --for arc-gaBdur
 
 ### Presenting Arc Items to User
 
+> **Output as text, not Bash.** Claude Code collapses Bash tool output >10 lines behind Ctrl+O, making it invisible. Read arc.txt and output the hierarchy directly in your response.
+
 Show hierarchy with outcomes (desired results) containing actions (concrete steps):
 
 ```
@@ -226,8 +244,9 @@ Which would you like to work on?
 
 **Between actions:**
 1. Complete current action: `arc done <id>`
-2. Check what's unblocked: `arc list --ready`
-3. If continuing, **draw-down the next action** before starting
+2. Check what's unblocked — run `arc list --ready > /tmp/arc-ready.txt` then Read that file, or just re-read the arc.txt context file if recently generated
+3. **Output the ready items as text** in your response (don't let Bash output be the only place it appears)
+4. If continuing, **draw-down the next action** before starting
 
 **The gap this fills:** Draw-down happens at session start because /open commands it. But mid-session transitions need the same discipline.
 
@@ -250,6 +269,7 @@ Every item needs all three flags — no shortcuts, no `--brief` flag:
 
 | Pattern | Problem | Fix |
 |---------|---------|-----|
+| Run `arc list` via Bash to show items | Output collapsed, user can't see | Output hierarchy as text in response |
 | Working without TodoWrite | No checkpoints, drift accumulates | Always draw-down |
 | Thin briefs | Next Claude can't execute | Write for zero-context reader |
 | Skipping draw-down on "continue" | Scope ambiguity | Always read brief, create todos |

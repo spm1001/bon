@@ -2,9 +2,7 @@
 import argparse
 import json
 import os
-import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import yaml
@@ -242,9 +240,9 @@ def cmd_show(args):
     # Brief
     brief = item.get("brief", {})
     if brief:
-        print(f"\n   Why: {brief.get('why', 'N/A')}")
-        print(f"   What: {brief.get('what', 'N/A')}")
-        print(f"   Done: {brief.get('done', 'N/A')}")
+        print(f"\n   --why: {brief.get('why', 'N/A')}")
+        print(f"   --what: {brief.get('what', 'N/A')}")
+        print(f"   --done: {brief.get('done', 'N/A')}")
 
     # For outcomes, show actions
     if item["type"] == "outcome":
@@ -407,8 +405,20 @@ def cmd_status(args):
 
 
 def cmd_edit(args):
-    """Edit item in $EDITOR."""
+    """Edit item fields via flags (no interactive editor)."""
     check_initialized()
+
+    # Require at least one edit flag
+    has_edit = any([
+        args.title,
+        args.parent is not None,
+        args.why,
+        args.what,
+        args.done,
+        args.order is not None,
+    ])
+    if not has_edit:
+        error("At least one edit flag required: --title, --parent, --why, --what, --done, --order")
 
     items = load_items()
     prefix = load_prefix()
@@ -417,52 +427,53 @@ def cmd_edit(args):
     if not item:
         error(f"Item '{args.id}' not found")
 
+    # Outcomes can't have parents
+    if args.parent is not None and item["type"] == "outcome":
+        error("Cannot set parent on outcome (only actions can have parents)")
+
+    # Make a copy to edit
+    edited = dict(item)
+    edited["brief"] = dict(item.get("brief", {}))
+
     old_order = item.get("order")
     old_parent = item.get("parent")
 
-    # Write to temp file as formatted JSON
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        json.dump(item, f, indent=2, ensure_ascii=False)
-        f.write('\n')
-        temp_path = f.name
+    # Apply edits
+    if args.title:
+        edited["title"] = args.title
+    if args.parent is not None:
+        # Special value "none" clears parent (makes standalone)
+        edited["parent"] = None if args.parent.lower() == "none" else args.parent
+    if args.why:
+        edited["brief"]["why"] = args.why
+    if args.what:
+        edited["brief"]["what"] = args.what
+    if args.done:
+        edited["brief"]["done"] = args.done
+    if args.order is not None:
+        edited["order"] = args.order
 
-    try:
-        # Open in editor
-        editor = os.environ.get("EDITOR", "vim")
-        result = subprocess.run([editor, temp_path])
-        if result.returncode != 0:
-            error(f"Editor exited with code {result.returncode}")
+    # Validate
+    validate_edit(item, edited, items, prefix)
 
-        # Read back
-        with open(temp_path) as f:
-            try:
-                edited = json.load(f)
-            except json.JSONDecodeError as e:
-                error(f"Invalid JSON: {e}")
+    new_parent = edited.get("parent")
+    new_order = edited.get("order")
 
-        # Validate
-        validate_edit(item, edited, items, prefix)
+    # Handle reparenting (closes gap in old parent, appends to new parent)
+    if old_parent != new_parent:
+        apply_reparent(items, edited, old_parent, new_parent)
+    # Handle reorder within same parent
+    elif old_order != new_order:
+        apply_reorder(items, edited, old_order, new_order)
 
-        new_parent = edited.get("parent")
-        new_order = edited.get("order")
+    # Update in list
+    for i, existing in enumerate(items):
+        if existing["id"] == item["id"]:
+            items[i] = edited
+            break
 
-        # Handle reparenting (closes gap in old parent, appends to new parent)
-        if old_parent != new_parent:
-            apply_reparent(items, edited, old_parent, new_parent)
-        # Handle reorder within same parent
-        elif old_order != new_order:
-            apply_reorder(items, edited, old_order, new_order)
-
-        # Update in list
-        for i, existing in enumerate(items):
-            if existing["id"] == item["id"]:
-                items[i] = edited
-                break
-
-        save_items(items)
-        print(f"Updated: {item['id']}")
-    finally:
-        os.unlink(temp_path)
+    save_items(items)
+    print(f"Updated: {item['id']}")
 
 
 def cmd_migrate(args):
@@ -478,20 +489,40 @@ def cmd_migrate(args):
     elif args.from_beads:
         if not args.draft:
             error("--from-beads requires --draft flag (direct migration not supported)")
-        migrate_to_draft(args.from_beads)
+
+        # Handle directory shorthand: if path is directory, look for issues.jsonl
+        beads_path = Path(args.from_beads)
+        if beads_path.is_dir():
+            issues_file = beads_path / "issues.jsonl"
+            if not issues_file.exists():
+                error(f"Directory '{args.from_beads}' has no issues.jsonl")
+            beads_path = issues_file
+
+        migrate_to_draft(
+            str(beads_path),
+            promote_orphans=args.promote_orphans,
+            orphan_parent=args.orphan_parent,
+        )
     else:
         error("Specify --from-beads FILE --draft or --from-draft FILE")
 
 
-def migrate_to_draft(beads_path: str):
+def migrate_to_draft(beads_path: str, promote_orphans: bool = False, orphan_parent: str | None = None):
     """Generate manifest YAML from beads export.
 
     Output structure:
     - outcomes (from epics) with nested children
     - _beads context preserved for Claude reference
     - empty brief placeholders to fill
-    - orphan actions reported but excluded
+
+    Orphan handling (standalone tasks with no parent epic):
+    - Default: excluded, listed in orphans_excluded
+    - --promote-orphans: convert to outcomes (empty children)
+    - --orphan-parent ID: assign to specified parent
     """
+    if promote_orphans and orphan_parent:
+        error("Cannot use both --promote-orphans and --orphan-parent")
+
     path = Path(beads_path)
     if not path.exists():
         error(f"File not found: {beads_path}")
@@ -576,16 +607,71 @@ def migrate_to_draft(beads_path: str):
 
         manifest["outcomes"].append(outcome)
 
-    # Record orphans (excluded from migration)
-    for orphan in orphans:
-        desc = orphan.get("description") or ""
-        context = desc[:80] + "..." if len(desc) > 80 else desc
-        manifest["orphans_excluded"].append({
-            "id": orphan["id"],
-            "title": orphan.get("title", "Untitled"),
-            "context": context if context else "(no description)",
-            "reason": "standalone action (no parent outcome)",
-        })
+    # Handle orphans based on flags
+    if promote_orphans:
+        # Convert orphans to outcomes (with no children)
+        for orphan in orphans:
+            outcome = {
+                "id": orphan["id"],
+                "title": orphan.get("title", "Untitled"),
+                "type": "outcome",
+                "status": "done" if orphan.get("status") == "closed" else "open",
+                "_beads": {
+                    "description": orphan.get("description") or "",
+                    "design": orphan.get("design") or "",
+                    "acceptance_criteria": orphan.get("acceptance_criteria") or "",
+                    "notes": orphan.get("notes") or "",
+                },
+                "brief": {
+                    "why": "",
+                    "what": "",
+                    "done": "",
+                },
+                "children": [],
+                "_promoted_from_orphan": True,
+            }
+            manifest["outcomes"].append(outcome)
+    elif orphan_parent:
+        # Validate parent exists in epics
+        parent_epic = next((e for e in epics if e["id"] == orphan_parent), None)
+        if not parent_epic:
+            error(f"Orphan parent '{orphan_parent}' not found in epics")
+
+        # Find the outcome in manifest and add orphans as children
+        for outcome in manifest["outcomes"]:
+            if outcome["id"] == orphan_parent:
+                for orphan in orphans:
+                    action = {
+                        "id": orphan["id"],
+                        "title": orphan.get("title", "Untitled"),
+                        "type": "action",
+                        "status": "done" if orphan.get("status") == "closed" else "open",
+                        "_beads": {
+                            "description": orphan.get("description") or "",
+                            "design": orphan.get("design") or "",
+                            "acceptance_criteria": orphan.get("acceptance_criteria") or "",
+                            "notes": orphan.get("notes") or "",
+                        },
+                        "brief": {
+                            "why": "",
+                            "what": "",
+                            "done": "",
+                        },
+                        "_adopted_orphan": True,
+                    }
+                    outcome["children"].append(action)
+                break
+    else:
+        # Default: record orphans as excluded
+        for orphan in orphans:
+            desc = orphan.get("description") or ""
+            context = desc[:80] + "..." if len(desc) > 80 else desc
+            manifest["orphans_excluded"].append({
+                "id": orphan["id"],
+                "title": orphan.get("title", "Untitled"),
+                "context": context if context else "(no description)",
+                "reason": "standalone action (no parent outcome)",
+            })
 
     # Output YAML
     print(yaml.dump(manifest, default_flow_style=False, allow_unicode=True, sort_keys=False))
@@ -595,7 +681,12 @@ def migrate_to_draft(beads_path: str):
     print(f"#   {len(manifest['outcomes'])} outcomes", file=sys.stderr)
     print(f"#   {sum(len(o['children']) for o in manifest['outcomes'])} actions", file=sys.stderr)
     if orphans:
-        print(f"#   {len(orphans)} orphans EXCLUDED (need parent outcome)", file=sys.stderr)
+        if promote_orphans:
+            print(f"#   {len(orphans)} orphans PROMOTED to outcomes", file=sys.stderr)
+        elif orphan_parent:
+            print(f"#   {len(orphans)} orphans ADOPTED by {orphan_parent}", file=sys.stderr)
+        else:
+            print(f"#   {len(orphans)} orphans EXCLUDED (use --promote-orphans or --orphan-parent)", file=sys.stderr)
 
 
 def migrate_from_draft(manifest_path: str):
@@ -776,8 +867,14 @@ def main():
     unwait_parser.set_defaults(func=cmd_unwait)
 
     # edit
-    edit_parser = subparsers.add_parser("edit", help="Edit item in $EDITOR")
+    edit_parser = subparsers.add_parser("edit", help="Edit item fields")
     edit_parser.add_argument("id", help="Item ID to edit")
+    edit_parser.add_argument("--title", help="New title")
+    edit_parser.add_argument("--parent", help="New parent ID (use 'none' to make standalone)")
+    edit_parser.add_argument("--why", help="New brief.why")
+    edit_parser.add_argument("--what", help="New brief.what")
+    edit_parser.add_argument("--done", help="New brief.done")
+    edit_parser.add_argument("--order", type=int, help="New order within parent")
     edit_parser.set_defaults(func=cmd_edit)
 
     # status
@@ -786,9 +883,11 @@ def main():
 
     # migrate
     migrate_parser = subparsers.add_parser("migrate", help="Migrate from beads")
-    migrate_parser.add_argument("--from-beads", metavar="FILE", help="Beads JSONL export file")
+    migrate_parser.add_argument("--from-beads", metavar="PATH", help="Beads JSONL file or .beads/ directory")
     migrate_parser.add_argument("--draft", action="store_true", help="Output manifest YAML for Claude to complete")
     migrate_parser.add_argument("--from-draft", metavar="FILE", help="Import completed manifest YAML")
+    migrate_parser.add_argument("--promote-orphans", action="store_true", help="Convert orphan tasks to outcomes")
+    migrate_parser.add_argument("--orphan-parent", metavar="ID", help="Assign orphans to this parent outcome")
     migrate_parser.set_defaults(func=cmd_migrate)
 
     # help

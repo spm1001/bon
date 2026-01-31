@@ -68,7 +68,7 @@ uv run arc done arc-ghijkl
 | `done ID` | Mark item complete |
 | `wait ID REASON` | Mark as waiting for something |
 | `unwait ID` | Clear waiting status |
-| `edit ID` | Edit item in $EDITOR |
+| `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
 

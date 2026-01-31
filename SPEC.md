@@ -341,7 +341,7 @@ arc show ID                       View item with actions
 arc list [--ready|--waiting|--all] List items (hierarchical)
 arc wait ID REASON                Mark as waiting
 arc unwait ID                     Clear waiting
-arc edit ID                       Edit in $EDITOR
+arc edit ID --flag VALUE          Edit item fields via flags
 arc status                        Overview
 arc init                          Initialize .arc/
 arc help                          Show help
@@ -574,45 +574,69 @@ def unwait(item_id: str):
 ### `arc edit`
 
 ```bash
-arc edit ID
+arc edit ID --flag VALUE [--flag VALUE ...]
 ```
 
-Opens item in `$EDITOR` as JSON. Saves changes back with validation.
+Edits item fields via flags. At least one flag required. No interactive editor.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--title T` | Change title |
+| `--why T` | Change brief.why |
+| `--what T` | Change brief.what |
+| `--done T` | Change brief.done |
+| `--parent ID` | Reparent to outcome (use `none` to make standalone) |
+| `--order N` | Change order within parent/siblings |
+
+**Examples:**
+
+```bash
+arc edit arc-abc --title "Better title"
+arc edit arc-abc --why "New reason" --what "New deliverable"
+arc edit arc-def --parent arc-xyz       # Move action to different outcome
+arc edit arc-def --parent none          # Make action standalone
+arc edit arc-abc --order 1              # Move to first position
+
+# Combined: retitle and update all brief fields at once
+arc edit arc-abc --title "Clearer name" --why "..." --what "..." --done "..."
+```
 
 ```python
-import subprocess
-import tempfile
-import json
+def edit(item_id: str, title=None, why=None, what=None, done=None, parent=None, order=None):
+    # Require at least one flag
+    if not any([title, why, what, done, parent is not None, order is not None]):
+        error("At least one edit flag required: --title, --parent, --why, --what, --done, --order")
 
-def edit(item_id: str):
     items = load_items()
     item = find_by_id(items, item_id)
     if not item:
         error(f"Item '{item_id}' not found")
 
-    old_order = item.get("order")  # Capture before edit
+    edited = dict(item)
+    edited["brief"] = dict(item.get("brief", {}))
+    old_order = item.get("order")
+    old_parent = item.get("parent")
 
-    # Write to temp file as formatted JSON
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-        json.dump(item, f, indent=2, ensure_ascii=False)
-        f.write('\n')
-        temp_path = f.name
-
-    # Open in editor
-    editor = os.environ.get("EDITOR", "vim")
-    subprocess.run([editor, temp_path], check=True)
-
-    # Read back
-    with open(temp_path) as f:
-        edited = json.load(f)
-    os.unlink(temp_path)
+    # Apply edits
+    if title: edited["title"] = title
+    if parent is not None:
+        edited["parent"] = None if parent.lower() == "none" else parent
+    if why: edited["brief"]["why"] = why
+    if what: edited["brief"]["what"] = what
+    if done: edited["brief"]["done"] = done
+    if order is not None: edited["order"] = order
 
     # Validate
     validate_edit(item, edited, items)
 
-    # Handle reorder if order changed
+    # Handle reparenting or reordering
+    new_parent = edited.get("parent")
     new_order = edited.get("order")
-    if old_order != new_order:
+    if old_parent != new_parent:
+        apply_reparent(items, edited, old_parent, new_parent)
+    elif old_order != new_order:
         apply_reorder(items, edited, old_order, new_order)
 
     # Update in list
@@ -623,30 +647,24 @@ def edit(item_id: str):
 
     save_items(items)
     print(f"Updated: {item_id}")
+```
 
+**Validation** (unchanged from previous version):
 
+```python
 def validate_edit(original: dict, edited: dict, all_items: list[dict]):
-    """Validate edited item. Raises error on invalid changes."""
-    # ID cannot change
+    """Validate edited item."""
     if edited.get("id") != original["id"]:
         error("Cannot change item ID")
-
-    # Type cannot change
     if edited.get("type") != original["type"]:
         error("Cannot change item type")
 
-    # Full validation including brief subfields
-    try:
-        validate_item(edited, strict=True)
-    except ValidationError as e:
-        error(str(e))
+    validate_item(edited, strict=True)
 
-    # Additional required fields for edit (beyond base validation)
     for field in ["order", "created_at", "created_by"]:
         if field not in edited:
             error(f"Missing required field: {field}")
 
-    # Parent must exist if specified
     if edited.get("parent"):
         parent = find_by_id(all_items, edited["parent"])
         if not parent:
@@ -1270,8 +1288,7 @@ arc new "Field Report: OAuth flaky under high load" \
   --done "Either fixed or filed as action under appropriate outcome"
 
 # Later, can attach to an outcome via arc edit
-arc edit arc-nePato
-# Add: "parent": "arc-gaBdur"
+arc edit arc-nePato --parent arc-gaBdur
 ```
 
 **Or promote observation to proper action:**
@@ -1458,9 +1475,10 @@ Standalone:
 | `arc wait X Y` where Y doesn't exist | Allowed — Y might be free text or future item |
 | `arc new --for X` where X is an action | Error: "Parent must be an outcome" |
 | `arc new --for X` where X doesn't exist | Error: "Parent '{X}' not found" |
-| `arc edit` changes ID | Error: "Cannot change item ID" |
-| `arc edit` changes type | Error: "Cannot change item type" |
-| `arc edit` removes brief subfield | Error: "Missing brief.{subfield}" |
+| `arc edit` with no flags | Error: "At least one edit flag required" |
+| `arc edit` on outcome with --parent | Error: "Cannot set parent on outcome" |
+| `arc edit` with --parent to non-outcome | Error: "Parent must be an outcome" |
+| `arc edit` with --parent to non-existent | Error: "Parent '{id}' not found" |
 | Duplicate IDs in JSONL | Undefined — generator should prevent |
 | Empty title | Error: "Title cannot be empty" |
 | Multi-line title | Normalized to single line (spaces replace newlines) |
@@ -1480,8 +1498,8 @@ All error messages use the format `Error: {message}` and exit with code 1.
 | `empty_title` | "Title cannot be empty" | Title is whitespace-only |
 | `brief_required` | "Brief required. Missing: {flags}" | Non-interactive without all brief flags |
 | `brief_field_empty` | "'{field}' cannot be empty" | Interactive prompt gets empty input |
-| `id_immutable` | "Cannot change item ID" | Edit attempts to change ID |
-| `type_immutable` | "Cannot change item type" | Edit attempts to change type |
+| `edit_no_flags` | "At least one edit flag required" | `arc edit ID` with no flags |
+| `outcome_no_parent` | "Cannot set parent on outcome" | `arc edit` --parent on outcome |
 | `missing_field` | "Missing required field: {field}" | Validation fails on load or edit |
 | `missing_brief_field` | "Missing brief.{subfield}" | Brief missing why/what/done |
 | `invalid_type` | "Invalid type: {type}" | Type not "outcome" or "action" |
@@ -1501,7 +1519,6 @@ None. Standard library only.
 
 - `argparse` (stdlib) — CLI parsing
 - `json` (stdlib) — Storage format
-- `tempfile` (stdlib) — For `arc edit`
 
 ### Performance Target
 
@@ -1669,7 +1686,7 @@ Commands:
   list [--ready|--waiting|--all] List items hierarchically
   wait ID REASON              Mark item as waiting
   unwait ID                   Clear waiting status
-  edit ID                     Edit in $EDITOR (JSON format)
+  edit ID --FLAGS             Edit item fields via flags
   status                      Show overview
   init [--prefix PREFIX]      Initialize .arc/
   help [COMMAND]              Show help
