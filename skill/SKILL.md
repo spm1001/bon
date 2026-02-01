@@ -1,6 +1,6 @@
 ---
 name: arc
-description: Lightweight work tracker for Claude-human collaboration using GTD vocabulary. Triggers on 'arc init', 'arc new', 'arc list', 'arc done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'waiting for', 'track this work', or when starting/finishing arc items. Use when tracking outcomes and actions across sessions. For single-session linear tasks, use TodoWrite directly.
+description: LOAD BEFORE running any arc CLI command. Orchestrates work tracking with draw-down workflow (arc show → TodoWrite → checkpoints) that prevents drift. Critical pattern - NEVER run 'arc list' via Bash (output collapses); instead Read arc.txt and output hierarchy as text. Triggers on 'arc init', 'arc new', 'arc list', 'arc done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .arc/ directory exists. (user)
 ---
 
 # Arc Work Tracking
@@ -67,6 +67,13 @@ If arc isn't in PATH, see README.md "Add to PATH" section for symlink/alias opti
 
 **The test:** If work will take >10 minutes, create arc items. If resuming after 2 weeks would be difficult without arc, use arc.
 
+## When NOT to Use This Skill
+
+- **No `.arc/` directory** — check with user before `arc init`
+- **Single-session linear tasks** — use TodoWrite directly
+- **Quick one-off actions** — just do them, no tracking needed
+- **Research/exploration** — tracking adds friction to discovery
+
 ## Core Commands
 
 ```bash
@@ -83,6 +90,9 @@ arc edit ID --title T        # Change title
 arc edit ID --why/--what/--done  # Edit brief fields
 arc edit ID --parent P       # Reparent (use 'none' for standalone)
 arc edit ID --order N        # Reorder within parent
+arc convert ID               # Action → outcome (preserves ID/metadata)
+arc convert ID --parent P    # Outcome → action under P
+arc convert ID --parent P --force  # Outcome with children → action (children become standalone)
 arc status                   # Overview counts
 arc migrate --from-beads F --draft  # Generate migration manifest
 arc migrate --from-draft F   # Import completed manifest
@@ -274,6 +284,31 @@ Every item needs all three flags — no shortcuts, no `--brief` flag:
 | Thin briefs | Next Claude can't execute | Write for zero-context reader |
 | Skipping draw-down on "continue" | Scope ambiguity | Always read brief, create todos |
 | Motor through without pauses | Miss direction changes | Checkpoint at each TodoWrite completion |
+
+## Reorganization with Convert
+
+When work evolves and classifications change, use `arc convert` instead of archive+recreate:
+
+```bash
+# Action that grew into an outcome
+arc convert arc-zoKte    # Action → outcome (preserves ID, metadata)
+
+# Outcome that should be part of another outcome
+arc convert arc-gaBdur --parent arc-tufeme   # Outcome → action
+
+# Outcome with children being reclassified
+arc convert arc-gaBdur --parent arc-tufeme --force  # Children become standalone
+```
+
+**When to use convert:**
+- Field reports identify misclassified items during real work
+- Scope changes — an action turns into a larger piece of work (promote to outcome)
+- Hierarchy changes — independent work becomes part of a bigger outcome
+
+**Why convert > archive+recreate:**
+- Preserves original ID (links in notes/handoffs stay valid)
+- Preserves created_at timestamp (history intact)
+- Single command vs two (no brief re-entry needed)
 
 ## Vocabulary Reference
 
