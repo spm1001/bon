@@ -736,6 +736,91 @@ def show(item_id: str):
    3. ○ Add logout (arc-haVone)
 ```
 
+### `arc convert`
+
+```bash
+arc convert ID [--parent PARENT] [--force]
+```
+
+Converts outcome↔action while preserving ID and metadata.
+
+**Action → Outcome:**
+```bash
+arc convert arc-zoKte
+```
+- Becomes a standalone outcome
+- `waiting_for` is removed (outcomes don't wait)
+- Order assigned among outcomes
+
+**Outcome → Action:**
+```bash
+arc convert arc-gaBdur --parent arc-tufeme
+```
+- `--parent` required: must specify which outcome it becomes a child of
+- `waiting_for` initialized to `null`
+- Order assigned at end of parent's actions
+
+**Outcome with children:**
+```bash
+arc convert arc-gaBdur --parent arc-tufeme --force
+```
+- `--force` required when outcome has children
+- Children become standalone actions (orphaned)
+- Useful for reorganization when hierarchies change
+
+**Preserved:** ID, title, brief, status, created_at, created_by
+**Changed:** type, parent, order, waiting_for (as appropriate)
+
+```python
+def convert(item_id: str, parent: str | None = None, force: bool = False):
+    items = load_items()
+    item = find_by_id(items, item_id)
+    if not item:
+        error(f"Item '{item_id}' not found")
+
+    if item["type"] == "outcome":
+        # Outcome → Action
+        if not parent:
+            error("Converting outcome to action requires --parent")
+
+        parent_item = find_by_id(items, parent)
+        if not parent_item or parent_item["type"] != "outcome":
+            error(f"Parent '{parent}' must be an existing outcome")
+
+        children = [i for i in items if i.get("parent") == item["id"]]
+        if children and not force:
+            error(f"Outcome has {len(children)} children. Use --force to make them standalone.")
+
+        # Orphan children
+        for child in children:
+            apply_reparent(items, child, item["id"], None)
+            child["parent"] = None
+
+        # Convert
+        item["type"] = "action"
+        item["parent"] = parent_item["id"]
+        item["waiting_for"] = None
+        apply_reparent(items, item, None, parent_item["id"])
+
+    else:  # Action → Outcome
+        if parent:
+            error("Converting action to outcome: don't specify --parent")
+
+        old_parent = item.get("parent")
+        item["type"] = "outcome"
+        item["parent"] = None
+        item.pop("waiting_for", None)
+        apply_reparent(items, item, old_parent, None)
+
+        # Assign order among outcomes
+        outcomes = [i for i in items if i["type"] == "outcome" and i["id"] != item["id"]]
+        max_order = max((o.get("order", 0) for o in outcomes), default=0)
+        item["order"] = max_order + 1
+
+    save_items(items)
+    print(f"Converted {item['id']} to {item['type']}")
+```
+
 ### `arc status`
 
 ```bash

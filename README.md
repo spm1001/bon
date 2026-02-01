@@ -69,6 +69,7 @@ uv run arc done arc-ghijkl
 | `wait ID REASON` | Mark as waiting for something |
 | `unwait ID` | Clear waiting status |
 | `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |
+| `convert ID [--parent P] [--force]` | Convert outcome↔action |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
 

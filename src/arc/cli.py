@@ -476,6 +476,68 @@ def cmd_edit(args):
     print(f"Updated: {item['id']}")
 
 
+def cmd_convert(args):
+    """Convert outcome↔action while preserving ID and metadata."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+    item = find_by_id(items, args.id, prefix)
+
+    if not item:
+        error(f"Item '{args.id}' not found")
+
+    if item["type"] == "outcome":
+        # Outcome → Action: requires --parent
+        if not args.parent:
+            error("Converting outcome to action requires --parent")
+
+        parent = find_by_id(items, args.parent, prefix)
+        if not parent:
+            error(f"Parent '{args.parent}' not found")
+        if parent["type"] != "outcome":
+            error(f"Parent must be an outcome, got {parent['type']}")
+
+        # Check for children
+        children = [i for i in items if i.get("parent") == item["id"]]
+        if children and not args.force:
+            error(f"Outcome has {len(children)} children. Use --force to make them standalone.")
+
+        # Orphan children (make standalone actions)
+        for child in children:
+            apply_reparent(items, child, item["id"], None)
+            child["parent"] = None
+
+        # Convert outcome → action
+        old_parent = None
+        new_parent = parent["id"]
+        item["type"] = "action"
+        item["parent"] = new_parent
+        item["waiting_for"] = None
+        apply_reparent(items, item, old_parent, new_parent)
+
+    else:  # action → outcome
+        if args.parent:
+            error("Converting action to outcome: don't specify --parent")
+
+        old_parent = item.get("parent")
+        item["type"] = "outcome"
+        item["parent"] = None
+        item.pop("waiting_for", None)
+        apply_reparent(items, item, old_parent, None)
+
+        # Assign order among outcomes (append at end)
+        outcomes = [i for i in items if i["type"] == "outcome" and i["id"] != item["id"]]
+        if outcomes:
+            max_order = max(o.get("order", 0) for o in outcomes)
+            item["order"] = max_order + 1
+        else:
+            item["order"] = 1
+
+    save_items(items)
+    print(f"Converted {item['id']} to {item['type']}")
+
+
 def cmd_migrate(args):
     """Migrate from beads to arc.
 
@@ -889,6 +951,14 @@ def main():
     migrate_parser.add_argument("--promote-orphans", action="store_true", help="Convert orphan tasks to outcomes")
     migrate_parser.add_argument("--orphan-parent", metavar="ID", help="Assign orphans to this parent outcome")
     migrate_parser.set_defaults(func=cmd_migrate)
+
+    # convert
+    convert_parser = subparsers.add_parser("convert", help="Convert outcome↔action")
+    convert_parser.add_argument("id", help="Item ID to convert")
+    convert_parser.add_argument("--parent", "-p", help="Parent outcome (required for outcome→action)")
+    convert_parser.add_argument("--force", "-f", action="store_true",
+                                help="Allow converting outcome with children (makes them standalone)")
+    convert_parser.set_defaults(func=cmd_convert)
 
     # help
     help_parser = subparsers.add_parser("help", help="Show help")
