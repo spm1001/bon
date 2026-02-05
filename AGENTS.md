@@ -53,7 +53,7 @@ src/arc/
 
 tests/            # pytest suite
 fixtures/         # JSONL snapshots
-skill/SKILL.md    # Claude Code integration
+arc/SKILL.md    # Claude Code integration
 ```
 
 ## Key Behaviors

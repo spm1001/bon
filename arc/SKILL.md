@@ -1,6 +1,6 @@
 ---
 name: arc
-description: LOAD BEFORE running any arc CLI command. Orchestrates work tracking with draw-down workflow (arc show → TodoWrite → checkpoints) that prevents drift. Critical pattern - NEVER run 'arc list' via Bash (output collapses); instead Read arc.txt and output hierarchy as text. Triggers on 'arc init', 'arc new', 'arc list', 'arc done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .arc/ directory exists. (user)
+description: Activate BEFORE running any arc CLI command. Enforces draw-down workflow (arc show → arc work → arc step) that prevents drift and tracks tactical progress. NEVER run 'arc list' via Bash (output collapses); instead Read arc.txt and output hierarchy as text. Triggers on 'arc init', 'arc new', 'arc list', 'arc done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .arc/ directory exists. (user)
 ---
 
 # Arc Work Tracking
@@ -28,22 +28,26 @@ These three fields are stored together as the item's "brief" — but you always 
 
 ## Quick Example: Draw-Down in Action
 
-```
+```bash
 arc show arc-zokte
 # --why: OAuth flow causing race conditions...
-# --what: 1. processes list command 2. --guard flag 3. --force flag
+# --what: 1. Add scope 2. Create processes module 3. Add CLI command 4. Add flags 5. Test
 # --done: Can see running processes, duplicates prevented
 
---> TodoWrite:
-1. Add script.processes scope to auth
-2. Create processes.py with list_processes()
-3. Add processes list command to CLI
-4. Add --guard/--force flags to run command
-5. Test: processes list shows running jobs
-6. Test: --guard aborts on duplicate
+arc work arc-zokte
+# → 1. Add scope [current]
+#   2. Create processes module
+#   3. Add CLI command
+#   4. Add flags
+#   5. Test
+
+# ... do the work ...
+arc step
+# ✓ 1. Add scope
+# → 2. Create processes module [current]
 ```
 
-Read the arc item → Break into TodoWrite checkpoints → Work with pauses. That's the pattern.
+Read the arc item → `arc work` activates tactical steps → `arc step` advances with pauses. That's the pattern.
 
 ## Running Arc
 
@@ -56,21 +60,20 @@ arc list                     # If arc is in PATH
 
 If arc isn't in PATH, see README.md "Add to PATH" section for symlink/alias options.
 
-## When to Use Arc vs TodoWrite
+## When to Use This Skill
 
-| Use Arc | Use TodoWrite |
-|---------|---------------|
-| Multi-session work | Single-session tasks |
-| Work needing handoff to future Claude | Immediate execution |
-| Complex outcomes with multiple actions | Linear step-by-step |
-| Creating work for others to pick up | Just need a checklist |
+| Track in Arc | Just do it |
+|-------------|------------|
+| Multi-session work | Quick single-step action |
+| Work needing handoff to future Claude | Research / exploration |
+| Complex outcomes with multiple actions | Trivial fix (typo, config tweak) |
+| Creating work for others to pick up | Side quest that'll be done in minutes |
 
-**The test:** If work will take >10 minutes, create arc items. If resuming after 2 weeks would be difficult without arc, use arc.
+**The test:** If the work has steps, use `arc work` to track them. If resuming after 2 weeks would be difficult without context, it needs an arc item.
 
 ## When NOT to Use This Skill
 
 - **No `.arc/` directory** — check with user before `arc init`
-- **Single-session linear tasks** — use TodoWrite directly
 - **Quick one-off actions** — just do them, no tracking needed
 - **Research/exploration** — tracking adds friction to discovery
 
@@ -108,68 +111,13 @@ All commands support `--json` for structured output. `arc new` supports `-q` for
 
 ## Migrating from Beads
 
-Migration is a two-phase process — the tool extracts structure, you write proper briefs.
-
-### Phase 1: Generate Draft Manifest
+Two-phase process: generate manifest, fill briefs, import. See [references/migration.md](references/migration.md) for full guide.
 
 ```bash
-# From exported JSONL
-arc migrate --from-beads beads-export.jsonl --draft > manifest.yaml
-
-# Or directly from .beads/ directory
-arc migrate --from-beads .beads/ --draft > manifest.yaml
+arc migrate --from-beads .beads/ --draft > manifest.yaml  # Phase 1: extract
+# ... fill why/what/done briefs in manifest.yaml ...
+arc migrate --from-draft manifest.yaml                     # Phase 2: import
 ```
-
-This produces a YAML manifest with:
-- **Structure preserved:** epics → outcomes, tasks → actions, parent relationships
-- **`_beads` context:** raw description/design/acceptance_criteria/notes for reference
-- **Empty `brief` placeholders:** you must fill why/what/done
-
-**Orphan handling options:**
-```bash
-# Default: orphans excluded, listed in orphans_excluded section
-arc migrate --from-beads .beads/ --draft
-
-# Promote orphans to outcomes (empty children)
-arc migrate --from-beads .beads/ --draft --promote-orphans
-
-# Assign orphans to a specific parent outcome
-arc migrate --from-beads .beads/ --draft --orphan-parent proj-abc
-```
-
-**Field reports don't migrate.** Field reports (Claude-to-Claude knowledge transfer) aren't actionable work — they belong in skill docs, not a work tracker. Close them in beads rather than migrating.
-
-### Phase 2: Complete Briefs and Import
-
-Review `manifest.yaml`. For each item, use `_beads` context to write proper briefs:
-
-```yaml
-- id: proj-abc
-  title: User Authentication
-  _beads:
-    description: Add OAuth to the app
-    design: Use passport.js with JWT
-    notes: "COMPLETED: research. NEXT: implement"
-  brief:
-    why: Users need secure, frictionless login    # ← Fill this
-    what: OAuth2 flow with Google/GitHub options  # ← Fill this
-    done: Users can login, tokens refresh correctly  # ← Fill this
-```
-
-Then import:
-
-```bash
-arc migrate --from-draft manifest.yaml
-```
-
-**Validation enforced:**
-- All briefs must be complete (why/what/done non-empty)
-- `.arc/` must not already exist
-- `_beads` context is stripped on import
-
-### Why This Pattern?
-
-Beads fields don't map cleanly to arc's opinionated brief structure. Rather than auto-generating weak briefs, the manifest pattern forces you to think about each item's why/what/done — resulting in items that future Claudes can actually execute.
 
 ## The Draw-Down Pattern
 
@@ -207,9 +155,44 @@ arc step
 - If you need to context-switch: `arc wait <id> "reason"` (clears tactical, re-plan on return)
 - Steps persist in `items.jsonl` — survives session crashes
 
-**The test:** If `--what` has numbered steps, use `arc work`. Otherwise, TodoWrite.
+**The test:** If `--what` has numbered steps, `arc work` parses them automatically. If not, formulate steps and pass them explicitly: `arc work ID "step1" "step2"`.
 
-**Why this matters:** TodoWrite is session-scoped and allows parallel work (drift risk). Tactical steps are arc-native, persist across sessions, and enforce serial execution.
+**Why this matters:** Tactical steps are arc-native, persist across sessions, enforce serial execution, and survive session crashes. A new Claude can pick up mid-step via `arc show --current`.
+
+### Enforcement: UserPromptSubmit Hook
+
+Without a hook, Claude must *choose* to run `arc step` — and may forget. The hook injects the current tactical step into every prompt, making it impossible to ignore.
+
+**Script** (`~/.claude/hooks/arc-tactical.sh`):
+```bash
+#!/bin/bash
+# Silent when: no .arc/, no active tactical, arc not in PATH.
+tactical=$(arc show --current 2>/dev/null)
+[ -z "$tactical" ] && exit 0
+escaped=$(echo "$tactical" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+cat <<EOF
+{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "🎯 Active arc tactical:\n${escaped}\n\nWork on the CURRENT step. Run 'arc step' when it's complete before moving on."}}
+EOF
+```
+
+**Hook config** (in `~/.claude/settings.json`):
+```json
+"UserPromptSubmit": [
+  {
+    "matcher": "",
+    "hooks": [
+      {
+        "type": "command",
+        "command": "$HOME/.claude/hooks/arc-tactical.sh"
+      }
+    ]
+  }
+]
+```
+
+**Why this works:** The hook output appears as a `<user-prompt-submit-hook>` system reminder — Claude treats hook output as informational context it can't dismiss. Every prompt carries the current step, creating persistent tactical awareness without Claude needing to remember to check.
+
+**When silent:** No `.arc/` directory, no active tactical steps, or `arc` not in PATH. Zero overhead outside arc projects.
 
 ## The Draw-Up Pattern
 
@@ -266,16 +249,7 @@ Which would you like to work on?
 
 ### After User Picks
 
-**STOP. Do the draw-down before writing any code:**
-
-1. `arc show <id>` — read the brief (why/what/done)
-2. `arc work <id>` — initialize tactical steps from `--what` (if numbered)
-   - Or `arc work <id> "step1" "step2"` with explicit steps
-3. Show user the steps: "Working through: [list]. Sound right?"
-4. `arc step` after each checkpoint — confirms direction
-5. Final step auto-completes the action
-
-**Fallback to TodoWrite** if `--what` isn't numbered and you don't want to provide explicit steps.
+**STOP. Do the draw-down before writing any code.** Follow the Draw-Down Pattern above: `arc show` → `arc work` → `arc step`. Show the user the steps before starting.
 
 ## Session Close Protocol
 
@@ -315,10 +289,10 @@ Every item needs all three flags — no shortcuts, no `--brief` flag:
 | Pattern | Problem | Fix |
 |---------|---------|-----|
 | Run `arc list` via Bash to show items | Output collapsed, user can't see | Output hierarchy as text in response |
-| Working without TodoWrite | No checkpoints, drift accumulates | Always draw-down |
+| Working without `arc work` | No checkpoints, drift accumulates | Always draw-down into tactical steps |
 | Thin briefs | Next Claude can't execute | Write for zero-context reader |
-| Skipping draw-down on "continue" | Scope ambiguity | Always read brief, create todos |
-| Motor through without pauses | Miss direction changes | Checkpoint at each TodoWrite completion |
+| Skipping draw-down on "continue" | Scope ambiguity | Always read brief, activate tactical |
+| Motor through without `arc step` | Miss direction changes | Run `arc step` after each completion |
 
 ## Reorganization with Convert
 

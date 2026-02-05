@@ -27,7 +27,7 @@ src/arc/
 
 tests/            # pytest suite, one file per command
 fixtures/         # JSONL snapshots for parametrized tests
-skill/SKILL.md    # Claude Code integration patterns
+arc/SKILL.md    # Claude Code integration patterns
 ```
 
 ## Data Model
@@ -129,7 +129,7 @@ save_items(items)                # Atomic write back
 | See expected outputs | `fixtures/*.jsonl` |
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
-| Update Claude integration | `skill/SKILL.md` |
+| Update Claude integration | `arc/SKILL.md` |
 
 ## Spec-Driven Development
 

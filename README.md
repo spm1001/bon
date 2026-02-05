@@ -180,10 +180,10 @@ Interactive mode prompts for these. Non-interactive requires all three flags.
 
 ## Claude Code Integration
 
-Arc includes a skill for Claude Code at `skill/SKILL.md`. Symlink to use:
+Arc includes a skill for Claude Code at `arc/SKILL.md`. Symlink to use:
 
 ```bash
-ln -s /path/to/arc/skill ~/.claude/skills/arc
+ln -s /path/to/arc/arc ~/.claude/skills/arc
 ```
 
 The skill teaches Claude:

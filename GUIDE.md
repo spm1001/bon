@@ -271,7 +271,7 @@ arc new "Polish" \
 ```bash
 arc new "Skill" \
   --why "CLI complete, need Claude workflow integration" \
-  --what "skill/SKILL.md with draw-down, draw-up patterns" \
+  --what "arc/SKILL.md with draw-down, draw-up patterns" \
   --done "Skill loads, describes arc workflow clearly"
 ```
 
