@@ -203,6 +203,7 @@ class TestMigrateStream:
 
 
 # CLI command tests
+import pytest
 import yaml
 from conftest import run_arc
 
@@ -581,6 +582,91 @@ class TestMigrateOrphanHandling:
 
         assert result.returncode == 1
         assert "not found" in result.stderr.lower()
+
+
+class TestOrphanFixtureScenarios:
+    """Tests using beads_with_orphans fixture for complex scenarios."""
+
+    @pytest.fixture
+    def beads_fixture(self, fixtures_dir):
+        """Load the beads_with_orphans fixture."""
+        return fixtures_dir / "beads_with_orphans.jsonl"
+
+    def test_default_excludes_multiple_orphans(self, beads_fixture):
+        """Default mode excludes all orphans."""
+        result = run_arc("migrate", "--from-beads", str(beads_fixture), "--draft")
+
+        assert result.returncode == 0
+        manifest = yaml.safe_load(result.stdout)
+
+        # 2 epics become outcomes
+        assert len(manifest["outcomes"]) == 2
+
+        # 3 orphans excluded
+        assert len(manifest["orphans_excluded"]) == 3
+        orphan_ids = {o["id"] for o in manifest["orphans_excluded"]}
+        assert orphan_ids == {"proj-orphan1", "proj-orphan2", "proj-orphan3"}
+
+    def test_promote_multiple_orphans(self, beads_fixture):
+        """--promote-orphans converts all orphans to outcomes."""
+        result = run_arc("migrate", "--from-beads", str(beads_fixture), "--draft",
+                        "--promote-orphans")
+
+        assert result.returncode == 0
+        manifest = yaml.safe_load(result.stdout)
+
+        # 2 epics + 3 promoted orphans = 5 outcomes
+        assert len(manifest["outcomes"]) == 5
+        assert len(manifest.get("orphans_excluded", [])) == 0
+
+        # Check promoted orphans have marker
+        promoted = [o for o in manifest["outcomes"] if o.get("_promoted_from_orphan")]
+        assert len(promoted) == 3
+
+        # Closed orphan preserves status
+        closed_orphan = next(o for o in manifest["outcomes"] if o["id"] == "proj-orphan3")
+        assert closed_orphan["status"] == "done"
+
+    def test_adopt_multiple_orphans(self, beads_fixture):
+        """--orphan-parent assigns all orphans to one outcome."""
+        result = run_arc("migrate", "--from-beads", str(beads_fixture), "--draft",
+                        "--orphan-parent", "proj-epic2")
+
+        assert result.returncode == 0
+        manifest = yaml.safe_load(result.stdout)
+
+        # Still 2 outcomes
+        assert len(manifest["outcomes"]) == 2
+        assert len(manifest.get("orphans_excluded", [])) == 0
+
+        # All 3 orphans adopted under proj-epic2
+        epic2 = next(o for o in manifest["outcomes"] if o["id"] == "proj-epic2")
+        adopted = [c for c in epic2["children"] if c.get("_adopted_orphan")]
+        assert len(adopted) == 3
+
+        # epic1 still has its original 2 children
+        epic1 = next(o for o in manifest["outcomes"] if o["id"] == "proj-epic1")
+        assert len(epic1["children"]) == 2
+
+    @pytest.mark.parametrize("mode,expected_outcomes,expected_orphans", [
+        ("default", 2, 3),
+        ("promote", 5, 0),
+        ("adopt", 2, 0),
+    ])
+    def test_orphan_modes_parametrized(self, beads_fixture, mode, expected_outcomes, expected_orphans):
+        """Parametrized test for orphan handling modes."""
+        args = ["migrate", "--from-beads", str(beads_fixture), "--draft"]
+        if mode == "promote":
+            args.append("--promote-orphans")
+        elif mode == "adopt":
+            args.extend(["--orphan-parent", "proj-epic1"])
+
+        result = run_arc(*args)
+
+        assert result.returncode == 0
+        manifest = yaml.safe_load(result.stdout)
+        assert len(manifest["outcomes"]) == expected_outcomes
+        assert len(manifest.get("orphans_excluded", [])) == expected_orphans
 
 
 class TestMigrateDirectoryShorthand:
