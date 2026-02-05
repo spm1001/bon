@@ -5,6 +5,29 @@ from arc.ids import DEFAULT_ORDER
 from arc.queries import filter_ready, filter_waiting
 
 
+def format_tactical(tactical: dict) -> str:
+    """Format tactical steps for display.
+
+    Uses markers:
+    - ✓ for completed steps (index < current)
+    - → for active step (index == current) with [current] suffix
+    - (space) for pending steps (index > current)
+    """
+    lines = []
+    steps = tactical.get("steps", [])
+    current = tactical.get("current", 0)
+
+    for i, step in enumerate(steps):
+        if i < current:
+            lines.append(f"✓ {i + 1}. {step}")
+        elif i == current:
+            lines.append(f"→ {i + 1}. {step} [current]")
+        else:
+            lines.append(f"  {i + 1}. {step}")
+
+    return "\n".join(lines)
+
+
 def format_json(items: list[dict]) -> str:
     """Format as nested JSON structure."""
     outcomes = []

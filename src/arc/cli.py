@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -20,9 +21,11 @@ from arc.storage import (
     validate_item,
     apply_reorder,
     apply_reparent,
+    find_active_tactical,
+    validate_tactical,
 )
 from arc.ids import generate_unique_id, next_order, DEFAULT_ORDER
-from arc.display import format_hierarchical, format_json, format_jsonl
+from arc.display import format_hierarchical, format_json, format_jsonl, format_tactical
 
 
 def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
@@ -209,6 +212,19 @@ def cmd_show(args):
 
     items = load_items()
     prefix = load_prefix()
+
+    # --current: show active tactical action (for hook injection)
+    if args.current:
+        active = find_active_tactical(items)
+        if not active:
+            return  # Silent exit 0, no output
+        print(f"Working: {active['title']} ({active['id']})")
+        print(format_tactical(active["tactical"]))
+        return
+
+    if not args.id:
+        error("Usage: arc show <id> or arc show --current")
+
     item = find_by_id(items, args.id, prefix)
 
     if not item:
@@ -243,6 +259,16 @@ def cmd_show(args):
         print(f"\n   --why: {brief.get('why', 'N/A')}")
         print(f"   --what: {brief.get('what', 'N/A')}")
         print(f"   --done: {brief.get('done', 'N/A')}")
+
+    # Tactical steps (actions only)
+    if item.get("tactical"):
+        tactical = item["tactical"]
+        total = len(tactical["steps"])
+        current = tactical["current"]
+        if current < total:
+            print(f"\n   Steps ({current}/{total}):")
+            for line in format_tactical(tactical).split("\n"):
+                print(f"   {line}")
 
     # For outcomes, show actions
     if item["type"] == "outcome":
@@ -300,6 +326,10 @@ def cmd_wait(args):
 
     if not item:
         error(f"Item '{args.id}' not found")
+
+    # Clear tactical if present (long blocks warrant re-planning)
+    if item.get("tactical"):
+        item.pop("tactical")
 
     item["waiting_for"] = args.reason
     save_items(items)
@@ -871,6 +901,127 @@ def add_output_flags(subparser, json=False, jsonl=False, quiet=False):
         subparser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
 
 
+def parse_steps_from_what(what: str) -> list[str] | None:
+    """Extract numbered steps from --what field.
+
+    Looks for patterns like "1. step" or "1) step".
+    Returns None if no numbered list found.
+    """
+    pattern = r'(\d+)[.)]\s*(.+?)(?=\s*\d+[.)]|$)'
+    matches = re.findall(pattern, what, re.DOTALL)
+    if not matches:
+        return None
+    steps = [m[1].strip() for m in matches if m[1].strip()]
+    return steps if steps else None
+
+
+def cmd_work(args):
+    """Initialize or manage tactical steps for an action."""
+    check_initialized()
+    items = load_items()
+    prefix = load_prefix()
+
+    # --status: show current tactical
+    if args.status:
+        active = find_active_tactical(items)
+        if not active:
+            print("No active tactical steps. Run `arc work <id>` to start.")
+            return
+        print(f"Working on: {active['title']} ({active['id']})")
+        print()
+        print(format_tactical(active["tactical"]))
+        return
+
+    # --clear: clear active tactical
+    if args.clear:
+        active = find_active_tactical(items)
+        if not active:
+            return  # Silent success
+        active.pop("tactical", None)
+        save_items(items)
+        print(f"Cleared tactical steps from {active['id']}")
+        return
+
+    # Initialize tactical for specific action
+    if not args.id:
+        error("Usage: arc work <id> [steps...] or arc work --status/--clear")
+
+    item = find_by_id(items, args.id, prefix)
+    if not item:
+        error(f"Item '{args.id}' not found")
+    if item["type"] != "outcome":
+        pass  # actions only check below
+    if item["type"] == "outcome":
+        error("Tactical steps only for actions, not outcomes")
+    if item["status"] == "done":
+        error(f"Action '{args.id}' is already complete")
+
+    # Check for other active tactical
+    active = find_active_tactical(items)
+    if active and active["id"] != item["id"]:
+        error(f"{active['id']} has active steps. Complete it, wait it, or run `arc work --clear`")
+
+    # Check for existing progress
+    existing = item.get("tactical")
+    if existing and existing.get("current", 0) > 0 and not args.force:
+        error(f"Steps in progress (step {existing['current'] + 1}). Run `arc work {args.id} --force` to restart")
+
+    # Get steps
+    if args.steps:
+        steps = args.steps
+    else:
+        what = item.get("brief", {}).get("what", "")
+        steps = parse_steps_from_what(what)
+        if not steps:
+            error("No numbered steps in --what. Provide explicit steps: arc work <id> 'step 1' 'step 2'")
+
+    # Validate
+    try:
+        validate_tactical({"steps": steps, "current": 0})
+    except ValidationError as e:
+        error(str(e))
+
+    # Set tactical
+    item["tactical"] = {"steps": steps, "current": 0}
+    save_items(items)
+
+    print(format_tactical(item["tactical"]))
+
+
+def cmd_step(args):
+    """Advance to next tactical step, auto-complete on final."""
+    check_initialized()
+    items = load_items()
+
+    active = find_active_tactical(items)
+    if not active:
+        error("No steps in progress. Run `arc work <id>` first")
+
+    tactical = active["tactical"]
+    current = tactical["current"]
+    steps = tactical["steps"]
+
+    # Advance
+    tactical["current"] = current + 1
+
+    # Check if complete
+    if tactical["current"] >= len(steps):
+        # Auto-complete the action
+        active["status"] = "done"
+        active["done_at"] = now_iso()
+        # Unblock waiters
+        for other in items:
+            if other.get("waiting_for") == active["id"]:
+                other["waiting_for"] = None
+        save_items(items)
+        print(format_tactical(tactical))
+        print(f"\nAction {active['id']} complete.")
+    else:
+        save_items(items)
+        print(format_tactical(tactical))
+        print(f"\nNext: {steps[tactical['current']]}")
+
+
 __version__ = "0.1.0"
 
 
@@ -908,7 +1059,8 @@ def main():
 
     # show
     show_parser = subparsers.add_parser("show", help="View item details")
-    show_parser.add_argument("id", help="Item ID to show")
+    show_parser.add_argument("id", nargs="?", help="Item ID to show")
+    show_parser.add_argument("--current", action="store_true", help="Show action with active tactical steps")
     add_output_flags(show_parser, json=True)
     show_parser.set_defaults(func=cmd_show)
 
@@ -942,6 +1094,19 @@ def main():
     # status
     status_parser = subparsers.add_parser("status", help="Show status overview")
     status_parser.set_defaults(func=cmd_status)
+
+    # work
+    work_parser = subparsers.add_parser("work", help="Manage tactical steps for an action")
+    work_parser.add_argument("id", nargs="?", help="Action ID to work on")
+    work_parser.add_argument("steps", nargs="*", help="Explicit steps (optional)")
+    work_parser.add_argument("--status", action="store_true", help="Show current tactical state")
+    work_parser.add_argument("--clear", action="store_true", help="Clear active tactical steps")
+    work_parser.add_argument("--force", action="store_true", help="Restart steps even if in progress")
+    work_parser.set_defaults(func=cmd_work)
+
+    # step
+    step_parser = subparsers.add_parser("step", help="Complete current step, advance to next")
+    step_parser.set_defaults(func=cmd_step)
 
     # migrate
     migrate_parser = subparsers.add_parser("migrate", help="Migrate from beads")

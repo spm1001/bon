@@ -64,11 +64,13 @@ uv run arc done arc-ghijkl
 | `init [--prefix P]` | Initialize `.arc/` directory |
 | `new TITLE [--for PARENT] --why W --what X --done D` | Create outcome or action |
 | `list [--ready\|--waiting\|--all]` | Show items hierarchically |
-| `show ID` | View item details and brief |
+| `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
 | `wait ID REASON` | Mark as waiting for something |
 | `unwait ID` | Clear waiting status |
 | `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |
+| `work ID [STEPS...] [--status\|--clear\|--force]` | Manage tactical steps for an action |
+| `step` | Complete current step, advance to next |
 | `convert ID [--parent P] [--force]` | Convert outcome↔action |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
@@ -102,6 +104,39 @@ arc list --all        # Include done items
 ```
 
 Use `--ready` to answer "what can I work on right now?" without clutter from blocked items.
+
+### Tactical Steps
+
+Track progress through an action's steps:
+
+```bash
+# Initialize steps (parses from --what if numbered)
+arc work arc-def
+
+# Or provide explicit steps
+arc work arc-def "Add scope" "Create module" "Test"
+
+# Advance to next step (auto-completes on final)
+arc step
+
+# Check current status
+arc work --status
+
+# Clear steps (e.g., to restructure)
+arc work --clear
+```
+
+**Output:**
+```
+✓ 1. Add scope
+→ 2. Create module [current]
+  3. Test
+```
+
+**Constraints:**
+- Only one action may have active steps at a time (serial execution)
+- `arc wait` clears tactical steps (long blocks warrant re-planning)
+- Final `arc step` auto-completes the action
 
 ## Data Model
 

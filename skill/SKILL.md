@@ -81,11 +81,17 @@ arc init --prefix myproj     # Initialize .arc/ with prefix
 arc list                     # Hierarchical view of open outcomes and actions
 arc list --ready             # Actions with no waiting_for (outcomes always shown)
 arc show ID                  # Full details including brief
+arc show --current           # Show action with active tactical steps (for hooks)
 arc new "title" --why W --what X --done D       # Create outcome
 arc new "title" --for PARENT --why W --what X --done D  # Create action
 arc done ID                  # Complete item (also unblocks waiters)
-arc wait ID REASON           # Mark as waiting
+arc wait ID REASON           # Mark as waiting (clears tactical steps)
 arc unwait ID                # Clear waiting
+arc work ID                  # Initialize tactical steps from --what (if numbered)
+arc work ID "step1" "step2"  # Initialize with explicit steps
+arc work --status            # Show current tactical state
+arc work --clear             # Clear tactical steps without completing
+arc step                     # Complete current step, advance to next
 arc edit ID --title T        # Change title
 arc edit ID --why/--what/--done  # Edit brief fields
 arc edit ID --parent P       # Reparent (use 'none' for standalone)
@@ -170,14 +176,39 @@ Beads fields don't map cleanly to arc's opinionated brief structure. Rather than
 **When you pick up an action to work on:**
 
 1. **Read the item:** `arc show <id>` — understand `--why`, `--what`, and `--done`
-2. **Create TodoWrite items** from `--what` and `--done` criteria
-3. **Show user the breakdown:** "I'm reading this as: [list]. Sound right?"
-4. **VERIFY:** TodoWrite is not empty before proceeding
-5. **Work through items with checkpoints** — pause at each completion to confirm direction
+2. **Initialize tactical steps:** `arc work <id>` — parses numbered steps from `--what`
+   - If `--what` has no numbers, provide explicit steps: `arc work <id> "Step 1" "Step 2"`
+3. **Work through with checkpoints:** `arc step` after each — pauses for confirmation
+4. **Final step auto-completes** the action
 
-**The test:** If work will take >10 minutes, it needs TodoWrite items.
+**Example:**
+```bash
+arc show arc-xyz
+# --why: Users hitting 429s during peak load
+# --what: 1. Add scope 2. Create rate limiter 3. Test
+# --done: 429s after 100 requests
 
-**Why this matters:** Without draw-down, you work from the arc item directly, context accumulates, and by close you've drifted. TodoWrite creates checkpoints where course-correction happens.
+arc work arc-xyz
+# → 1. Add scope [current]
+#   2. Create rate limiter
+#   3. Test
+
+# ... do the work ...
+arc step
+# ✓ 1. Add scope
+# → 2. Create rate limiter [current]
+#   3. Test
+# Next: Create rate limiter
+```
+
+**Constraints:**
+- Only one action may have active tactical steps at a time (serial execution)
+- If you need to context-switch: `arc wait <id> "reason"` (clears tactical, re-plan on return)
+- Steps persist in `items.jsonl` — survives session crashes
+
+**The test:** If `--what` has numbered steps, use `arc work`. Otherwise, TodoWrite.
+
+**Why this matters:** TodoWrite is session-scoped and allows parallel work (drift risk). Tactical steps are arc-native, persist across sessions, and enforce serial execution.
 
 ## The Draw-Up Pattern
 
@@ -237,10 +268,13 @@ Which would you like to work on?
 **STOP. Do the draw-down before writing any code:**
 
 1. `arc show <id>` — read the brief (why/what/done)
-2. Create TodoWrite items from `brief.what` and `brief.done`
-3. Show user: "Breaking this down into: [list]. Sound right?"
-4. **VERIFY:** TodoWrite is not empty
-5. Then start working
+2. `arc work <id>` — initialize tactical steps from `--what` (if numbered)
+   - Or `arc work <id> "step1" "step2"` with explicit steps
+3. Show user the steps: "Working through: [list]. Sound right?"
+4. `arc step` after each checkpoint — confirms direction
+5. Final step auto-completes the action
+
+**Fallback to TodoWrite** if `--what` isn't numbered and you don't want to provide explicit steps.
 
 ## Session Close Protocol
 

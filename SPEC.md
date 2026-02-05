@@ -154,6 +154,33 @@ All fields shown. **Bold** = required, others optional.
 | `created_at` | ✓ | ISO8601 | |
 | `created_by` | ✓ | string | |
 | `waiting_for` | | string or null | ID or free text |
+| `tactical` | | object or null | Step tracking (see below) |
+
+### The `tactical` Field
+
+Actions can have tactical steps for tracking progress through work. The `tactical` field is optional and only present when actively tracking steps.
+
+```json
+{
+  "tactical": {
+    "steps": ["Add scope", "Create rate limiter", "Test"],
+    "current": 1
+  }
+}
+```
+
+| Subfield | Type | Notes |
+|----------|------|-------|
+| `steps` | array of strings | Step descriptions |
+| `current` | integer | 0-indexed pointer to current step |
+
+**Progress derived from `current`:**
+- `index < current` → done
+- `index == current` → active
+- `index > current` → pending
+- `current == len(steps)` → all done (action auto-completed)
+
+**Invariant:** At most one action in `items.jsonl` may have `tactical` with `current < len(steps)` at any time. This enforces serial execution — only one action can be actively worked on at a time.
 
 ### The `brief` Field
 
@@ -331,16 +358,19 @@ Completed items retain their order. This preserves position for display (showing
 
 ## CLI Reference
 
-### Commands (10)
+### Commands (12)
 
 ```
 arc new "title" [--for PARENT] [--why W --what X --done D]
                                   Create outcome (or action if --for)
 arc done ID                       Complete item
-arc show ID                       View item with actions
+arc show ID [--current]           View item with actions (--current for active tactical)
 arc list [--ready|--waiting|--all] List items (hierarchical)
-arc wait ID REASON                Mark as waiting
+arc wait ID REASON                Mark as waiting (clears tactical)
 arc unwait ID                     Clear waiting
+arc work ID [STEPS...] [--status|--clear|--force]
+                                  Manage tactical steps for an action
+arc step                          Complete current step, advance to next
 arc edit ID --flag VALUE          Edit item fields via flags
 arc status                        Overview
 arc init                          Initialize .arc/
@@ -539,12 +569,18 @@ arc wait ID REASON
 
 REASON can be another item ID or free text.
 
+**Clears tactical steps.** If the item has active tactical steps, they are removed. Long blocks warrant re-planning when work resumes.
+
 ```python
 def wait(item_id: str, reason: str):
     items = load_items()
     item = find_by_id(items, item_id)
     if not item:
         error(f"Item '{item_id}' not found")
+
+    # Clear tactical if present (long blocks warrant re-planning)
+    if item.get("tactical"):
+        item.pop("tactical")
 
     item["waiting_for"] = reason
     save_items(items)
@@ -569,6 +605,157 @@ def unwait(item_id: str):
     item["waiting_for"] = None
     save_items(items)
     print(f"{item_id} no longer waiting")
+```
+
+### `arc work`
+
+```bash
+arc work ID [STEPS...]           # Initialize tactical steps
+arc work --status                # Show current tactical state
+arc work --clear                 # Clear tactical without completing
+arc work ID --force              # Restart steps even if in progress
+```
+
+Initializes tactical step tracking for an action. Steps can be parsed from `--what` (if numbered) or provided explicitly.
+
+**Serial execution enforced:** Only one action may have active tactical steps at a time.
+
+```python
+def work(item_id: str = None, steps: list[str] = None,
+         status: bool = False, clear: bool = False, force: bool = False):
+    items = load_items()
+    prefix = load_prefix()
+
+    # --status: show current tactical
+    if status:
+        active = find_active_tactical(items)
+        if not active:
+            print("No active tactical steps. Run `arc work <id>` to start.")
+            return
+        print(f"Working on: {active['title']} ({active['id']})")
+        print(format_tactical(active["tactical"]))
+        return
+
+    # --clear: clear active tactical
+    if clear:
+        active = find_active_tactical(items)
+        if active:
+            active.pop("tactical", None)
+            save_items(items)
+            print(f"Cleared tactical steps from {active['id']}")
+        return  # Silent success if no tactical
+
+    # Initialize tactical for specific action
+    if not item_id:
+        error("Usage: arc work <id> [steps...] or arc work --status/--clear")
+
+    item = find_by_id(items, item_id, prefix)
+    if not item:
+        error(f"Item '{item_id}' not found")
+    if item["type"] == "outcome":
+        error("Tactical steps only for actions, not outcomes")
+    if item["status"] == "done":
+        error(f"Action '{item_id}' is already complete")
+
+    # Check for other active tactical
+    active = find_active_tactical(items)
+    if active and active["id"] != item["id"]:
+        error(f"{active['id']} has active steps. Complete it, wait it, or run `arc work --clear`")
+
+    # Check for existing progress
+    existing = item.get("tactical")
+    if existing and existing.get("current", 0) > 0 and not force:
+        error(f"Steps in progress (step {existing['current'] + 1}). Run `arc work {item_id} --force` to restart")
+
+    # Get steps: explicit or parsed from --what
+    if not steps:
+        what = item.get("brief", {}).get("what", "")
+        steps = parse_steps_from_what(what)
+        if not steps:
+            error("No numbered steps in --what. Provide explicit steps: arc work <id> 'step 1' 'step 2'")
+
+    item["tactical"] = {"steps": steps, "current": 0}
+    save_items(items)
+    print(format_tactical(item["tactical"]))
+
+
+def parse_steps_from_what(what: str) -> list[str] | None:
+    """Extract numbered steps from --what field.
+
+    Pattern: digit(s) followed by . or ), captures until next number or end.
+    Returns None if no numbered list found.
+    """
+    pattern = r'(\d+)[.)]\s*(.+?)(?=\s*\d+[.)]|$)'
+    matches = re.findall(pattern, what, re.DOTALL)
+    if not matches:
+        return None
+    steps = [m[1].strip() for m in matches if m[1].strip()]
+    return steps if steps else None
+```
+
+**Output:**
+```
+→ 1. Add scope [current]
+  2. Create rate limiter
+  3. Test
+```
+
+### `arc step`
+
+```bash
+arc step
+```
+
+Completes current tactical step and advances to next. On final step, auto-completes the action.
+
+```python
+def step():
+    items = load_items()
+    active = find_active_tactical(items)
+    if not active:
+        error("No steps in progress. Run `arc work <id>` first")
+
+    tactical = active["tactical"]
+    current = tactical["current"]
+    steps = tactical["steps"]
+
+    # Advance
+    tactical["current"] = current + 1
+
+    # Check if complete
+    if tactical["current"] >= len(steps):
+        # Auto-complete the action
+        active["status"] = "done"
+        active["done_at"] = now_iso()
+        # Unblock waiters
+        for other in items:
+            if other.get("waiting_for") == active["id"]:
+                other["waiting_for"] = None
+        save_items(items)
+        print(format_tactical(tactical))
+        print(f"\nAction {active['id']} complete.")
+    else:
+        save_items(items)
+        print(format_tactical(tactical))
+        print(f"\nNext: {steps[tactical['current']]}")
+```
+
+**Output (mid-work):**
+```
+✓ 1. Add scope
+→ 2. Create rate limiter [current]
+  3. Test
+
+Next: Create rate limiter
+```
+
+**Output (final step):**
+```
+✓ 1. Add scope
+✓ 2. Create rate limiter
+✓ 3. Test
+
+Action arc-xyz complete.
 ```
 
 ### `arc edit`

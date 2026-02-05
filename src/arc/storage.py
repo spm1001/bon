@@ -227,3 +227,28 @@ def apply_reparent(items: list[dict], edited: dict, old_parent: str | None, new_
         edited["order"] = max_order + 1
     else:
         edited["order"] = 1
+
+
+def find_active_tactical(items: list[dict]) -> dict | None:
+    """Find the item with active tactical steps, or None.
+
+    Active means: has tactical field with current < len(steps).
+    """
+    for item in items:
+        tactical = item.get("tactical")
+        if tactical and tactical.get("current", 0) < len(tactical.get("steps", [])):
+            return item
+    return None
+
+
+def validate_tactical(tactical: dict) -> None:
+    """Validate tactical structure. Raises ValidationError if invalid."""
+    if not isinstance(tactical.get("steps"), list):
+        raise ValidationError("tactical.steps must be a list")
+    if not tactical["steps"]:
+        raise ValidationError("tactical.steps cannot be empty")
+    if not all(isinstance(s, str) for s in tactical["steps"]):
+        raise ValidationError("tactical.steps must contain strings")
+    current = tactical.get("current", 0)
+    if not isinstance(current, int) or current < 0:
+        raise ValidationError("tactical.current must be non-negative integer")
