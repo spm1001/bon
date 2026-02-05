@@ -1033,7 +1033,7 @@ def cmd_step(args):
         print(f"\nNext: {steps[tactical['current']]}")
 
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 def main():
