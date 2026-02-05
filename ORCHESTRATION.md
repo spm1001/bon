@@ -82,8 +82,8 @@ The fix-after-review loop caught bugs that tests missed.
 Used arc itself to track Phase 4:
 ```bash
 arc new "Phase 4: Skill" --why "..." --what "..." --done "..."
-arc new "Write SKILL.md" --for arc-gasoPe ...
-arc wait arc-CuzaMi arc-HuZuDe  # review waits for implementation
+arc new "Write SKILL.md" --for arc-gasope ...
+arc wait arc-cuzami arc-huzude  # review waits for implementation
 ```
 
 Subagents used `arc show` to read assignments, `arc done` to complete. The unblock mechanism worked automatically.

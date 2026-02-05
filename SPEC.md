@@ -96,7 +96,7 @@ All fields shown. **Bold** = required, others optional.
 **Outcome:**
 ```json
 {
-  "id": "arc-gaBdur",
+  "id": "arc-gabdur",
   "type": "outcome",
   "title": "Users can authenticate with GitHub",
   "brief": {
@@ -125,7 +125,7 @@ All fields shown. **Bold** = required, others optional.
 **Action:**
 ```json
 {
-  "id": "arc-zoKte",
+  "id": "arc-zokte",
   "type": "action",
   "title": "Add OAuth callback endpoint",
   "brief": {
@@ -134,7 +134,7 @@ All fields shown. **Bold** = required, others optional.
     "done": "Endpoint returns 200 with valid token, handles errors gracefully"
   },
   "status": "open",
-  "parent": "arc-gaBdur",
+  "parent": "arc-gabdur",
   "order": 1,
   "created_at": "2026-01-25T10:31:00Z",
   "created_by": "sameer",
@@ -271,7 +271,7 @@ CONSONANTS = "bcdfghjklmnprstvwz"  # No ambiguous: q, x, y
 VOWELS = "aeiou"
 
 def generate_id(prefix: str = "arc") -> str:
-    """Generate pronounceable ID like 'arc-gaBdur'."""
+    """Generate pronounceable ID like 'arc-gabdur'."""
     syllables = []
     for _ in range(3):
         c = random.choice(CONSONANTS)
@@ -554,7 +554,7 @@ def done(item_id: str):
 **`waiting_for` semantics:**
 
 The field can contain either:
-- An item ID (e.g., `"arc-miFola"`) — auto-clears when that item completes
+- An item ID (e.g., `"arc-mifola"`) — auto-clears when that item completes
 - Free text (e.g., `"security review approval"`) — must be manually cleared with `arc unwait`
 
 **How `arc done` distinguishes:** Exact string match against completed item's ID. If `waiting_for` matches, it clears. If not (free text), it remains.
@@ -908,7 +908,7 @@ def show(item_id: str):
 
 **Example output for outcome:**
 ```
-○ User authentication (arc-gaBdur)
+○ User authentication (arc-gabdur)
    Type: outcome
    Status: open
    Created: 2026-01-25T10:30:00Z by sameer
@@ -918,9 +918,9 @@ def show(item_id: str):
    Done: New dev can set up auth in < 10 minutes following the guide
 
    Actions:
-   1. ✓ Add OAuth endpoint (arc-zoKte)
-   2. ○ Add token refresh (arc-miFola) ⏳ arc-zoKte
-   3. ○ Add logout (arc-haVone)
+   1. ✓ Add OAuth endpoint (arc-zokte)
+   2. ○ Add token refresh (arc-mifola) ⏳ arc-zokte
+   3. ○ Add logout (arc-havone)
 ```
 
 ### `arc convert`
@@ -933,7 +933,7 @@ Converts outcome↔action while preserving ID and metadata.
 
 **Action → Outcome:**
 ```bash
-arc convert arc-zoKte
+arc convert arc-zokte
 ```
 - Becomes a standalone outcome
 - `waiting_for` is removed (outcomes don't wait)
@@ -941,7 +941,7 @@ arc convert arc-zoKte
 
 **Outcome → Action:**
 ```bash
-arc convert arc-gaBdur --parent arc-tufeme
+arc convert arc-gabdur --parent arc-tufeme
 ```
 - `--parent` required: must specify which outcome it becomes a child of
 - `waiting_for` initialized to `null`
@@ -949,7 +949,7 @@ arc convert arc-gaBdur --parent arc-tufeme
 
 **Outcome with children:**
 ```bash
-arc convert arc-gaBdur --parent arc-tufeme --force
+arc convert arc-gabdur --parent arc-tufeme --force
 ```
 - `--force` required when outcome has children
 - Children become standalone actions (orphaned)
@@ -1167,9 +1167,9 @@ This means an open outcome with some completed actions shows the full picture:
 **Edge case:** If all actions under an outcome are done but the outcome itself is still open, the outcome appears with all actions checked:
 
 ```
-○ User auth (arc-gaBdur)
-  1. ✓ Add endpoint (arc-zoKte)
-  2. ✓ Add UI (arc-miFola)
+○ User auth (arc-gabdur)
+  1. ✓ Add endpoint (arc-zokte)
+  2. ✓ Add UI (arc-mifola)
 ```
 
 This is user discipline — the tool doesn't auto-complete outcomes when actions finish.
@@ -1436,7 +1436,7 @@ This section describes how Claude should use arc items — the draw-down and dra
 
 **Example:**
 ```
-arc show arc-zoKte
+arc show arc-zokte
 # Why: OAuth flow causing race conditions...
 # What: 1. processes list command 2. --guard flag 3. --force flag
 # Done: Can see running processes, duplicates prevented
@@ -1464,7 +1464,7 @@ Each TodoWrite item is a checkpoint. When you complete item 3 and start item 4, 
 
 **Good draw-up:**
 ```bash
-arc new "Add rate limiting to API" --for arc-gaBdur \
+arc new "Add rate limiting to API" --for arc-gabdur \
   --why "Users hitting 429s during peak, server struggling under load" \
   --what "1. Redis-based rate limiter 2. 100 req/min per user 3. Retry-After header" \
   --done "Load test shows 429s after 100 requests, header present, Redis storing counts"
@@ -1472,7 +1472,7 @@ arc new "Add rate limiting to API" --for arc-gaBdur \
 
 **Bad draw-up (will fail):**
 ```bash
-arc new "Fix the API thing" --for arc-gaBdur
+arc new "Fix the API thing" --for arc-gabdur
 # Error: Brief required. Missing: --why, --what, --done
 ```
 
@@ -1510,11 +1510,11 @@ arc new "Fix the API thing" --for arc-gaBdur
 
 ```bash
 arc list                           # See outcomes with actions
-arc show arc-gaBdur                # Read the brief
+arc show arc-gabdur                # Read the brief
 # → Create TodoWrite from brief.what/done
 # → Work through todos
-arc done arc-zoKte                 # Complete action
-arc done arc-gaBdur                # Complete outcome (when all done)
+arc done arc-zokte                 # Complete action
+arc done arc-gabdur                # Complete outcome (when all done)
 
 # Commit
 git add .arc/ && git commit -m "arc: implement user search"
@@ -1528,24 +1528,24 @@ arc new "Deploy to production" \
   --what "Production deployment with rollback plan" \
   --done "Feature live and monitored for 24h"
 
-arc new "Run tests" --for arc-nePato \
+arc new "Run tests" --for arc-nepato \
   --why "Ensure quality before deploy" \
   --what "Full test suite pass" \
   --done "All tests green, coverage maintained"
 
-arc new "Get security review" --for arc-nePato \
+arc new "Get security review" --for arc-nepato \
   --why "Compliance requirement for production" \
   --what "Security team sign-off" \
   --done "Approval email received"
 
-arc wait arc-zoKte arc-miFola      # Tests wait for security review
+arc wait arc-zokte arc-mifola      # Tests wait for security review
 
 arc list
-# ○ Deploy to production (arc-nePato)
-#   1. ○ Get security review (arc-miFola)
-#   2. ○ Run tests (arc-zoKte) ⏳ arc-miFola
+# ○ Deploy to production (arc-nepato)
+#   1. ○ Get security review (arc-mifola)
+#   2. ○ Run tests (arc-zokte) ⏳ arc-mifola
 
-arc done arc-miFola                # Complete review → unblocks arc-zoKte
+arc done arc-mifola                # Complete review → unblocks arc-zokte
 ```
 
 ### Standalone Actions (Field Reports)
@@ -1560,17 +1560,17 @@ arc new "Field Report: OAuth flaky under high load" \
   --done "Either fixed or filed as action under appropriate outcome"
 
 # Later, can attach to an outcome via arc edit
-arc edit arc-nePato --parent arc-gaBdur
+arc edit arc-nepato --parent arc-gabdur
 ```
 
 **Or promote observation to proper action:**
 ```bash
-arc new "Fix OAuth race condition" --for arc-gaBdur \
-  --why "OAuth fails under concurrent load (see field report arc-nePato)" \
+arc new "Fix OAuth race condition" --for arc-gabdur \
+  --why "OAuth fails under concurrent load (see field report arc-nepato)" \
   --what "Add mutex or queue to prevent concurrent token refresh" \
   --done "100 concurrent requests complete without auth failures"
 
-arc done arc-nePato                                    # Dismiss the observation
+arc done arc-nepato                                    # Dismiss the observation
 ```
 
 ---
@@ -1614,7 +1614,7 @@ The `-tty` suffix indicates a human used arc directly in a terminal. Absence of 
 
 ## Test Fixtures
 
-**Note:** Fixture IDs (`arc-aaa`, `arc-bbb`) are simplified for readability. Production IDs follow the pronounceable pattern (`arc-gaBdur`).
+**Note:** Fixture IDs (`arc-aaa`, `arc-bbb`) are simplified for readability. Production IDs follow the pronounceable pattern (`arc-gabdur`).
 
 ### Fixture 1: Empty
 

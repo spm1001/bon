@@ -74,7 +74,7 @@ This is the dependency mechanism. Don't break it.
 
 ### Prefix-Tolerant ID Matching
 
-Users can type `gaBdur` instead of `arc-gaBdur`. The `find_by_id()` function handles this — always use it for lookups.
+Users can type `gabdur` instead of `arc-gabdur`. The `find_by_id()` function handles this — always use it for lookups.
 
 ### Atomic Writes
 

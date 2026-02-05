@@ -29,7 +29,7 @@ These three fields are stored together as the item's "brief" — but you always 
 ## Quick Example: Draw-Down in Action
 
 ```
-arc show arc-zoKte
+arc show arc-zokte
 # --why: OAuth flow causing race conditions...
 # --what: 1. processes list command 2. --guard flag 3. --force flag
 # --done: Can see running processes, duplicates prevented
@@ -222,7 +222,7 @@ arc step
 
 **Good draw-up:**
 ```bash
-arc new "Add rate limiting to API" --for arc-gaBdur \
+arc new "Add rate limiting to API" --for arc-gabdur \
   --why "Users hitting 429s during peak, server struggling under load" \
   --what "1. Redis-based rate limiter 2. 100 req/min per user 3. Retry-After header" \
   --done "Load test shows 429s after 100 requests, header present, Redis storing counts"
@@ -230,7 +230,7 @@ arc new "Add rate limiting to API" --for arc-gaBdur \
 
 **Bad draw-up (will fail):**
 ```bash
-arc new "Fix the API thing" --for arc-gaBdur
+arc new "Fix the API thing" --for arc-gabdur
 # Error: Brief required. Missing: --why, --what, --done
 ```
 
@@ -325,13 +325,13 @@ When work evolves and classifications change, use `arc convert` instead of archi
 
 ```bash
 # Action that grew into an outcome
-arc convert arc-zoKte    # Action → outcome (preserves ID, metadata)
+arc convert arc-zokte    # Action → outcome (preserves ID, metadata)
 
 # Outcome that should be part of another outcome
-arc convert arc-gaBdur --parent arc-tufeme   # Outcome → action
+arc convert arc-gabdur --parent arc-tufeme   # Outcome → action
 
 # Outcome with children being reclassified
-arc convert arc-gaBdur --parent arc-tufeme --force  # Children become standalone
+arc convert arc-gabdur --parent arc-tufeme --force  # Children become standalone
 ```
 
 **When to use convert:**

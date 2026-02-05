@@ -11,14 +11,11 @@ DEFAULT_ORDER = 999
 
 
 def generate_id(prefix: str = "arc") -> str:
-    """Generate pronounceable ID like 'arc-gaBdur'."""
+    """Generate pronounceable ID like 'arc-gabdur'."""
     syllables = []
     for _ in range(3):
         c = random.choice(CONSONANTS)
         v = random.choice(VOWELS)
-        # 30% chance to capitalize consonant
-        if random.random() < 0.3:
-            c = c.upper()
         syllables.append(c + v)
     return f"{prefix}-{''.join(syllables)}"
 

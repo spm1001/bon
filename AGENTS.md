@@ -59,7 +59,7 @@ skill/SKILL.md    # Claude Code integration
 ## Key Behaviors
 
 1. **Unblock on Done**: Marking an item done unblocks items waiting for it
-2. **Prefix-Tolerant IDs**: `gaBdur` and `arc-gaBdur` both work
+2. **Prefix-Tolerant IDs**: `gabdur` and `arc-gabdur` both work
 3. **Atomic Writes**: All saves go through `save_items()` (temp file + rename)
 
 ## Spec-Driven
