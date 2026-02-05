@@ -70,14 +70,29 @@ class TestWorkOutcomeErrors:
     """Test error when trying to add steps to outcome."""
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_outcome_errors(self, arc_dir_with_fixture, monkeypatch):
-        """arc work errors on outcomes."""
+    def test_work_outcome_errors_with_children(self, arc_dir_with_fixture, monkeypatch):
+        """arc work on outcome with children shows them."""
         monkeypatch.chdir(arc_dir_with_fixture)
 
         result = run_arc("work", "arc-aaa", "Step 1", cwd=arc_dir_with_fixture)
 
         assert result.returncode == 1
-        assert "Tactical steps only for actions" in result.stderr
+        assert "is an outcome" in result.stderr
+        assert "Tactical steps are for actions" in result.stderr
+        assert "Did you mean one of its actions?" in result.stderr
+        assert "arc-ccc" in result.stderr  # Shows child action
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_work_outcome_errors_no_children(self, arc_dir_with_fixture, monkeypatch):
+        """arc work on outcome without children suggests creating one."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("work", "arc-aaa", "Step 1", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 1
+        assert "is an outcome" in result.stderr
+        assert "No actions yet" in result.stderr
+        assert "arc new" in result.stderr
 
 
 class TestWorkSerialEnforcement:

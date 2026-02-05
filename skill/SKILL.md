@@ -88,7 +88,7 @@ arc done ID                  # Complete item (also unblocks waiters)
 arc wait ID REASON           # Mark as waiting (clears tactical steps)
 arc unwait ID                # Clear waiting
 arc work ID                  # Initialize tactical steps from --what (if numbered)
-arc work ID "step1" "step2"  # Initialize with explicit steps
+arc work ID "step1" "step2"  # Initialize with explicit steps (actions only, not outcomes)
 arc work --status            # Show current tactical state
 arc work --clear             # Clear tactical steps without completing
 arc step                     # Complete current step, advance to next
@@ -202,6 +202,7 @@ arc step
 ```
 
 **Constraints:**
+- **Actions only** — `arc work` on an outcome will error (suggests children or creating one)
 - Only one action may have active tactical steps at a time (serial execution)
 - If you need to context-switch: `arc wait <id> "reason"` (clears tactical, re-plan on return)
 - Steps persist in `items.jsonl` — survives session crashes

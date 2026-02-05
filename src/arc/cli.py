@@ -949,10 +949,22 @@ def cmd_work(args):
     item = find_by_id(items, args.id, prefix)
     if not item:
         error(f"Item '{args.id}' not found")
-    if item["type"] != "outcome":
-        pass  # actions only check below
     if item["type"] == "outcome":
-        error("Tactical steps only for actions, not outcomes")
+        # Helpful error: show child actions or suggest creating one
+        children = sorted(
+            [i for i in items if i.get("parent") == item["id"] and i["status"] == "open"],
+            key=lambda x: x.get("order", DEFAULT_ORDER)
+        )
+        msg = f"{item['id']} is an outcome. Tactical steps are for actions."
+        if children:
+            msg += "\n\nDid you mean one of its actions?"
+            for child in children[:5]:  # Limit to 5
+                msg += f"\n  {child['id']} — {child['title']}"
+            if len(children) > 5:
+                msg += f"\n  (+{len(children) - 5} more)"
+        else:
+            msg += f"\n\nNo actions yet. Create one:\n  arc new \"title\" --for {item['id']} --why \"...\" --what \"...\" --done \"...\""
+        error(msg)
     if item["status"] == "done":
         error(f"Action '{args.id}' is already complete")
 
