@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -157,7 +157,7 @@ def get_creator() -> str:
 
 def now_iso() -> str:
     """Current time in ISO8601 format."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def check_initialized() -> None:

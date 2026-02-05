@@ -1,6 +1,5 @@
 """Tests for arc show command."""
 import pytest
-
 from conftest import run_arc
 
 

@@ -2,7 +2,6 @@
 import json
 
 import pytest
-
 from conftest import run_arc
 
 
@@ -127,7 +126,7 @@ class TestEditReorder:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-bbb should now be order 1
         assert items["arc-bbb"]["order"] == 1
@@ -146,7 +145,7 @@ class TestEditReorder:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-aaa should now be order 2
         assert items["arc-aaa"]["order"] == 2
@@ -168,7 +167,7 @@ class TestEditReparent:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-ccc should now be under arc-bbb
         assert items["arc-ccc"]["parent"] == "arc-bbb"
@@ -202,8 +201,8 @@ class TestEditReparent:
 
         # Verify setup: arc-bbb (order 1), arc-ccc (order 2), new action (order 3)
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        actions_under_aaa = [json.loads(l) for l in lines
-                           if json.loads(l).get("parent") == "arc-aaa"]
+        actions_under_aaa = [json.loads(line) for line in lines
+                           if json.loads(line).get("parent") == "arc-aaa"]
         assert len(actions_under_aaa) == 3
 
         # Now reparent arc-ccc (order 2) to the new outcome
@@ -212,7 +211,7 @@ class TestEditReparent:
 
         # Check that the third action (was order 3) is now order 2
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         third_action = [i for i in items.values()
                        if i.get("parent") == "arc-aaa" and i["title"] == "Third action"][0]
@@ -241,7 +240,7 @@ class TestEditReparent:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-ccc"]["parent"] == empty_outcome_id
         assert items["arc-ccc"]["order"] == 1
@@ -257,7 +256,7 @@ class TestEditReparent:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-ccc should now be standalone (no parent)
         assert items["arc-ccc"].get("parent") is None

@@ -1,31 +1,30 @@
 """Arc CLI - main entry point."""
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
 
 import yaml
 
+from arc.display import format_hierarchical, format_json, format_jsonl, format_tactical
+from arc.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from arc.storage import (
-    load_items,
-    save_items,
-    load_prefix,
-    find_by_id,
-    get_creator,
-    now_iso,
-    error,
-    check_initialized,
     ValidationError,
-    validate_item,
     apply_reorder,
     apply_reparent,
+    check_initialized,
+    error,
     find_active_tactical,
+    find_by_id,
+    get_creator,
+    load_items,
+    load_prefix,
+    now_iso,
+    save_items,
+    validate_item,
     validate_tactical,
 )
-from arc.ids import generate_unique_id, next_order, DEFAULT_ORDER
-from arc.display import format_hierarchical, format_json, format_jsonl, format_tactical
 
 
 def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
@@ -769,7 +768,7 @@ def migrate_to_draft(beads_path: str, promote_orphans: bool = False, orphan_pare
     print(yaml.dump(manifest, default_flow_style=False, allow_unicode=True, sort_keys=False))
 
     # Summary to stderr
-    print(f"\n# Summary:", file=sys.stderr)
+    print("\n# Summary:", file=sys.stderr)
     print(f"#   {len(manifest['outcomes'])} outcomes", file=sys.stderr)
     print(f"#   {sum(len(o['children']) for o in manifest['outcomes'])} actions", file=sys.stderr)
     if orphans:

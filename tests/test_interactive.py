@@ -1,12 +1,10 @@
 """Tests for interactive mode (prompt_brief)."""
-import sys
-from io import StringIO
 from unittest.mock import patch
 
 import pytest
+from conftest import run_arc
 
 from arc.cli import prompt_brief
-from conftest import run_arc
 
 
 class TestPromptBrief:

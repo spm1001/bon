@@ -1,8 +1,6 @@
 """Tests for arc list command - snapshot tests against fixtures."""
 import pytest
-
 from conftest import run_arc
-
 
 # Expected outputs from SPEC.md
 EXPECTED_LIST_DEFAULT = {

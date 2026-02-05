@@ -2,7 +2,6 @@
 import json
 
 import pytest
-
 from conftest import run_arc
 
 
@@ -21,7 +20,7 @@ class TestConvertActionToOutcome:
         assert "Converted arc-ccc to outcome" in result.stdout
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-ccc"]["type"] == "outcome"
         assert items["arc-ccc"].get("parent") is None
@@ -37,7 +36,7 @@ class TestConvertActionToOutcome:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-aaa is outcome at order 1, arc-ccc should be at order 2
         assert items["arc-ccc"]["order"] == 2
@@ -52,7 +51,7 @@ class TestConvertActionToOutcome:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-bbb"]["type"] == "outcome"
         assert "waiting_for" not in items["arc-bbb"]
@@ -73,7 +72,7 @@ class TestConvertActionToOutcome:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-ccc was order 2, should now be order 1
         assert items["arc-ccc"]["order"] == 1
@@ -94,7 +93,7 @@ class TestConvertOutcomeToAction:
         assert "Converted arc-bbb to action" in result.stdout
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-bbb"]["type"] == "action"
         assert items["arc-bbb"]["parent"] == "arc-aaa"
@@ -112,7 +111,7 @@ class TestConvertOutcomeToAction:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-bbb should be at order 2 (after arc-ccc at order 1)
         assert items["arc-bbb"]["order"] == 2
@@ -207,7 +206,7 @@ class TestConvertWithChildren:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-aaa should be an action under arc-ddd
         assert items["arc-aaa"]["type"] == "action"
@@ -232,7 +231,7 @@ class TestConvertStandalone:
         assert "Converted arc-aaa to outcome" in result.stdout
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-aaa"]["type"] == "outcome"
         assert items["arc-aaa"].get("parent") is None
@@ -263,7 +262,7 @@ class TestConvertPrefixTolerance:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # Parent should be resolved to full ID
         assert items["arc-bbb"]["parent"] == "arc-aaa"
@@ -279,7 +278,7 @@ class TestConvertPreservesMetadata:
 
         # Get original brief
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        original = next(json.loads(l) for l in lines if json.loads(l)["id"] == "arc-ccc")
+        original = next(json.loads(line) for line in lines if json.loads(line)["id"] == "arc-ccc")
         original_brief = original["brief"]
 
         result = run_arc("convert", "arc-ccc", cwd=arc_dir_with_fixture)
@@ -287,7 +286,7 @@ class TestConvertPreservesMetadata:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-ccc"]["brief"] == original_brief
 
@@ -301,7 +300,7 @@ class TestConvertPreservesMetadata:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        ids = [json.loads(l)["id"] for l in lines]
+        ids = [json.loads(line)["id"] for line in lines]
 
         assert "arc-ccc" in ids
 
@@ -316,6 +315,6 @@ class TestConvertPreservesMetadata:
         assert result.returncode == 0
 
         lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        items = {json.loads(l)["id"]: json.loads(l) for l in lines}
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-bbb"]["status"] == "done"

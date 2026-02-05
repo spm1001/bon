@@ -1,8 +1,5 @@
 """Tests for arc init command."""
-import os
-from pathlib import Path
 
-import pytest
 
 from conftest import run_arc
 

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from arc.ids import generate_id, generate_unique_id, next_order, get_siblings
+from arc.ids import generate_id, generate_unique_id, next_order
 
 
 class TestGenerateId:

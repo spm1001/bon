@@ -1,9 +1,5 @@
 """Tests for arc new command."""
 import json
-import os
-from pathlib import Path
-
-import pytest
 
 from conftest import run_arc
 

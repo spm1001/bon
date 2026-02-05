@@ -24,4 +24,18 @@ pythonpath = ["src"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.9.0",
+]
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",   # Line length handled separately
+    "E402",   # Module import not at top (circular import workarounds)
+    "SIM108", # Ternary suggestions (readability preference)
+    "SIM117", # Nested with statements (clearer for pytest contexts)
 ]

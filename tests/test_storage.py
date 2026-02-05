@@ -1,17 +1,16 @@
 """Tests for storage operations."""
 import json
-from pathlib import Path
 
 import pytest
 
 from arc.storage import (
-    load_items,
-    save_items,
-    load_prefix,
-    find_by_id,
-    validate_item,
     ValidationError,
+    find_by_id,
+    load_items,
+    load_prefix,
     now_iso,
+    save_items,
+    validate_item,
 )
 
 

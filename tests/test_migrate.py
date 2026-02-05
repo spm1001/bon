@@ -4,12 +4,10 @@ import sys
 from io import StringIO
 from pathlib import Path
 
-import pytest
-
 # Add scripts directory to path for migrate module
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from migrate import migrate_item, migrate_stream, extract_parent
+from migrate import extract_parent, migrate_item, migrate_stream
 
 
 class TestExtractParent:
