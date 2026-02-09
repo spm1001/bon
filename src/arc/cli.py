@@ -34,9 +34,10 @@ def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
     Used by --json and --jsonl to respect filter flags.
     """
     if filter_mode == "ready":
-        # Open outcomes + ready actions only
+        # Open outcomes + ready and done actions (done shown for context)
         outcomes = [i for i in items if i["type"] == "outcome" and i["status"] == "open"]
-        actions = [i for i in items if i["type"] == "action" and i["status"] == "open" and not i.get("waiting_for")]
+        actions = [i for i in items if i["type"] == "action" and
+                   (i["status"] == "done" or (i["status"] == "open" and not i.get("waiting_for")))]
         return outcomes + actions
     elif filter_mode == "waiting":
         # Open outcomes + waiting actions only
@@ -1093,7 +1094,7 @@ def main():
     # new
     new_parser = subparsers.add_parser("new", help="Create outcome or action")
     new_parser.add_argument("title", help="Title for the item")
-    new_parser.add_argument("--for", dest="parent", help="Parent outcome ID (creates action)")
+    new_parser.add_argument("--outcome", "--for", dest="parent", help="Parent outcome ID (creates action)")
     new_parser.add_argument("--why", help="Brief: why are we doing this?")
     new_parser.add_argument("--what", help="Brief: what will we produce?")
     new_parser.add_argument("--done", help="Brief: how do we know it's done?")
@@ -1135,7 +1136,7 @@ def main():
     edit_parser = subparsers.add_parser("edit", help="Edit item fields")
     edit_parser.add_argument("id", help="Item ID to edit")
     edit_parser.add_argument("--title", help="New title")
-    edit_parser.add_argument("--parent", help="New parent ID (use 'none' to make standalone)")
+    edit_parser.add_argument("--outcome", "--parent", dest="parent", help="New parent outcome ID (use 'none' to make standalone)")
     edit_parser.add_argument("--why", help="New brief.why")
     edit_parser.add_argument("--what", help="New brief.what")
     edit_parser.add_argument("--done", help="New brief.done")
@@ -1171,7 +1172,7 @@ def main():
     # convert
     convert_parser = subparsers.add_parser("convert", help="Convert outcome↔action")
     convert_parser.add_argument("id", help="Item ID to convert")
-    convert_parser.add_argument("--parent", "-p", help="Parent outcome (required for outcome→action)")
+    convert_parser.add_argument("--outcome", "--parent", "-p", dest="parent", help="Parent outcome (required for outcome→action)")
     convert_parser.add_argument("--force", "-f", action="store_true",
                                 help="Allow converting outcome with children (makes them standalone)")
     convert_parser.set_defaults(func=cmd_convert)

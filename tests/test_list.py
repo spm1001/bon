@@ -43,9 +43,15 @@ Standalone:
 
 
 EXPECTED_LIST_READY = {
+    "outcome_with_actions": """\
+○ User auth (arc-aaa)
+  1. ✓ Add endpoint (arc-bbb)
+  2. ○ Add UI (arc-ccc)
+""",
+
     "waiting_dependency": """\
 ○ Deploy (arc-aaa)
-  1. ○ Security review (arc-ccc)
+  2. ○ Security review (arc-ccc)
   (+1 waiting)
 """,
 
@@ -96,11 +102,12 @@ class TestListReady:
     """Test arc list --ready."""
 
     @pytest.mark.parametrize("arc_dir_with_fixture,expected", [
+        ("outcome_with_actions", EXPECTED_LIST_READY["outcome_with_actions"]),
         ("waiting_dependency", EXPECTED_LIST_READY["waiting_dependency"]),
         ("all_waiting", EXPECTED_LIST_READY["all_waiting"]),
     ], indirect=["arc_dir_with_fixture"])
     def test_list_ready(self, arc_dir_with_fixture, expected, monkeypatch):
-        """arc list --ready shows only ready actions."""
+        """arc list --ready shows ready and done actions for context."""
         monkeypatch.chdir(arc_dir_with_fixture)
 
         result = run_arc("list", "--ready", cwd=arc_dir_with_fixture)

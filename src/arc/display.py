@@ -95,7 +95,11 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
 
         # Filter actions based on mode
         if filter_mode == "ready":
-            visible_actions = filter_ready(all_actions)
+            ready_actions = filter_ready(all_actions)
+            done_actions = [a for a in all_actions if a["status"] == "done"]
+            visible_actions = done_actions + ready_actions
+            # Re-sort by order to maintain original numbering
+            visible_actions.sort(key=lambda x: x.get("order", DEFAULT_ORDER))
             waiting_count = len(filter_waiting([a for a in all_actions if a["status"] == "open"]))
         elif filter_mode == "waiting":
             visible_actions = filter_waiting(all_actions)
@@ -105,8 +109,9 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
             visible_actions = all_actions
             waiting_count = 0
 
-        # Render visible actions
-        for idx, action in enumerate(visible_actions, 1):
+        # Render visible actions (use action's own order for numbering)
+        for action in visible_actions:
+            idx = action.get("order", DEFAULT_ORDER)
             if action["status"] == "done":
                 status_icon = "✓"
                 waiting_suffix = ""
