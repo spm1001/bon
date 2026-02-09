@@ -23,6 +23,7 @@ from arc.storage import (
     load_items,
     load_prefix,
     now_iso,
+    remove_from_archive,
     save_items,
     validate_item,
     validate_tactical,
@@ -674,25 +675,15 @@ def cmd_reopen(args):
     item = find_by_id(items, args.id, prefix)
 
     # Check archive if not found in active items
-    archived = load_archive()
-    archive_item = None
     if not item:
-        archive_item = find_by_id(archived, args.id, prefix)
+        archive_item = remove_from_archive(args.id, prefix)
         if archive_item:
             # Move back from archive to items
             archive_item["status"] = "open"
             archive_item.pop("done_at", None)
             archive_item.pop("archived_at", None)
             items.append(archive_item)
-            remaining_archive = [i for i in archived if i["id"] != archive_item["id"]]
             save_items(items)
-            # Rewrite archive atomically
-            path = Path(".arc/archive.jsonl")
-            tmp = path.with_suffix(".tmp")
-            with open(tmp, "w") as f:
-                for i in remaining_archive:
-                    f.write(json.dumps(i, ensure_ascii=False) + "\n")
-            tmp.rename(path)
             print(f"Reopened: {archive_item['id']} (restored from archive)")
             return
         error(f"Item '{args.id}' not found")

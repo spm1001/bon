@@ -288,6 +288,27 @@ def append_archive(items: list[dict]) -> None:
     tmp.rename(path)  # Atomic on POSIX
 
 
+def remove_from_archive(item_id: str, prefix: str | None = None) -> dict | None:
+    """Remove an item from archive.jsonl by ID. Returns the item, or None if not found.
+
+    Rewrites archive atomically (same pattern as save_items).
+    """
+    archived = load_archive()
+    item = find_by_id(archived, item_id, prefix)
+    if not item:
+        return None
+
+    remaining = [i for i in archived if i["id"] != item["id"]]
+    path = Path(".arc/archive.jsonl")
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "w") as f:
+        for i in remaining:
+            f.write(json.dumps(i, ensure_ascii=False) + "\n")
+    tmp.rename(path)
+
+    return item
+
+
 def validate_tactical(tactical: dict) -> None:
     """Validate tactical structure. Raises ValidationError if invalid."""
     if not isinstance(tactical.get("steps"), list):
