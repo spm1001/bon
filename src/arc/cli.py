@@ -19,6 +19,7 @@ from arc.storage import (
     find_active_tactical,
     find_by_id,
     get_creator,
+    load_archive,
     load_items,
     load_prefix,
     now_iso,
@@ -662,6 +663,67 @@ def cmd_archive(args):
         print(f"  {item['id']} — {item['title']}")
 
 
+def cmd_log(args):
+    """Show recent activity feed."""
+    check_initialized()
+
+    items = load_items()
+    archived = load_archive()
+    all_items = items + archived
+    limit = args.limit
+
+    # Build events from timestamps
+    events = []
+    for item in all_items:
+        if item.get("created_at"):
+            events.append({
+                "time": item["created_at"],
+                "verb": "created",
+                "item": item,
+            })
+        if item.get("done_at"):
+            events.append({
+                "time": item["done_at"],
+                "verb": "completed",
+                "item": item,
+            })
+        if item.get("archived_at"):
+            events.append({
+                "time": item["archived_at"],
+                "verb": "archived",
+                "item": item,
+            })
+
+    # Sort newest first
+    events.sort(key=lambda e: e["time"], reverse=True)
+
+    if limit:
+        events = events[:limit]
+
+    if not events:
+        print("No activity yet.")
+        return
+
+    if args.json:
+        log_entries = []
+        for e in events:
+            log_entries.append({
+                "time": e["time"],
+                "verb": e["verb"],
+                "id": e["item"]["id"],
+                "title": e["item"]["title"],
+                "type": e["item"]["type"],
+            })
+        print(json.dumps(log_entries, indent=2, ensure_ascii=False))
+        return
+
+    for e in events:
+        # Compact timestamp: strip seconds and Z for readability
+        t = e["time"][:16].replace("T", " ")
+        icon = {"created": "+", "completed": "✓", "archived": "⌂"}[e["verb"]]
+        print(f"  {icon} {t}  {e['verb']} {e['item']['title']} ({e['item']['id']})")
+
+
 def cmd_migrate(args):
     """Migrate from beads to arc.
 
@@ -1243,6 +1305,12 @@ def main():
     archive_parser.add_argument("ids", nargs="*", help="Item IDs to archive")
     archive_parser.add_argument("--all", action="store_true", help="Archive all done items")
     archive_parser.set_defaults(func=cmd_archive)
+
+    # log
+    log_parser = subparsers.add_parser("log", help="Show recent activity")
+    log_parser.add_argument("-n", "--limit", type=int, default=20, help="Number of events (default: 20)")
+    add_output_flags(log_parser, json=True)
+    log_parser.set_defaults(func=cmd_log)
 
     # help
     help_parser = subparsers.add_parser("help", help="Show help")
