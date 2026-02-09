@@ -89,8 +89,8 @@ class TestNewAction:
 
         # Verify action
         lines = (arc_dir / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        action = json.loads(lines[1])
-        assert action["type"] == "action"
+        items = [json.loads(line) for line in lines]
+        action = next(i for i in items if i["type"] == "action")
         assert action["parent"] == outcome_id
         assert action["waiting_for"] is None
 
@@ -118,7 +118,8 @@ class TestNewAction:
 
         run_arc("new", "Action", "--outcome", outcome_id, "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
         lines = (arc_dir / ".arc" / "items.jsonl").read_text().strip().split("\n")
-        action_id = json.loads(lines[1])["id"]
+        items = [json.loads(line) for line in lines]
+        action_id = next(i for i in items if i["type"] == "action")["id"]
 
         # Try to create action under action
         result = run_arc(

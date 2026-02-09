@@ -24,12 +24,16 @@ def warn(message: str) -> None:
 
 
 def load_items() -> list[dict]:
-    """Load all items from JSONL with validation."""
+    """Load all items from JSONL with validation.
+
+    Deduplicates by ID (last occurrence wins). This handles union merge
+    artifacts where git keeps both old and new versions of an edited line.
+    """
     path = Path(".arc/items.jsonl")
     if not path.exists():
         return []
 
-    items = []
+    seen: dict[str, dict] = {}  # id -> item (last wins)
     for line_num, line in enumerate(path.read_text().splitlines(), 1):
         line = line.strip()
         if not line:
@@ -37,11 +41,11 @@ def load_items() -> list[dict]:
         try:
             item = json.loads(line)
             validate_item(item)
-            items.append(item)
+            seen[item["id"]] = item
         except (json.JSONDecodeError, ValidationError) as e:
             print(f"Warning: Skipping malformed item on line {line_num}: {e}", file=sys.stderr)
 
-    return items
+    return list(seen.values())
 
 
 def validate_item(item: dict, strict: bool = False) -> None:
@@ -74,12 +78,16 @@ def validate_item(item: dict, strict: bool = False) -> None:
 
 
 def save_items(items: list[dict]) -> None:
-    """Save items atomically."""
+    """Save items atomically, sorted by ID for deterministic output.
+
+    Deterministic order means two branches that touch different items
+    produce minimal diffs, enabling clean git merges.
+    """
     path = Path(".arc/items.jsonl")
     tmp = path.with_suffix(".tmp")
 
     with open(tmp, "w") as f:
-        for item in items:
+        for item in sorted(items, key=lambda i: i.get("id", "")):
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     tmp.rename(path)  # Atomic on POSIX

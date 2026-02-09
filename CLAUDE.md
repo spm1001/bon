@@ -4,7 +4,7 @@ Guidance for working on arc (the codebase, not with arc).
 
 ## What This Is
 
-Arc is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 13 commands, ~1000 LOC core, 263 tests.
+Arc is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 16 commands, ~1000 LOC core, 246 tests.
 
 ## Quick Commands
 
@@ -80,6 +80,21 @@ Users can type `gabdur` instead of `arc-gabdur`. The `find_by_id()` function han
 
 `save_items()` writes to `.tmp` then renames. Don't bypass this.
 
+### Merge-Friendly Storage
+
+`save_items()` sorts by ID before writing, producing deterministic line order.
+`.gitattributes` uses `merge=union` for `.arc/*.jsonl` so concurrent branches
+that touch different items merge cleanly. `load_items()` deduplicates by ID
+(last occurrence wins) to handle union merge artifacts where both old and new
+versions of an edited line survive.
+
+**What merges cleanly:** Two branches adding different items. Two branches
+editing different items (when 3+ unchanged lines separate them).
+
+**What still conflicts:** Two branches editing the same item, or editing
+adjacent items. This is acceptable — it means two sessions touched the same
+work, which needs human resolution anyway.
+
 ## Testing Patterns
 
 **Fixtures** (`fixtures/*.jsonl`): Snapshot data for parametrized tests
@@ -116,6 +131,7 @@ save_items(items)                # Atomic write back
 |--------|-----|
 | Forgetting `check_initialized()` | Add at command start |
 | Direct file writes | Use `save_items()` for atomicity |
+| Reading JSONL by line position | Items are sorted by ID, not insertion order. Find by type/ID, not `lines[N]` |
 | Case-sensitive ID lookup | Use `find_by_id()` with prefix |
 | Breaking unblock-on-done | Test with `waiting_dependency` fixture |
 | Standalone actions forgotten | Check items where `parent` is None |

@@ -1,0 +1,4 @@
+# JSONL files use union merge: each line is independent, so concurrent
+# additions to different lines merge cleanly. Same-line edits still
+# conflict (acceptable — means two sessions edited the same item).
+.arc/*.jsonl merge=union
