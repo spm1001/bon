@@ -92,6 +92,34 @@ class TestShowErrors:
         assert "Not initialized" in result.stderr
 
 
+class TestShowCurrent:
+    """Test arc show --current with active tactical steps."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_show_current_with_active_tactical(self, arc_dir_with_fixture, monkeypatch):
+        """arc show --current outputs working line and tactical steps."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("show", "--current", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "Working: Test action with steps (arc-child)" in result.stdout
+        # Step 1 (index 0) completed, step 2 (index 1) current, step 3 pending
+        assert "✓ 1. Step one" in result.stdout
+        assert "→ 2. Step two [current]" in result.stdout
+        assert "3. Step three" in result.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_show_current_no_active_tactical(self, arc_dir_with_fixture, monkeypatch):
+        """arc show --current silently exits when no tactical steps active."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("show", "--current", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+
 class TestShowPrefixTolerant:
     """Test prefix-tolerant ID matching."""
 
