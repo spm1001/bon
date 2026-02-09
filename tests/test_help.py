@@ -26,7 +26,7 @@ class TestHelpBasic:
 
         assert result.returncode == 0
         assert "new" in result.stdout.lower()
-        assert "--for" in result.stdout
+        assert "--outcome" in result.stdout
         assert "--why" in result.stdout
 
     def test_help_unknown_command(self, tmp_path, monkeypatch):

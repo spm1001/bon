@@ -77,10 +77,10 @@ class TestNewAction:
         items = (arc_dir / ".arc" / "items.jsonl").read_text().strip()
         outcome_id = json.loads(items)["id"]
 
-        # Create action under it
+        # Create action under it (--outcome is primary flag)
         result = run_arc(
             "new", "Child action",
-            "--for", outcome_id,
+            "--outcome", outcome_id,
             "--why", "w", "--what", "x", "--done", "d",
             cwd=arc_dir
         )
@@ -100,7 +100,7 @@ class TestNewAction:
 
         result = run_arc(
             "new", "Orphan",
-            "--for", "arc-nonexistent",
+            "--outcome", "arc-nonexistent",
             "--why", "w", "--what", "x", "--done", "d",
             cwd=arc_dir
         )
@@ -116,14 +116,14 @@ class TestNewAction:
         run_arc("new", "Outcome", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
         outcome_id = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())["id"]
 
-        run_arc("new", "Action", "--for", outcome_id, "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
+        run_arc("new", "Action", "--outcome", outcome_id, "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
         lines = (arc_dir / ".arc" / "items.jsonl").read_text().strip().split("\n")
         action_id = json.loads(lines[1])["id"]
 
         # Try to create action under action
         result = run_arc(
             "new", "Nested",
-            "--for", action_id,
+            "--outcome", action_id,
             "--why", "w", "--what", "x", "--done", "d",
             cwd=arc_dir
         )
@@ -185,7 +185,7 @@ class TestOutcomeLanguageLint:
 
         result = run_arc(
             "new", "Implement the callback endpoint",
-            "--for", outcome_id,
+            "--outcome", outcome_id,
             "--why", "w", "--what", "x", "--done", "d",
             cwd=arc_dir
         )

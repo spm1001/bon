@@ -45,7 +45,7 @@ uv run arc new "Users can export data" \
 
 # Add actions to that outcome
 uv run arc new "Add export button to toolbar" \
-  --for arc-abcdef \
+  --outcome arc-abcdef \
   --why "Entry point for export flow" \
   --what "Button in toolbar, opens format picker" \
   --done "Button visible, click opens modal"
@@ -62,7 +62,7 @@ uv run arc done arc-ghijkl
 | Command | Description |
 |---------|-------------|
 | `init [--prefix P]` | Initialize `.arc/` directory |
-| `new TITLE [--for PARENT] --why W --what X --done D` | Create outcome or action |
+| `new TITLE [--outcome PARENT] --why W --what X --done D` | Create outcome or action |
 | `list [--ready\|--waiting\|--all]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
@@ -71,7 +71,7 @@ uv run arc done arc-ghijkl
 | `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |
 | `work ID [STEPS...] [--status\|--clear\|--force]` | Manage tactical steps for an action |
 | `step` | Complete current step, advance to next |
-| `convert ID [--parent P] [--force]` | Convert outcome↔action |
+| `convert ID [--outcome P] [--force]` | Convert outcome↔action |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
 

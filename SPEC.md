@@ -361,8 +361,8 @@ Completed items retain their order. This preserves position for display (showing
 ### Commands (12)
 
 ```
-arc new "title" [--for PARENT] [--why W --what X --done D]
-                                  Create outcome (or action if --for)
+arc new "title" [--outcome PARENT] [--why W --what X --done D]
+                                  Create outcome (or action if --outcome)
 arc done ID                       Complete item
 arc show ID [--current]           View item with actions (--current for active tactical)
 arc list [--ready|--waiting|--all] List items (hierarchical)
@@ -408,10 +408,10 @@ def init(prefix: str = "arc"):
 ### `arc new`
 
 ```bash
-arc new "title" [--for PARENT] [--why WHY] [--what WHAT] [--done DONE]
+arc new "title" [--outcome PARENT] [--why WHY] [--what WHAT] [--done DONE]
 ```
 
-Creates outcome (default) or action (if `--for`).
+Creates outcome (default) or action (if `--outcome`). Aliases: `--for`, `--parent`.
 
 **Brief is required.** Either:
 - Interactive: prompted for why/what/done (must provide non-empty answers)
@@ -926,7 +926,7 @@ def show(item_id: str):
 ### `arc convert`
 
 ```bash
-arc convert ID [--parent PARENT] [--force]
+arc convert ID [--outcome PARENT] [--force]
 ```
 
 Converts outcome↔action while preserving ID and metadata.
@@ -1464,7 +1464,7 @@ Each TodoWrite item is a checkpoint. When you complete item 3 and start item 4, 
 
 **Good draw-up:**
 ```bash
-arc new "Add rate limiting to API" --for arc-gabdur \
+arc new "Add rate limiting to API" --outcome arc-gabdur \
   --why "Users hitting 429s during peak, server struggling under load" \
   --what "1. Redis-based rate limiter 2. 100 req/min per user 3. Retry-After header" \
   --done "Load test shows 429s after 100 requests, header present, Redis storing counts"
@@ -1472,7 +1472,7 @@ arc new "Add rate limiting to API" --for arc-gabdur \
 
 **Bad draw-up (will fail):**
 ```bash
-arc new "Fix the API thing" --for arc-gabdur
+arc new "Fix the API thing" --outcome arc-gabdur
 # Error: Brief required. Missing: --why, --what, --done
 ```
 
@@ -1528,12 +1528,12 @@ arc new "Deploy to production" \
   --what "Production deployment with rollback plan" \
   --done "Feature live and monitored for 24h"
 
-arc new "Run tests" --for arc-nepato \
+arc new "Run tests" --outcome arc-nepato \
   --why "Ensure quality before deploy" \
   --what "Full test suite pass" \
   --done "All tests green, coverage maintained"
 
-arc new "Get security review" --for arc-nepato \
+arc new "Get security review" --outcome arc-nepato \
   --why "Compliance requirement for production" \
   --what "Security team sign-off" \
   --done "Approval email received"
@@ -1745,8 +1745,8 @@ Standalone:
 | `arc done` on non-existent ID | Error: "Item '{id}' not found" |
 | `arc wait` on item that's waiting | Overwrites previous `waiting_for` |
 | `arc wait X Y` where Y doesn't exist | Allowed — Y might be free text or future item |
-| `arc new --for X` where X is an action | Error: "Parent must be an outcome" |
-| `arc new --for X` where X doesn't exist | Error: "Parent '{X}' not found" |
+| `arc new --outcome X` where X is an action | Error: "Parent must be an outcome" |
+| `arc new --outcome X` where X doesn't exist | Error: "Parent '{X}' not found" |
 | `arc edit` with no flags | Error: "At least one edit flag required" |
 | `arc edit` on outcome with --parent | Error: "Cannot set parent on outcome" |
 | `arc edit` with --parent to non-outcome | Error: "Parent must be an outcome" |
@@ -1765,8 +1765,8 @@ All error messages use the format `Error: {message}` and exit with code 1.
 |------|---------|---------|
 | `not_initialized` | "Not initialized. Run `arc init` first." | Any command when `.arc/` missing |
 | `not_found` | "Item '{id}' not found" | ID doesn't exist (after prefix-tolerant lookup) |
-| `parent_not_found` | "Parent '{id}' not found" | `--for` references non-existent ID |
-| `parent_not_outcome` | "Parent must be an outcome, got {type}" | `--for` references an action |
+| `parent_not_found` | "Parent '{id}' not found" | `--outcome` references non-existent ID |
+| `parent_not_outcome` | "Parent must be an outcome, got {type}" | `--outcome` references an action |
 | `empty_title` | "Title cannot be empty" | Title is whitespace-only |
 | `brief_required` | "Brief required. Missing: {flags}" | Non-interactive without all brief flags |
 | `brief_field_empty` | "'{field}' cannot be empty" | Interactive prompt gets empty input |
@@ -1951,7 +1951,7 @@ arc — Work tracker for Claude-human collaboration
 Usage: arc [command] [options]
 
 Commands:
-  new TITLE [--for PARENT] [--why W --what X --done D]
+  new TITLE [--outcome PARENT] [--why W --what X --done D]
                               Create outcome or action
   done ID                     Complete item (unblocks waiters)
   show ID                     View item details with brief

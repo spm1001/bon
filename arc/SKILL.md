@@ -86,7 +86,7 @@ arc list --ready             # Actions with no waiting_for (outcomes always show
 arc show ID                  # Full details including brief
 arc show --current           # Show action with active tactical steps (for hooks)
 arc new "title" --why W --what X --done D       # Create outcome
-arc new "title" --for PARENT --why W --what X --done D  # Create action
+arc new "title" --outcome PARENT --why W --what X --done D  # Create action
 arc done ID                  # Complete item (also unblocks waiters)
 arc wait ID REASON           # Mark as waiting (clears tactical steps)
 arc unwait ID                # Clear waiting
@@ -100,8 +100,8 @@ arc edit ID --why/--what/--done  # Edit brief fields
 arc edit ID --parent P       # Reparent (use 'none' for standalone)
 arc edit ID --order N        # Reorder within parent
 arc convert ID               # Action → outcome (preserves ID/metadata)
-arc convert ID --parent P    # Outcome → action under P
-arc convert ID --parent P --force  # Outcome with children → action (children become standalone)
+arc convert ID --outcome P    # Outcome → action under P
+arc convert ID --outcome P --force  # Outcome with children → action (children become standalone)
 arc status                   # Overview counts
 arc migrate --from-beads F --draft  # Generate migration manifest
 arc migrate --from-draft F   # Import completed manifest
@@ -211,7 +211,7 @@ EOF
 
 **Good draw-up:**
 ```bash
-arc new "Add rate limiting to API" --for arc-gabdur \
+arc new "Add rate limiting to API" --outcome arc-gabdur \
   --why "Users hitting 429s during peak, server struggling under load" \
   --what "1. Redis-based rate limiter 2. 100 req/min per user 3. Retry-After header" \
   --done "Load test shows 429s after 100 requests, header present, Redis storing counts"
@@ -219,7 +219,7 @@ arc new "Add rate limiting to API" --for arc-gabdur \
 
 **Bad draw-up (will fail):**
 ```bash
-arc new "Fix the API thing" --for arc-gabdur
+arc new "Fix the API thing" --outcome arc-gabdur
 # Error: Brief required. Missing: --why, --what, --done
 ```
 
@@ -346,10 +346,10 @@ When work evolves and classifications change, use `arc convert` instead of archi
 arc convert arc-zokte    # Action → outcome (preserves ID, metadata)
 
 # Outcome that should be part of another outcome
-arc convert arc-gabdur --parent arc-tufeme   # Outcome → action
+arc convert arc-gabdur --outcome arc-tufeme   # Outcome → action
 
 # Outcome with children being reclassified
-arc convert arc-gabdur --parent arc-tufeme --force  # Children become standalone
+arc convert arc-gabdur --outcome arc-tufeme --force  # Children become standalone
 ```
 
 **When to use convert:**
