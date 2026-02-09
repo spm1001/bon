@@ -109,6 +109,11 @@ arc migrate --from-draft F   # Import completed manifest
 
 All commands support `--json` for structured output. `arc new` supports `-q` for quiet mode (just prints ID).
 
+**JSON shape contract:**
+- `arc list --json` → `{"outcomes": [...], "standalone": [...]}` (wrapper object)
+- `arc show ID --json` → single object, NOT an array (use `.field` not `.[0].field`)
+- `arc show OUTCOME --json` → object with nested `"actions"` array
+
 ## Migrating from Beads
 
 Two-phase process: generate manifest, fill briefs, import. See [references/migration.md](references/migration.md) for full guide.

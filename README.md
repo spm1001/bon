@@ -77,9 +77,19 @@ uv run arc done arc-ghijkl
 
 ### Output Flags
 
-- `--json` — Nested JSON (for `list`, `show`)
+- `--json` — Structured JSON (for `list`, `show`)
 - `--jsonl` — Flat JSONL, one item per line (for `list`)
 - `--quiet` / `-q` — Minimal output, just the ID (for `new`)
+
+**JSON shapes differ by command:**
+
+| Command | Shape | Example `jq` |
+|---------|-------|--------------|
+| `arc list --json` | `{"outcomes": [...], "standalone": [...]}` | `.outcomes[0].title` |
+| `arc show ID --json` | Single object (action or outcome) | `.title`, `.brief.why` |
+| `arc show OUTCOME --json` | Object with nested `"actions"` array | `.actions[0].title` |
+
+`arc show` returns an **object**, not an array. Use `.field` not `.[0].field`.
 
 ### List Filters
 

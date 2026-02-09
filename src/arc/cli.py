@@ -904,10 +904,17 @@ def parse_steps_from_what(what: str) -> list[str] | None:
     """Extract numbered steps from --what field.
 
     Looks for patterns like "1. step" or "1) step".
+    Normalizes newlines to spaces first to prevent garbled steps
+    from multiline --what values.
     Returns None if no numbered list found.
     """
-    pattern = r'(\d+)[.)]\s*(.+?)(?=\s*\d+[.)]|$)'
-    matches = re.findall(pattern, what, re.DOTALL)
+    # Normalize: collapse newlines and extra whitespace to single spaces
+    normalized = ' '.join(what.split())
+    # Step number must be at start or after whitespace (prevents matching "v2.0")
+    # Delimiter (. or )) must be followed by whitespace
+    # Lookahead requires whitespace before next step number AND after delimiter
+    pattern = r'(?:^|(?<=\s))(\d+)[.)]\s+(.+?)(?=\s+\d+[.)]\s|$)'
+    matches = re.findall(pattern, normalized)
     if not matches:
         return None
     steps = [m[1].strip() for m in matches if m[1].strip()]
