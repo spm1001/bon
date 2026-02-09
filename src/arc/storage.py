@@ -246,6 +246,48 @@ def find_active_tactical(items: list[dict]) -> dict | None:
     return None
 
 
+def load_archive() -> list[dict]:
+    """Load archived items from archive.jsonl."""
+    path = Path(".arc/archive.jsonl")
+    if not path.exists():
+        return []
+
+    items = []
+    for line_num, line in enumerate(path.read_text().splitlines(), 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+            items.append(item)
+        except json.JSONDecodeError as e:
+            print(f"Warning: Skipping malformed archive item on line {line_num}: {e}", file=sys.stderr)
+
+    return items
+
+
+def append_archive(items: list[dict]) -> None:
+    """Append items to archive.jsonl atomically."""
+    path = Path(".arc/archive.jsonl")
+
+    # Read existing content (if any)
+    existing = ""
+    if path.exists():
+        existing = path.read_text()
+
+    # Write existing + new atomically
+    tmp = path.with_suffix(".tmp")
+    with open(tmp, "w") as f:
+        if existing:
+            f.write(existing)
+            if not existing.endswith("\n"):
+                f.write("\n")
+        for item in items:
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+    tmp.rename(path)  # Atomic on POSIX
+
+
 def validate_tactical(tactical: dict) -> None:
     """Validate tactical structure. Raises ValidationError if invalid."""
     if not isinstance(tactical.get("steps"), list):

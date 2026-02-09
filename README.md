@@ -72,6 +72,7 @@ uv run arc done arc-ghijkl
 | `work ID [STEPS...] [--status\|--clear\|--force]` | Manage tactical steps for an action |
 | `step` | Complete current step, advance to next |
 | `convert ID [--outcome P] [--force]` | Convert outcome↔action |
+| `archive [IDs...] [--all]` | Move done items to archive.jsonl |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
 

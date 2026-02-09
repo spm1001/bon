@@ -11,6 +11,7 @@ from arc.display import format_hierarchical, format_json, format_jsonl, format_t
 from arc.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from arc.storage import (
     ValidationError,
+    append_archive,
     apply_reorder,
     apply_reparent,
     check_initialized,
@@ -601,6 +602,66 @@ def cmd_convert(args):
     print(f"Converted {item['id']} to {item['type']}")
 
 
+def cmd_archive(args):
+    """Archive done items to .arc/archive.jsonl."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+
+    if args.all:
+        # Archive all done items
+        to_archive = [i for i in items if i["status"] == "done"]
+        if not to_archive:
+            print("Nothing to archive (no done items)")
+            return
+    elif args.ids:
+        to_archive = []
+        for item_id in args.ids:
+            item = find_by_id(items, item_id, prefix)
+            if not item:
+                error(f"Item '{item_id}' not found")
+            if item["status"] != "done":
+                error(f"Cannot archive '{item_id}' — status is {item['status']}, not done")
+            to_archive.append(item)
+
+        # Cascade: if archiving a done outcome, include its done actions
+        cascade_ids = set()
+        for item in list(to_archive):
+            if item["type"] == "outcome":
+                children = [i for i in items if i.get("parent") == item["id"]]
+                open_children = [c for c in children if c["status"] != "done"]
+                if open_children:
+                    names = ", ".join(f"{c['id']}" for c in open_children)
+                    error(f"Cannot archive outcome '{item['id']}' — has open actions: {names}")
+                done_children = [c for c in children if c["status"] == "done"]
+                for child in done_children:
+                    cascade_ids.add(child["id"])
+
+        # Add cascaded children not already in the list
+        existing_ids = {i["id"] for i in to_archive}
+        for item in items:
+            if item["id"] in cascade_ids and item["id"] not in existing_ids:
+                to_archive.append(item)
+    else:
+        error("Specify item IDs or --all")
+
+    # Stamp and move
+    archive_ids = set()
+    for item in to_archive:
+        item["archived_at"] = now_iso()
+        archive_ids.add(item["id"])
+
+    # Append to archive, remove from items
+    append_archive(to_archive)
+    remaining = [i for i in items if i["id"] not in archive_ids]
+    save_items(remaining)
+
+    print(f"Archived {len(to_archive)} item(s)")
+    for item in to_archive:
+        print(f"  {item['id']} — {item['title']}")
+
+
 def cmd_migrate(args):
     """Migrate from beads to arc.
 
@@ -1176,6 +1237,12 @@ def main():
     convert_parser.add_argument("--force", "-f", action="store_true",
                                 help="Allow converting outcome with children (makes them standalone)")
     convert_parser.set_defaults(func=cmd_convert)
+
+    # archive
+    archive_parser = subparsers.add_parser("archive", help="Archive done items")
+    archive_parser.add_argument("ids", nargs="*", help="Item IDs to archive")
+    archive_parser.add_argument("--all", action="store_true", help="Archive all done items")
+    archive_parser.set_defaults(func=cmd_archive)
 
     # help
     help_parser = subparsers.add_parser("help", help="Show help")
