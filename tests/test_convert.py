@@ -128,7 +128,7 @@ class TestConvertValidation:
         result = run_arc("convert", "arc-aaa", cwd=arc_dir_with_fixture)
 
         assert result.returncode == 1
-        assert "requires --parent" in result.stderr
+        assert "requires --outcome" in result.stderr
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
     def test_convert_action_rejects_parent(self, arc_dir_with_fixture, monkeypatch):
@@ -138,7 +138,7 @@ class TestConvertValidation:
         result = run_arc("convert", "arc-ccc", "--parent", "arc-aaa", cwd=arc_dir_with_fixture)
 
         assert result.returncode == 1
-        assert "don't specify --parent" in result.stderr
+        assert "don't specify --outcome" in result.stderr
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["multiple_outcomes"], indirect=True)
     def test_convert_outcome_parent_not_found(self, arc_dir_with_fixture, monkeypatch):

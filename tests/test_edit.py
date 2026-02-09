@@ -283,7 +283,7 @@ class TestEditErrors:
         result = run_arc("edit", "arc-aaa", "--parent", "something", cwd=arc_dir_with_fixture)
 
         assert result.returncode == 1
-        assert "Cannot set parent on outcome" in result.stderr
+        assert "Cannot set --outcome on an outcome" in result.stderr
 
     def test_edit_not_initialized(self, tmp_path, monkeypatch):
         """Error when not initialized."""

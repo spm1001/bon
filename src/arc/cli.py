@@ -481,7 +481,7 @@ def cmd_edit(args):
         args.order is not None,
     ])
     if not has_edit:
-        error("At least one edit flag required: --title, --parent, --why, --what, --done, --order")
+        error("At least one edit flag required: --title, --outcome, --why, --what, --done, --order")
 
     items = load_items()
     prefix = load_prefix()
@@ -492,7 +492,7 @@ def cmd_edit(args):
 
     # Outcomes can't have parents
     if args.parent is not None and item["type"] == "outcome":
-        error("Cannot set parent on outcome (only actions can have parents)")
+        error("Cannot set --outcome on an outcome (only actions belong to outcomes)")
 
     # Make a copy to edit
     edited = dict(item)
@@ -551,9 +551,9 @@ def cmd_convert(args):
         error(f"Item '{args.id}' not found")
 
     if item["type"] == "outcome":
-        # Outcome → Action: requires --parent
+        # Outcome → Action: requires --outcome
         if not args.parent:
-            error("Converting outcome to action requires --parent")
+            error("Converting outcome to action requires --outcome")
 
         parent = find_by_id(items, args.parent, prefix)
         if not parent:
@@ -581,7 +581,7 @@ def cmd_convert(args):
 
     else:  # action → outcome
         if args.parent:
-            error("Converting action to outcome: don't specify --parent")
+            error("Converting action to outcome: don't specify --outcome")
 
         old_parent = item.get("parent")
         item["type"] = "outcome"

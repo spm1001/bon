@@ -949,7 +949,7 @@ arc convert arc-gabdur --parent arc-tufeme
 
 **Outcome with children:**
 ```bash
-arc convert arc-gabdur --parent arc-tufeme --force
+arc convert arc-gabdur --outcome arc-tufeme --force
 ```
 - `--force` required when outcome has children
 - Children become standalone actions (orphaned)
@@ -1565,7 +1565,7 @@ arc edit arc-nepato --parent arc-gabdur
 
 **Or promote observation to proper action:**
 ```bash
-arc new "Fix OAuth race condition" --for arc-gabdur \
+arc new "Fix OAuth race condition" --outcome arc-gabdur \
   --why "OAuth fails under concurrent load (see field report arc-nepato)" \
   --what "Add mutex or queue to prevent concurrent token refresh" \
   --done "100 concurrent requests complete without auth failures"
