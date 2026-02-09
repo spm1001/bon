@@ -67,7 +67,7 @@ def cmd_init(args):
 
     arc_dir = Path(".arc")
     if arc_dir.exists():
-        error(".arc/ already exists. Use --force to reinitialize.")
+        error(".arc/ already exists.")
 
     arc_dir.mkdir()
     (arc_dir / "items.jsonl").touch()
@@ -158,6 +158,8 @@ def cmd_new(args):
     items = load_items()
     prefix = load_prefix()
     existing_ids = {i["id"] for i in items}
+    # Include archived IDs to prevent collisions with archived items
+    existing_ids.update(i["id"] for i in load_archive())
     parent = args.parent
 
     # Get brief: interactive prompts or flags
@@ -684,16 +686,13 @@ def cmd_reopen(args):
             items.append(archive_item)
             remaining_archive = [i for i in archived if i["id"] != archive_item["id"]]
             save_items(items)
-            # Rewrite archive
+            # Rewrite archive atomically
             path = Path(".arc/archive.jsonl")
-            if remaining_archive:
-                tmp = path.with_suffix(".tmp")
-                with open(tmp, "w") as f:
-                    for i in remaining_archive:
-                        f.write(json.dumps(i, ensure_ascii=False) + "\n")
-                tmp.rename(path)
-            else:
-                path.write_text("")
+            tmp = path.with_suffix(".tmp")
+            with open(tmp, "w") as f:
+                for i in remaining_archive:
+                    f.write(json.dumps(i, ensure_ascii=False) + "\n")
+            tmp.rename(path)
             print(f"Reopened: {archive_item['id']} (restored from archive)")
             return
         error(f"Item '{args.id}' not found")

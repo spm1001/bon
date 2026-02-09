@@ -8,9 +8,12 @@
 arc list                     # See all items
 arc list --ready             # See unblocked work
 arc show <id>                # View item details
-arc new outcome "Title"      # Create desired outcome
-arc new action -p OUT "Title"  # Create action under outcome
+arc new "Title"              # Create desired outcome
+arc new "Title" --outcome OUT --why "..." --what "..." --done "..."
+                             # Create action under outcome
 arc done <id>                # Mark complete
+arc work <id>                # Start tactical steps
+arc step                     # Advance to next step
 arc --help                   # Full CLI help
 ```
 
