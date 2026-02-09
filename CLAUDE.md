@@ -120,6 +120,8 @@ save_items(items)                # Atomic write back
 | Breaking unblock-on-done | Test with `waiting_dependency` fixture |
 | Standalone actions forgotten | Check items where `parent` is None |
 | Interactive mode untested | Test with `input=` parameter |
+| Mixed-case IDs (arc-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
+| Changing schema fields | claude-suite reads items.jsonl directly with jq (see FIELD_REPORT_jq_consumers.md) |
 
 ## Key Files
 

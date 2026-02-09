@@ -10,6 +10,9 @@ build/
 # Arc itself
 .arc/
 
+# Claude Code
+.claude/
+
 # Editor
 *.swp
 *~
