@@ -145,6 +145,98 @@ class TestNewBriefRequired:
         assert "--done" in result.stderr
 
 
+class TestOutcomeLanguageLint:
+    """Activity-language warnings for outcome titles."""
+
+    def test_activity_verb_warns(self, arc_dir, monkeypatch):
+        """Outcome starting with activity verb produces warning."""
+        monkeypatch.chdir(arc_dir)
+
+        result = run_arc(
+            "new", "Implement OAuth",
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+        assert "Created:" in result.stdout
+        assert "activity, not achievement" in result.stderr
+
+    def test_achievement_language_no_warning(self, arc_dir, monkeypatch):
+        """Outcome with achievement language produces no warning."""
+        monkeypatch.chdir(arc_dir)
+
+        result = run_arc(
+            "new", "Users can authenticate with GitHub",
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+        assert result.stderr == ""
+
+    def test_action_no_warning(self, arc_dir, monkeypatch):
+        """Actions don't trigger activity-language warning."""
+        monkeypatch.chdir(arc_dir)
+
+        # Create outcome first
+        run_arc("new", "Auth works", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
+        outcome_id = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())["id"]
+
+        result = run_arc(
+            "new", "Implement the callback endpoint",
+            "--for", outcome_id,
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+        assert result.stderr == ""
+
+    def test_case_insensitive(self, arc_dir, monkeypatch):
+        """Warning works regardless of title case."""
+        monkeypatch.chdir(arc_dir)
+
+        result = run_arc(
+            "new", "BUILD the new pipeline",
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+        assert "activity, not achievement" in result.stderr
+
+    def test_verb_must_be_at_start(self, arc_dir, monkeypatch):
+        """Verb in middle of title doesn't trigger warning."""
+        monkeypatch.chdir(arc_dir)
+
+        result = run_arc(
+            "new", "Team can build dashboards independently",
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+        assert result.stderr == ""
+
+    def test_item_still_created_despite_warning(self, arc_dir, monkeypatch):
+        """Warning doesn't prevent item creation."""
+        monkeypatch.chdir(arc_dir)
+
+        result = run_arc(
+            "new", "Add rate limiting",
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+        assert "Created:" in result.stdout
+
+        item = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())
+        assert item["title"] == "Add rate limiting"
+        assert item["type"] == "outcome"
+
+
 class TestNewNotInitialized:
     def test_error_when_not_initialized(self, tmp_path, monkeypatch):
         """Error when .arc/ doesn't exist."""

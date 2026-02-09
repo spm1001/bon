@@ -18,7 +18,7 @@ Every arc item answers three questions. These are CLI flags when creating, and t
 | `--done` | How do we know it's complete? |
 
 ```bash
-arc new "Add rate limiting" \
+arc new "API stays responsive under peak load" \
   --why "Users hitting 429s, server under load" \
   --what "Redis limiter, 100 req/min, Retry-After header" \
   --done "Load test passes, header present"
@@ -288,6 +288,44 @@ Every item needs all three flags — no shortcuts, no `--brief` flag:
 - **Concrete details:** File paths, function names, API endpoints
 - **Numbered steps** in `what` when multiple deliverables exist
 - **Verifiable criteria** in `done` — not "it works" but "returns 200 with valid token"
+
+## Outcome Language Coaching
+
+The CLI warns when outcome titles start with activity verbs ("Implement", "Build", "Add"). That's a lightweight lint. Your job as Claude is the richer coaching layer — helping reframe before `arc new` runs.
+
+### The Test
+
+**Outcomes describe what will be true, not work to be done.**
+
+- "Would anyone dispute this is worth achieving?" → If yes, it has substance.
+- "If I completed this, what would be different?" → That difference is the outcome.
+
+### Activity → Achievement Reframes
+
+| Activity (bad for outcomes) | Achievement (good for outcomes) |
+|-----------------------------|--------------------------------|
+| Implement OAuth | Users can authenticate with GitHub |
+| Build rate limiter | API stays responsive under peak load |
+| Add test coverage | Claudes don't hit surprising edges |
+| Document the architecture | Any team member can onboard without guidance |
+| Migrate to new format | Data flows cleanly through the new pipeline |
+| Review and audit logs | Audit trail catches anomalies before users notice |
+
+**The pattern:** Past-tense or present-state verb, describes what's *different* when done, includes the "so what".
+
+### When to Coach
+
+Coach **before** running `arc new` for outcomes. When the user or you propose an outcome title:
+
+1. Check: does it start with an activity verb?
+2. If yes, suggest a reframe: "That describes work. What will be true when it's done?"
+3. Proceed with the reframed title
+
+**Don't coach on actions.** Actions *should* be activity language — they're concrete steps. "Add OAuth callback endpoint" is a perfectly good action title.
+
+### The CLI Helps
+
+`arc new` warns on activity-verb outcome titles automatically. The item still gets created, but the warning is visible. If you see the warning, acknowledge it — don't ignore it.
 
 ## Anti-Patterns
 

@@ -18,6 +18,11 @@ def error(message: str) -> None:
     sys.exit(1)
 
 
+def warn(message: str) -> None:
+    """Print warning message to stderr (does not exit)."""
+    print(f"Warning: {message}", file=sys.stderr)
+
+
 def load_items() -> list[dict]:
     """Load all items from JSONL with validation."""
     path = Path(".arc/items.jsonl")

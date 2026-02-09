@@ -24,6 +24,7 @@ from arc.storage import (
     save_items,
     validate_item,
     validate_tactical,
+    warn,
 )
 
 
@@ -114,6 +115,34 @@ def require_brief_flags(why: str | None, what: str | None, done: str | None) -> 
     return {"why": why, "what": what, "done": done}
 
 
+# Activity verbs that suggest an outcome title describes work, not achievement.
+# Kept deliberately small — the arc skill provides richer coaching.
+ACTIVITY_VERBS = [
+    "add", "build", "configure", "create", "decide", "deploy",
+    "document", "fix", "implement", "improve", "investigate",
+    "migrate", "refactor", "remove", "replace", "set up",
+    "update", "upgrade", "write",
+]
+
+
+def check_outcome_language(title: str) -> None:
+    """Warn if an outcome title uses activity language instead of achievement language.
+
+    Outcomes should describe a desired result, not work to be done.
+    E.g. "Users can authenticate with GitHub" not "Implement OAuth".
+    """
+    lower = title.lower()
+    for verb in ACTIVITY_VERBS:
+        # Match verb at start of title, followed by word boundary
+        if re.match(rf"^{re.escape(verb)}\b", lower):
+            warn(
+                f"Outcome title starts with \"{verb}\" — that describes activity, not achievement.\n"
+                f"  Try: what will be true when this is done?\n"
+                f"  E.g. instead of \"Implement OAuth\" → \"Users can authenticate with GitHub\""
+            )
+            return
+
+
 def cmd_new(args):
     """Create a new outcome or action."""
     check_initialized()
@@ -133,6 +162,10 @@ def cmd_new(args):
         brief = prompt_brief()
     else:
         brief = require_brief_flags(args.why, args.what, args.done)
+
+    # Lint outcome titles for activity language
+    if not parent:
+        check_outcome_language(title)
 
     if parent:
         # Validate parent exists and is an outcome
