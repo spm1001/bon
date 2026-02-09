@@ -181,9 +181,6 @@ def check_initialized() -> None:
 
 from arc.ids import get_siblings
 
-# Default order for items without explicit order (sorts last)
-DEFAULT_ORDER = 999
-
 
 def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):
     """Shift siblings to accommodate order change.
