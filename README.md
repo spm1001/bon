@@ -74,6 +74,7 @@ uv run arc done arc-ghijkl
 | `convert ID [--outcome P] [--force]` | Convert outcome↔action |
 | `archive [IDs...] [--all]` | Move done items to archive.jsonl |
 | `log [-n N]` | Show recent activity (creations, completions, archives) |
+| `reopen ID` | Reopen a completed or archived item |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
 

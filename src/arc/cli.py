@@ -663,6 +663,52 @@ def cmd_archive(args):
         print(f"  {item['id']} — {item['title']}")
 
 
+def cmd_reopen(args):
+    """Reopen a completed item."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+    item = find_by_id(items, args.id, prefix)
+
+    # Check archive if not found in active items
+    archived = load_archive()
+    archive_item = None
+    if not item:
+        archive_item = find_by_id(archived, args.id, prefix)
+        if archive_item:
+            # Move back from archive to items
+            archive_item["status"] = "open"
+            archive_item.pop("done_at", None)
+            archive_item.pop("archived_at", None)
+            items.append(archive_item)
+            remaining_archive = [i for i in archived if i["id"] != archive_item["id"]]
+            save_items(items)
+            # Rewrite archive
+            path = Path(".arc/archive.jsonl")
+            if remaining_archive:
+                tmp = path.with_suffix(".tmp")
+                with open(tmp, "w") as f:
+                    for i in remaining_archive:
+                        f.write(json.dumps(i, ensure_ascii=False) + "\n")
+                tmp.rename(path)
+            else:
+                path.write_text("")
+            print(f"Reopened: {archive_item['id']} (restored from archive)")
+            return
+        error(f"Item '{args.id}' not found")
+
+    if item["status"] != "done":
+        error(f"Item '{args.id}' is already open")
+
+    item["status"] = "open"
+    item.pop("done_at", None)
+    # Preserve tactical steps if any (per brief)
+
+    save_items(items)
+    print(f"Reopened: {item['id']}")
+
+
 def cmd_log(args):
     """Show recent activity feed."""
     check_initialized()
@@ -1311,6 +1357,11 @@ def main():
     log_parser.add_argument("-n", "--limit", type=int, default=20, help="Number of events (default: 20)")
     add_output_flags(log_parser, json=True)
     log_parser.set_defaults(func=cmd_log)
+
+    # reopen
+    reopen_parser = subparsers.add_parser("reopen", help="Reopen a completed item")
+    reopen_parser.add_argument("id", help="Item ID to reopen")
+    reopen_parser.set_defaults(func=cmd_reopen)
 
     # help
     help_parser = subparsers.add_parser("help", help="Show help")
