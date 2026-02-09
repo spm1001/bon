@@ -240,6 +240,8 @@ def find_active_tactical(items: list[dict]) -> dict | None:
     Active means: has tactical field with current < len(steps).
     """
     for item in items:
+        if item.get("status") != "open":
+            continue
         tactical = item.get("tactical")
         if tactical and tactical.get("current", 0) < len(tactical.get("steps", [])):
             return item

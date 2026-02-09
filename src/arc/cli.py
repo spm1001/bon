@@ -341,6 +341,9 @@ def cmd_done(args):
     item["status"] = "done"
     item["done_at"] = now_iso()
 
+    # Clear tactical steps (action is done, steps are moot)
+    item.pop("tactical", None)
+
     # CRITICAL: Unblock waiters - clear waiting_for on items waiting for this one
     unblocked = []
     for other in items:

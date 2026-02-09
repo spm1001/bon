@@ -116,6 +116,46 @@ class TestDoneErrors:
         assert "Not initialized" in result.stderr
 
 
+class TestDoneClearsTactical:
+    """Test that arc done clears tactical steps."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_done_clears_tactical_steps(self, arc_dir_with_fixture, monkeypatch):
+        """arc done on action with active tactical clears them."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        # Set up tactical steps on arc-ccc (open action)
+        run_arc("work", "arc-ccc", "step one", "step two", cwd=arc_dir_with_fixture)
+
+        # Done it mid-tactical
+        result = run_arc("done", "arc-ccc", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+
+        # Verify tactical is cleared
+        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        items = [json.loads(line) for line in lines]
+        ccc = next(i for i in items if i["id"] == "arc-ccc")
+        assert "tactical" not in ccc
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_done_then_work_on_different_action(self, arc_dir_with_fixture, monkeypatch):
+        """arc done X && arc work Y succeeds without manual --clear."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        # Create a second open action
+        run_arc("new", "Second action", "--outcome", "arc-aaa",
+                "--why", "test", "--what", "1. do thing", "--done", "done",
+                cwd=arc_dir_with_fixture)
+
+        # Set up tactical on arc-ccc, then done it
+        run_arc("work", "arc-ccc", "step one", "step two", cwd=arc_dir_with_fixture)
+        run_arc("done", "arc-ccc", cwd=arc_dir_with_fixture)
+
+        # Now work on the new action — should succeed without --clear
+        result = run_arc("work", "--status", cwd=arc_dir_with_fixture)
+        assert "No active tactical" in result.stdout
+
+
 class TestDonePrefixTolerant:
     """Test prefix-tolerant ID matching."""
 
