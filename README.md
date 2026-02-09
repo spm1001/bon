@@ -16,20 +16,37 @@ uv sync
 uv run arc --help
 ```
 
-### Add to PATH (optional)
+### Add to PATH
 
-To use `arc` from anywhere:
+`uv run arc` works inside the arc repo, but you'll want `arc` available everywhere. Three options:
+
+**Option 1: Symlink (recommended)**
 
 ```bash
-# Option 1: Symlink to ~/.local/bin (recommended)
 mkdir -p ~/.local/bin
-ln -s /path/to/arc/.venv/bin/arc ~/.local/bin/arc
-
-# Option 2: Shell alias
-echo 'alias arc="/path/to/arc/.venv/bin/arc"' >> ~/.zshrc
+ln -s ~/Repos/arc/.venv/bin/arc ~/.local/bin/arc
 ```
 
-Then just `arc list` from any project with `.arc/`.
+Requires `~/.local/bin` on your PATH (most shells include it by default).
+
+**Option 2: Shell alias**
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+alias arc="$HOME/Repos/arc/.venv/bin/arc"
+```
+
+Works immediately after `source ~/.zshrc`. Aliases don't resolve in non-interactive shells (scripts, cron), so use Option 1 or 3 for those.
+
+**Option 3: Absolute path**
+
+```bash
+~/Repos/arc/.venv/bin/arc list
+```
+
+No setup needed. Best for Claude Code sessions and hooks, where PATH isn't guaranteed and aliases aren't available. The arc hooks in claude-suite use this approach.
+
+After any option, `arc list` works from any directory with `.arc/`.
 
 ## Quick Start
 
