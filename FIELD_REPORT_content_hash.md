@@ -46,4 +46,4 @@ This isn't critical — arc items rarely change after creation — but it's a su
 
 ---
 
-*Filed as field report per claude-suite conventions. Not a bug, not urgent — just knowledge transfer for future maintainers.*
+*Filed as field report per trousse conventions. Not a bug, not urgent — just knowledge transfer for future maintainers.*

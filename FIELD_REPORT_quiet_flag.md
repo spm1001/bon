@@ -45,4 +45,4 @@ Low severity - this is ergonomic polish, not broken functionality. But when fili
 
 ---
 
-*Filed as field report per claude-suite conventions. Not urgent - just knowledge transfer for future consideration.*
+*Filed as field report per trousse conventions. Not urgent - just knowledge transfer for future consideration.*

@@ -1,17 +1,17 @@
 # Field Report: External jq consumers of items.jsonl
 
-**Source:** claude-suite session hooks and scripts (Feb 2026)
+**Source:** trousse session hooks and scripts (Feb 2026)
 **Observer:** Claude working on arc-read.sh test coverage
 
 ## Context
 
-claude-suite reads `.arc/items.jsonl` directly with jq instead of the arc Python CLI. This avoids ~30ms Python startup per invocation, which matters for hooks that fire on every prompt. The pattern is: **Python for writes (validation, ID generation, tactical management), jq for reads (hooks, scripts, session briefing).**
+trousse reads `.arc/items.jsonl` directly with jq instead of the arc Python CLI. This avoids ~30ms Python startup per invocation, which matters for hooks that fire on every prompt. The pattern is: **Python for writes (validation, ID generation, tactical management), jq for reads (hooks, scripts, session briefing).**
 
 This means items.jsonl has consumers outside the arc codebase that don't go through the CLI's data layer.
 
 ## Consumers
 
-Three scripts in claude-suite read items.jsonl directly:
+Three scripts in trousse read items.jsonl directly:
 
 | Script | Purpose | Frequency |
 |--------|---------|-----------|
@@ -48,7 +48,7 @@ If any of these fields change shape, the jq queries silently produce wrong outpu
 
 ## Tested
 
-claude-suite now has 34 pytest tests covering arc-read.sh edge cases (empty JSONL, all-done items, malformed input, no .arc/, tactical steps, waiting_for filtering). These tests use fixture data, not live arc CLI comparison, so they'd catch jq query regressions but not schema drift.
+trousse now has 34 pytest tests covering arc-read.sh edge cases (empty JSONL, all-done items, malformed input, no .arc/, tactical steps, waiting_for filtering). These tests use fixture data, not live arc CLI comparison, so they'd catch jq query regressions but not schema drift.
 
 ## Proposal
 
@@ -56,6 +56,6 @@ claude-suite now has 34 pytest tests covering arc-read.sh edge cases (empty JSON
 
 **Option B: Document stable fields.** Add a section to SPEC.md listing fields that external consumers may rely on. Changes to these fields require a migration note.
 
-**Option C: Do nothing.** The field set is small, the consumer base is one repo, and the test suite in claude-suite would catch regressions during development. The risk is low enough that documenting the dependency (this report) is sufficient.
+**Option C: Do nothing.** The field set is small, the consumer base is one repo, and the test suite in trousse would catch regressions during development. The risk is low enough that documenting the dependency (this report) is sufficient.
 
-**Recommendation: Option C for now, with this report as the documentation.** The consumer base is just claude-suite, the fields are core to arc's data model (unlikely to change names), and the test suite provides a safety net. If arc gains more external consumers, revisit with Option B.
+**Recommendation: Option C for now, with this report as the documentation.** The consumer base is just trousse, the fields are core to arc's data model (unlikely to change names), and the test suite provides a safety net. If arc gains more external consumers, revisit with Option B.
