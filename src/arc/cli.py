@@ -1,6 +1,7 @@
 """Arc CLI - main entry point."""
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from arc.storage import (
     check_initialized,
     error,
     find_active_tactical,
+    find_any_active_tactical,
     find_by_id,
     get_creator,
     load_archive,
@@ -253,7 +255,8 @@ def cmd_show(args):
 
     # --current: show active tactical action (for hook injection)
     if args.current:
-        active = find_active_tactical(items)
+        session = os.getcwd()
+        active = find_active_tactical(items, session=session)
         if not active:
             return  # Silent exit 0, no output
         print(f"Working: {active['title']} ({active['id']})")
@@ -1122,10 +1125,11 @@ def cmd_work(args):
     check_initialized()
     items = load_items()
     prefix = load_prefix()
+    session = os.getcwd()
 
-    # --status: show current tactical
+    # --status: show current tactical (scoped to CWD)
     if args.status:
-        active = find_active_tactical(items)
+        active = find_active_tactical(items, session=session)
         if not active:
             print("No active tactical steps. Run `arc work <id>` to start.")
             return
@@ -1134,9 +1138,9 @@ def cmd_work(args):
         print(format_tactical(active["tactical"]))
         return
 
-    # --clear: clear active tactical
+    # --clear: clear active tactical (scoped to CWD)
     if args.clear:
-        active = find_active_tactical(items)
+        active = find_active_tactical(items, session=session)
         if not active:
             return  # Silent success
         active.pop("tactical", None)
@@ -1170,8 +1174,16 @@ def cmd_work(args):
     if item["status"] == "done":
         error(f"Action '{args.id}' is already complete")
 
-    # Check for other active tactical
-    active = find_active_tactical(items)
+    # Cross-session conflict: same action claimed by a different CWD
+    all_active = find_any_active_tactical(items)
+    for other in all_active:
+        if other["id"] == item["id"]:
+            other_session = other.get("tactical", {}).get("session")
+            if other_session and other_session != session:
+                error(f"{item['id']} has active steps from another worktree ({other_session})")
+
+    # Serial enforcement scoped to THIS session
+    active = find_active_tactical(items, session=session)
     if active and active["id"] != item["id"]:
         error(f"{active['id']} has active steps. Complete it, wait it, or run `arc work --clear`")
 
@@ -1195,8 +1207,8 @@ def cmd_work(args):
     except ValidationError as e:
         error(str(e))
 
-    # Set tactical
-    item["tactical"] = {"steps": steps, "current": 0}
+    # Set tactical with session stamp
+    item["tactical"] = {"steps": steps, "current": 0, "session": session}
     save_items(items)
 
     print(format_tactical(item["tactical"]))
@@ -1206,8 +1218,9 @@ def cmd_step(args):
     """Advance to next tactical step, auto-complete on final."""
     check_initialized()
     items = load_items()
+    session = os.getcwd()
 
-    active = find_active_tactical(items)
+    active = find_active_tactical(items, session=session)
     if not active:
         error("No steps in progress. Run `arc work <id>` first")
 
@@ -1236,7 +1249,7 @@ def cmd_step(args):
         print(f"\nNext: {steps[tactical['current']]}")
 
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 
 def cmd_update(args):

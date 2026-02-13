@@ -164,7 +164,8 @@ Actions can have tactical steps for tracking progress through work. The `tactica
 {
   "tactical": {
     "steps": ["Add scope", "Create rate limiter", "Test"],
-    "current": 1
+    "current": 1,
+    "session": "/Users/modha/worktrees/feature-a"
   }
 }
 ```
@@ -173,6 +174,7 @@ Actions can have tactical steps for tracking progress through work. The `tactica
 |----------|------|-------|
 | `steps` | array of strings | Step descriptions |
 | `current` | integer | 0-indexed pointer to current step |
+| `session` | string or absent | CWD that owns this tactical (absent = legacy unscoped) |
 
 **Progress derived from `current`:**
 - `index < current` → done
@@ -180,7 +182,9 @@ Actions can have tactical steps for tracking progress through work. The `tactica
 - `index > current` → pending
 - `current == len(steps)` → all done (action auto-completed)
 
-**Invariant:** At most one action in `items.jsonl` may have `tactical` with `current < len(steps)` at any time. This enforces serial execution — only one action can be actively worked on at a time.
+**Session scoping:** The `session` field records the working directory (CWD) that created the tactical. This enables multiple worktrees sharing the same `.arc/` to have independent active tacticals. When `session` is absent (legacy data), the tactical is unscoped and claimable by any CWD.
+
+**Invariant:** At most one action *per session (CWD)* may have `tactical` with `current < len(steps)` at any time. Different CWDs (worktrees) can each have their own active tactical. Two CWDs cannot claim the same action — the second gets an error.
 
 ### The `brief` Field
 
@@ -626,9 +630,11 @@ def work(item_id: str = None, steps: list[str] = None,
     items = load_items()
     prefix = load_prefix()
 
-    # --status: show current tactical
+    session = os.getcwd()
+
+    # --status: show current tactical (scoped to CWD)
     if status:
-        active = find_active_tactical(items)
+        active = find_active_tactical(items, session=session)
         if not active:
             print("No active tactical steps. Run `arc work <id>` to start.")
             return
@@ -636,9 +642,9 @@ def work(item_id: str = None, steps: list[str] = None,
         print(format_tactical(active["tactical"]))
         return
 
-    # --clear: clear active tactical
+    # --clear: clear active tactical (scoped to CWD)
     if clear:
-        active = find_active_tactical(items)
+        active = find_active_tactical(items, session=session)
         if active:
             active.pop("tactical", None)
             save_items(items)
@@ -657,8 +663,16 @@ def work(item_id: str = None, steps: list[str] = None,
     if item["status"] == "done":
         error(f"Action '{item_id}' is already complete")
 
-    # Check for other active tactical
-    active = find_active_tactical(items)
+    # Cross-session conflict: same action claimed by a different CWD
+    all_active = find_any_active_tactical(items)
+    for other in all_active:
+        if other["id"] == item["id"]:
+            other_session = other.get("tactical", {}).get("session")
+            if other_session and other_session != session:
+                error(f"{item['id']} has active steps from another worktree ({other_session})")
+
+    # Serial enforcement scoped to THIS session
+    active = find_active_tactical(items, session=session)
     if active and active["id"] != item["id"]:
         error(f"{active['id']} has active steps. Complete it, wait it, or run `arc work --clear`")
 
@@ -674,7 +688,7 @@ def work(item_id: str = None, steps: list[str] = None,
         if not steps:
             error("No numbered steps in --what. Provide explicit steps: arc work <id> 'step 1' 'step 2'")
 
-    item["tactical"] = {"steps": steps, "current": 0}
+    item["tactical"] = {"steps": steps, "current": 0, "session": session}
     save_items(items)
     print(format_tactical(item["tactical"]))
 
@@ -711,7 +725,8 @@ Completes current tactical step and advances to next. On final step, auto-comple
 ```python
 def step():
     items = load_items()
-    active = find_active_tactical(items)
+    session = os.getcwd()
+    active = find_active_tactical(items, session=session)
     if not active:
         error("No steps in progress. Run `arc work <id>` first")
 

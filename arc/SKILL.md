@@ -156,13 +156,16 @@ arc step
 
 **Constraints:**
 - **Actions only** — `arc work` on an outcome will error (suggests children or creating one)
-- Only one action may have active tactical steps at a time (serial execution)
+- Only one action may have active tactical steps *per session (CWD)* — different worktrees can each have active tactical simultaneously
+- Two CWDs cannot claim the same action — the second gets an error
 - If you need to context-switch: `arc wait <id> "reason"` (clears tactical, re-plan on return)
 - Steps persist in `items.jsonl` — survives session crashes
 
+**Session scoping is automatic:** `arc work` stamps `tactical.session` with `os.getcwd()`. All tactical lookups (`arc step`, `arc show --current`, `arc work --status/--clear`) filter by the current CWD. Legacy tacticals (no `session` field) are claimable by any CWD.
+
 **The test:** If `--what` has numbered steps, `arc work` parses them automatically. If not, formulate steps and pass them explicitly: `arc work ID "step1" "step2"`.
 
-**Why this matters:** Tactical steps are arc-native, persist across sessions, enforce serial execution, and survive session crashes. A new Claude can pick up mid-step via `arc show --current`.
+**Why this matters:** Tactical steps are arc-native, persist across sessions, enforce per-worktree serial execution, and survive session crashes. A new Claude can pick up mid-step via `arc show --current`.
 
 ### Enforcement: UserPromptSubmit Hook
 

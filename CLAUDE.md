@@ -138,6 +138,7 @@ save_items(items)                # Atomic write back
 | Interactive mode untested | Test with `input=` parameter |
 | Mixed-case IDs (arc-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
 | Changing schema fields | claude-suite reads items.jsonl directly with jq (see FIELD_REPORT_jq_consumers.md) |
+| Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
 
 ## Key Files
 

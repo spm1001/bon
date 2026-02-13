@@ -239,18 +239,42 @@ def apply_reparent(items: list[dict], edited: dict, old_parent: str | None, new_
         edited["order"] = 1
 
 
-def find_active_tactical(items: list[dict]) -> dict | None:
-    """Find the item with active tactical steps, or None.
+def _tactical_is_active(item: dict) -> bool:
+    """Check if an item has active (incomplete) tactical steps."""
+    if item.get("status") != "open":
+        return False
+    tactical = item.get("tactical")
+    return bool(tactical and tactical.get("current", 0) < len(tactical.get("steps", [])))
 
-    Active means: has tactical field with current < len(steps).
+
+def find_active_tactical(items: list[dict], session: str | None = None) -> dict | None:
+    """Find the item with active tactical steps for a given session, or None.
+
+    Session scoping (CWD-based):
+    - session=None: match only unscoped tacticals (no session field) — backward compat
+    - session="/path": match tactical.session == path OR unscoped (legacy claimable)
     """
     for item in items:
-        if item.get("status") != "open":
+        if not _tactical_is_active(item):
             continue
-        tactical = item.get("tactical")
-        if tactical and tactical.get("current", 0) < len(tactical.get("steps", [])):
-            return item
+        item_session = item.get("tactical", {}).get("session")
+        if session is None:
+            # Caller wants unscoped only
+            if item_session is None:
+                return item
+        else:
+            # Caller wants their session OR unscoped (legacy)
+            if item_session == session or item_session is None:
+                return item
     return None
+
+
+def find_any_active_tactical(items: list[dict]) -> list[dict]:
+    """Find ALL items with active tactical steps, regardless of session.
+
+    Used for cross-session conflict detection.
+    """
+    return [item for item in items if _tactical_is_active(item)]
 
 
 def load_archive() -> list[dict]:
@@ -327,3 +351,7 @@ def validate_tactical(tactical: dict) -> None:
     current = tactical.get("current", 0)
     if not isinstance(current, int) or current < 0:
         raise ValidationError("tactical.current must be non-negative integer")
+    # session is optional; when present must be a non-empty string
+    session = tactical.get("session")
+    if session is not None and (not isinstance(session, str) or not session):
+        raise ValidationError("tactical.session must be a non-empty string")
