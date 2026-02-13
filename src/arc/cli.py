@@ -1239,6 +1239,25 @@ def cmd_step(args):
 __version__ = "0.3.0"
 
 
+def cmd_update(args):
+    """Re-install arc from source via uv tool upgrade."""
+    import subprocess
+    print(f"Current: arc {__version__}")
+    result = subprocess.run(["uv", "tool", "upgrade", "arc"], capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        error(f"Update failed: {stderr}")
+    # Show what happened
+    output = (result.stdout + result.stderr).strip()
+    if output:
+        print(output)
+    # Report new version by re-checking
+    result2 = subprocess.run(["arc", "--version"], capture_output=True, text=True)
+    if result2.returncode == 0:
+        new_version = result2.stdout.strip()
+        print(f"Updated: {new_version}")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -1355,6 +1374,10 @@ def main():
     reopen_parser = subparsers.add_parser("reopen", help="Reopen a completed item")
     reopen_parser.add_argument("id", help="Item ID to reopen")
     reopen_parser.set_defaults(func=cmd_reopen)
+
+    # update
+    update_parser = subparsers.add_parser("update", help="Re-install arc from source")
+    update_parser.set_defaults(func=cmd_update)
 
     # help
     help_parser = subparsers.add_parser("help", help="Show help")

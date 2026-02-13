@@ -7,71 +7,49 @@ Arc organizes work as **Outcomes** (desired results) and **Actions** (concrete n
 ## Install
 
 ```bash
-# Clone and install with uv
 git clone https://github.com/spm1001/arc.git
 cd arc
-uv sync
-
-# Run from project
-uv run arc --help
+uv tool install .
 ```
 
-### Add to PATH
+This installs `arc` globally — available from any directory. To develop arc itself, also run `uv sync` for the dev dependencies (pytest, ruff).
 
-`uv run arc` works inside the arc repo, but you'll want `arc` available everywhere. Three options:
+### Updating
 
-**Option 1: Symlink (recommended)**
+`uv tool install` copies the package — edits to source aren't reflected until you re-install:
 
 ```bash
-mkdir -p ~/.local/bin
-ln -s ~/Repos/arc/.venv/bin/arc ~/.local/bin/arc
+arc update          # re-installs from source
 ```
 
-Requires `~/.local/bin` on your PATH (most shells include it by default).
+Or manually: `uv tool install ~/Repos/arc`.
 
-**Option 2: Shell alias**
-
-```bash
-# Add to ~/.zshrc or ~/.bashrc
-alias arc="$HOME/Repos/arc/.venv/bin/arc"
-```
-
-Works immediately after `source ~/.zshrc`. Aliases don't resolve in non-interactive shells (scripts, cron), so use Option 1 or 3 for those.
-
-**Option 3: Absolute path**
-
-```bash
-~/Repos/arc/.venv/bin/arc list
-```
-
-No setup needed. Best for Claude Code sessions and hooks, where PATH isn't guaranteed and aliases aren't available. The arc hooks in claude-suite use this approach.
-
-After any option, `arc list` works from any directory with `.arc/`.
+> **Note:** `uv tool install` doesn't support editable mode (`-e`) yet. When uv adds this, the update step goes away.
 
 ## Quick Start
 
 ```bash
 # Initialize in your project
-uv run arc init
+arc init
 
 # Create an outcome (desired result)
-uv run arc new "Users can export data" \
+arc new "Users can export data" \
   --why "Users requesting CSV exports" \
   --what "Export button, CSV generation, download" \
   --done "Can export any table to CSV"
 
 # Add actions to that outcome
-uv run arc new "Add export button to toolbar" \
+arc new "Add export button to toolbar" \
   --outcome arc-abcdef \
   --why "Entry point for export flow" \
   --what "Button in toolbar, opens format picker" \
   --done "Button visible, click opens modal"
 
 # See what's ready
-uv run arc list --ready
+arc list --ready
 
 # Mark done when complete
-uv run arc done arc-ghijkl
+arc done arc-ghijkl
 ```
 
 ## Commands
@@ -92,6 +70,7 @@ uv run arc done arc-ghijkl
 | `archive [IDs...] [--all]` | Move done items to archive.jsonl |
 | `log [-n N]` | Show recent activity (creations, completions, archives) |
 | `reopen ID` | Reopen a completed or archived item |
+| `update` | Re-install arc from source |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
 
@@ -210,16 +189,13 @@ Interactive mode prompts for these. Non-interactive requires all three flags.
 
 ## Claude Code Integration
 
-Arc includes a skill for Claude Code at `arc/SKILL.md`. Symlink to use:
+Arc includes a skill for Claude Code at `arc/SKILL.md`. After installing arc, symlink the skill directory:
 
 ```bash
-ln -s /path/to/arc/arc ~/.claude/skills/arc
+ln -s ~/Repos/arc/arc ~/.claude/skills/arc
 ```
 
-The skill teaches Claude:
-- **Draw-down pattern**: Read arc item → create TodoWrite checkpoints → work with pauses
-- **Draw-up pattern**: File work with complete briefs for future sessions
-- **When to use arc vs TodoWrite**: Multi-session = arc, single-session = TodoWrite
+This gives Claude access to the draw-down workflow (read item → activate tactical steps → work with pauses) and draw-up patterns (file work with complete briefs for future sessions).
 
 ## Why Arc?
 
