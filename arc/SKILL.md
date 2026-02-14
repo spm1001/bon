@@ -1,6 +1,9 @@
 ---
 name: arc
 description: Activate BEFORE running any arc CLI command. Enforces draw-down workflow (arc show → arc work → arc step) that prevents drift and tracks tactical progress. NEVER run 'arc list' via Bash (output collapses); instead Read arc.txt and output hierarchy as text. Triggers on 'arc init', 'arc new', 'arc list', 'arc done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .arc/ directory exists. (user)
+requires:
+  - cli: arc
+    check: "arc --version"
 ---
 
 # Arc Work Tracking
