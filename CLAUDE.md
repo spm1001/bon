@@ -4,7 +4,7 @@ Guidance for working on arc (the codebase, not with arc).
 
 ## What This Is
 
-Arc is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 17 commands, ~1000 LOC core, 249 tests.
+Arc is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 18 commands, ~2000 LOC core, 269 tests.
 
 ## Quick Commands
 
@@ -19,7 +19,7 @@ uv run arc --help                # CLI help
 
 ```
 src/arc/
-├── cli.py        # All 10 commands, argparse setup, main entry point
+├── cli.py        # All commands, argparse setup, main entry point
 ├── storage.py    # JSONL I/O, validation, prefix management
 ├── ids.py        # ID generation (pronounceable 3-syllable)
 ├── display.py    # Output formatting (hierarchical, JSON, JSONL)

@@ -255,7 +255,7 @@ def cmd_show(args):
 
     # --current: show active tactical action (for hook injection)
     if args.current:
-        session = os.getcwd()
+        session = os.path.realpath(os.getcwd())
         active = find_active_tactical(items, session=session)
         if not active:
             return  # Silent exit 0, no output
@@ -375,9 +375,14 @@ def cmd_wait(args):
     if item.get("tactical"):
         item.pop("tactical")
 
-    item["waiting_for"] = args.reason
+    # Warn if reason looks like an arc ID but can't be found
+    reason = args.reason
+    if re.match(r'^[a-z]+-[a-z]+$', reason) and not find_by_id(items, reason, prefix):
+        warn(f"'{reason}' not found in active items — waiting_for may never resolve automatically")
+
+    item["waiting_for"] = reason
     save_items(items)
-    print(f"{item['id']} now waiting for: {args.reason}")
+    print(f"{item['id']} now waiting for: {reason}")
 
 
 def cmd_unwait(args):
@@ -1125,7 +1130,18 @@ def cmd_work(args):
     check_initialized()
     items = load_items()
     prefix = load_prefix()
-    session = os.getcwd()
+    session = os.path.realpath(os.getcwd())
+
+    # Split args.args into id (first) and steps (rest).
+    # REMAINDER captures everything after flags, but --force may appear
+    # mixed with positionals (e.g. "work ID --force step1 step2"), so
+    # we filter it out and set the flag manually.
+    positional = args.args or []
+    if "--force" in positional:
+        positional = [a for a in positional if a != "--force"]
+        args.force = True
+    work_id = positional[0] if positional else None
+    work_steps = positional[1:] if len(positional) > 1 else []
 
     # --status: show current tactical (scoped to CWD)
     if args.status:
@@ -1149,12 +1165,12 @@ def cmd_work(args):
         return
 
     # Initialize tactical for specific action
-    if not args.id:
+    if not work_id:
         error("Usage: arc work <id> [steps...] or arc work --status/--clear")
 
-    item = find_by_id(items, args.id, prefix)
+    item = find_by_id(items, work_id, prefix)
     if not item:
-        error(f"Item '{args.id}' not found")
+        error(f"Item '{work_id}' not found")
     if item["type"] == "outcome":
         # Helpful error: show child actions or suggest creating one
         children = sorted(
@@ -1172,7 +1188,7 @@ def cmd_work(args):
             msg += f"\n\nNo actions yet. Create one:\n  arc new \"title\" --for {item['id']} --why \"...\" --what \"...\" --done \"...\""
         error(msg)
     if item["status"] == "done":
-        error(f"Action '{args.id}' is already complete")
+        error(f"Action '{work_id}' is already complete")
 
     # Cross-session conflict: same action claimed by a different CWD
     all_active = find_any_active_tactical(items)
@@ -1190,11 +1206,11 @@ def cmd_work(args):
     # Check for existing progress
     existing = item.get("tactical")
     if existing and existing.get("current", 0) > 0 and not args.force:
-        error(f"Steps in progress (step {existing['current'] + 1}). Run `arc work {args.id} --force` to restart")
+        error(f"Steps in progress (step {existing['current'] + 1}). Run `arc work {work_id} --force` to restart")
 
     # Get steps
-    if args.steps:
-        steps = args.steps
+    if work_steps:
+        steps = work_steps
     else:
         what = item.get("brief", {}).get("what", "")
         steps = parse_steps_from_what(what)
@@ -1218,7 +1234,7 @@ def cmd_step(args):
     """Advance to next tactical step, auto-complete on final."""
     check_initialized()
     items = load_items()
-    session = os.getcwd()
+    session = os.path.realpath(os.getcwd())
 
     active = find_active_tactical(items, session=session)
     if not active:
@@ -1343,8 +1359,7 @@ def main():
 
     # work
     work_parser = subparsers.add_parser("work", help="Manage tactical steps for an action")
-    work_parser.add_argument("id", nargs="?", help="Action ID to work on")
-    work_parser.add_argument("steps", nargs="*", help="Explicit steps (optional)")
+    work_parser.add_argument("args", nargs=argparse.REMAINDER, help="Action ID followed by optional steps")
     work_parser.add_argument("--status", action="store_true", help="Show current tactical state")
     work_parser.add_argument("--clear", action="store_true", help="Clear active tactical steps")
     work_parser.add_argument("--force", action="store_true", help="Restart steps even if in progress")

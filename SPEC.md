@@ -1802,10 +1802,11 @@ Python with uv. Matches existing Claude tooling.
 
 ### Dependencies
 
-None. Standard library only.
+Standard library only for core commands.
 
 - `argparse` (stdlib) — CLI parsing
 - `json` (stdlib) — Storage format
+- `pyyaml` (PyPI) — Migration only (`arc migrate --draft` / `--from-draft`)
 
 ### Performance Target
 

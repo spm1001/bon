@@ -95,3 +95,38 @@ class TestWaitErrors:
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
+
+
+class TestWaitWarnings:
+    """Test arc wait warning behavior."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_wait_warns_on_nonexistent_id(self, arc_dir_with_fixture, monkeypatch):
+        """Warning when waiting_for looks like an arc ID but doesn't exist."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("wait", "arc-ccc", "arc-nonexistent", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "not found in active items" in result.stderr
+        assert "arc-ccc now waiting for:" in result.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_wait_no_warn_on_valid_id(self, arc_dir_with_fixture, monkeypatch):
+        """No warning when waiting_for references a real item."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("wait", "arc-ccc", "arc-bbb", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "not found" not in result.stderr
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_wait_no_warn_on_free_text(self, arc_dir_with_fixture, monkeypatch):
+        """No warning when waiting_for is free text."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("wait", "arc-ccc", "external security review", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "not found" not in result.stderr

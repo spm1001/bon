@@ -23,27 +23,56 @@ def warn(message: str) -> None:
     print(f"Warning: {message}", file=sys.stderr)
 
 
+def _most_recent_timestamp(item: dict) -> str:
+    """Return the most recent timestamp from an item for dedup comparison."""
+    return item.get("done_at") or item.get("created_at") or ""
+
+
 def load_items() -> list[dict]:
     """Load all items from JSONL with validation.
 
-    Deduplicates by ID (last occurrence wins). This handles union merge
-    artifacts where git keeps both old and new versions of an edited line.
+    Deduplicates by ID, preferring the version with the most recent timestamp
+    (done_at > created_at). This handles union merge artifacts where git keeps
+    both old and new versions of an edited line.
     """
     path = Path(".arc/items.jsonl")
     if not path.exists():
         return []
 
-    seen: dict[str, dict] = {}  # id -> item (last wins)
+    seen: dict[str, dict] = {}  # id -> item (best version wins)
+    duplicates: set[str] = set()
     for line_num, line in enumerate(path.read_text().splitlines(), 1):
         line = line.strip()
         if not line:
             continue
+        # Detect git conflict markers
+        if line.startswith(("<<<<<<", "======", ">>>>>>")):
+            print(
+                f"Warning: Git conflict marker on line {line_num} — "
+                f"resolve merge conflicts in .arc/items.jsonl",
+                file=sys.stderr,
+            )
+            continue
         try:
             item = json.loads(line)
             validate_item(item)
-            seen[item["id"]] = item
+            item_id = item["id"]
+            if item_id in seen:
+                duplicates.add(item_id)
+                # Keep the version with the most recent timestamp
+                if _most_recent_timestamp(item) >= _most_recent_timestamp(seen[item_id]):
+                    seen[item_id] = item
+            else:
+                seen[item_id] = item
         except (json.JSONDecodeError, ValidationError) as e:
             print(f"Warning: Skipping malformed item on line {line_num}: {e}", file=sys.stderr)
+
+    if duplicates:
+        ids = ", ".join(sorted(duplicates))
+        print(
+            f"Warning: Duplicate IDs found (merge artifact?): {ids}",
+            file=sys.stderr,
+        )
 
     return list(seen.values())
 

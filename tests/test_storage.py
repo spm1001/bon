@@ -95,6 +95,59 @@ class TestValidateItem:
             validate_item(item, strict=True)
 
 
+class TestLoadItemsDedup:
+    def test_duplicate_id_warns(self, arc_dir, monkeypatch, capsys):
+        """Duplicate IDs produce a warning."""
+        monkeypatch.chdir(arc_dir)
+        item = {"id": "arc-aaa", "type": "outcome", "title": "Test", "status": "open"}
+        content = json.dumps(item) + "\n" + json.dumps(item) + "\n"
+        (arc_dir / ".arc" / "items.jsonl").write_text(content)
+
+        items = load_items()
+
+        assert len(items) == 1
+        captured = capsys.readouterr()
+        assert "Duplicate IDs found" in captured.err
+        assert "arc-aaa" in captured.err
+
+    def test_duplicate_prefers_most_recent(self, arc_dir, monkeypatch, capsys):
+        """Dedup keeps the version with the most recent timestamp."""
+        monkeypatch.chdir(arc_dir)
+        old = {"id": "arc-aaa", "type": "outcome", "title": "Old", "status": "open",
+               "created_at": "2026-01-01T00:00:00Z"}
+        new = {"id": "arc-aaa", "type": "outcome", "title": "New", "status": "done",
+               "created_at": "2026-01-01T00:00:00Z", "done_at": "2026-02-01T00:00:00Z"}
+        # Old appears after new — but new should still win because done_at is more recent
+        content = json.dumps(new) + "\n" + json.dumps(old) + "\n"
+        (arc_dir / ".arc" / "items.jsonl").write_text(content)
+
+        items = load_items()
+
+        assert len(items) == 1
+        assert items[0]["title"] == "New"
+        assert items[0]["status"] == "done"
+
+    def test_conflict_markers_warn(self, arc_dir, monkeypatch, capsys):
+        """Git conflict markers produce a specific diagnostic."""
+        monkeypatch.chdir(arc_dir)
+        content = (
+            '{"id": "arc-aaa", "type": "outcome", "title": "Test", "status": "open"}\n'
+            '<<<<<<< HEAD\n'
+            '{"id": "arc-bbb", "type": "action", "title": "Ours", "status": "open"}\n'
+            '=======\n'
+            '{"id": "arc-bbb", "type": "action", "title": "Theirs", "status": "done"}\n'
+            '>>>>>>> branch\n'
+        )
+        (arc_dir / ".arc" / "items.jsonl").write_text(content)
+
+        items = load_items()
+
+        captured = capsys.readouterr()
+        assert "conflict marker" in captured.err.lower()
+        # Should still load the valid items (both versions of arc-bbb)
+        assert any(i["id"] == "arc-aaa" for i in items)
+
+
 class TestSaveItems:
     def test_save_and_reload(self, arc_dir, monkeypatch):
         """Items saved can be reloaded."""
