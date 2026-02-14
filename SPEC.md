@@ -264,6 +264,37 @@ The `brief` field enables Claude-to-Claude handoff. It has three required subfie
 }
 ```
 
+### Schema Stability
+
+`items.jsonl` has external consumers that read it directly with jq (not via the CLI) for performance in hooks and session scripts. Breaking changes to field names or shapes would silently break these consumers.
+
+**Known consumer:** trousse (session hooks and scripts)
+
+| Script | Purpose |
+|--------|---------|
+| `arc-read.sh` | `list`, `ready`, `current` for session briefing |
+| `arc-tactical.sh` | Inject current tactical step into every prompt |
+| `open-context.sh` | Look up parent outcome for zoom display |
+
+**Stable fields** (relied on by jq consumers):
+
+| Field | Usage |
+|-------|-------|
+| `.id` | Display, parent lookup, grouping key |
+| `.type` | Filter by `"outcome"` / `"action"` |
+| `.title` | Display |
+| `.status` | Filter by `"open"` / `"done"` |
+| `.parent` | Group children, filter top-level |
+| `.order` | `sort_by(.order)`, display numbering |
+| `.waiting_for` | Exclude non-ready items |
+| `.tactical` | Presence check, `.steps[]`, `.current` |
+
+**Not read externally:** `.brief`, `.created_at`, `.created_by`, `.done_at`
+
+Changes to stable field names, value shapes, or status string values require checking trousse's jq queries. Adding new fields or new status values is safe — jq ignores unknown fields and queries filter explicitly. trousse has 34 pytest tests covering its jq queries as a safety net, but these test against fixture data, not live schema, so they catch query regressions but not schema drift.
+
+**Pattern:** Python for writes (validation, ID generation), jq for reads (hooks, scripts).
+
 ### ID Generation
 
 Pronounceable hashes for human-friendly, collision-resistant IDs.

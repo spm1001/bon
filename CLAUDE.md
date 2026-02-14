@@ -160,4 +160,4 @@ Two-phase manifest pattern:
 1. `arc migrate --from-beads FILE --draft` → YAML with `_beads` context
 2. Fill briefs, then `arc migrate --from-draft FILE`
 
-See `cli.py` `migrate_to_draft()` and `migrate_from_draft()`.
+See `src/arc/migrate.py` for implementation.
