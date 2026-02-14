@@ -5,6 +5,7 @@ import pytest
 from conftest import run_arc
 
 from arc.cli import prompt_brief
+from arc.storage import ArcError
 
 
 class TestPromptBrief:
@@ -22,27 +23,27 @@ class TestPromptBrief:
         }
 
     def test_empty_why_rejected(self):
-        """Empty 'why' causes exit."""
+        """Empty 'why' raises ArcError."""
         with patch('builtins.input', side_effect=["", "A thing", "It works"]):
-            with pytest.raises(SystemExit):
+            with pytest.raises(ArcError):
                 prompt_brief()
 
     def test_empty_what_rejected(self):
-        """Empty 'what' causes exit."""
+        """Empty 'what' raises ArcError."""
         with patch('builtins.input', side_effect=["Because reasons", "", "It works"]):
-            with pytest.raises(SystemExit):
+            with pytest.raises(ArcError):
                 prompt_brief()
 
     def test_empty_done_rejected(self):
-        """Empty 'done' causes exit."""
+        """Empty 'done' raises ArcError."""
         with patch('builtins.input', side_effect=["Because reasons", "A thing", ""]):
-            with pytest.raises(SystemExit):
+            with pytest.raises(ArcError):
                 prompt_brief()
 
     def test_whitespace_only_rejected(self):
-        """Whitespace-only input rejected."""
+        """Whitespace-only input raises ArcError."""
         with patch('builtins.input', side_effect=["   ", "A thing", "It works"]):
-            with pytest.raises(SystemExit):
+            with pytest.raises(ArcError):
                 prompt_brief()
 
     def test_input_stripped(self):
@@ -53,6 +54,16 @@ class TestPromptBrief:
         assert brief["why"] == "Because reasons"
         assert brief["what"] == "A thing"
         assert brief["done"] == "It works"
+
+
+class TestArcErrorInProcess:
+    """Test that ArcError can be caught in-process (no subprocess needed)."""
+
+    def test_error_raises_arc_error(self):
+        """error() raises ArcError catchable in-process."""
+        from arc.storage import error
+        with pytest.raises(ArcError, match="test message"):
+            error("test message")
 
 
 class TestInteractiveCLI:

@@ -12,10 +12,14 @@ class ValidationError(Exception):
     pass
 
 
+class ArcError(Exception):
+    """Raised by error() for user-facing errors."""
+    pass
+
+
 def error(message: str) -> None:
-    """Print error message and exit."""
-    print(f"Error: {message}", file=sys.stderr)
-    sys.exit(1)
+    """Raise ArcError with the given message."""
+    raise ArcError(message)
 
 
 def warn(message: str) -> None:
@@ -24,7 +28,11 @@ def warn(message: str) -> None:
 
 
 def _most_recent_timestamp(item: dict) -> str:
-    """Return the most recent timestamp from an item for dedup comparison."""
+    """Return the most recent timestamp from an item for dedup comparison.
+
+    When updated_at is added (see FIELD_REPORT_content_hash.md), include it
+    here: done_at > updated_at > created_at.
+    """
     return item.get("done_at") or item.get("created_at") or ""
 
 
@@ -156,10 +164,14 @@ def find_by_id(items: list[dict], item_id: str, prefix: str | None = None) -> di
     return None
 
 
+_creator_cache: str | None = None
+
+
 def get_creator() -> str:
     """Get creator identifier for new items.
 
     Returns "{name}" for AI agents (common case), "{name}-tty" for humans typing directly.
+    Result is cached after first call (git runs at most once per process).
 
     Name priority:
     1. ARC_USER env var (explicit override)
@@ -167,6 +179,10 @@ def get_creator() -> str:
     3. USER env var (fallback)
     4. "unknown" (last resort)
     """
+    global _creator_cache
+    if _creator_cache is not None:
+        return _creator_cache
+
     # Get the human identity
     name = None
 
@@ -192,9 +208,11 @@ def get_creator() -> str:
 
     # Suffix -tty if human is typing directly (rare case)
     if sys.stdin.isatty():
-        return f"{name}-tty"
+        _creator_cache = f"{name}-tty"
+    else:
+        _creator_cache = name
 
-    return name
+    return _creator_cache
 
 
 def now_iso() -> str:
