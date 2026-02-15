@@ -19,7 +19,7 @@ class TestWaitBasic:
         assert "arc-aaa now waiting for: some-blocker" in result.stdout
 
         # Verify the item was updated
-        item = json.loads((arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert item["waiting_for"] == "some-blocker"
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
@@ -41,7 +41,7 @@ class TestWaitBasic:
 
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         ccc = json.loads(lines[2])
         assert ccc["waiting_for"] == "arc-bbb"
 
@@ -55,7 +55,7 @@ class TestWaitBasic:
 
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         bbb = json.loads(lines[1])
         assert bbb["waiting_for"] == "new-reason"
 
@@ -65,7 +65,7 @@ class TestWaitBasic:
 
         # Create an item first
         run_arc("new", "Test", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
-        lines = (arc_dir / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
         item_id = json.loads(lines[0])["id"]
 
         result = run_arc("wait", item_id, "security review approval", cwd=arc_dir)

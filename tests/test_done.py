@@ -19,7 +19,7 @@ class TestDoneBasic:
         assert "Done: arc-aaa" in result.stdout
 
         # Verify the item was updated
-        item = json.loads((arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert item["status"] == "done"
         assert "done_at" in item
         assert item["done_at"].endswith("Z")
@@ -68,7 +68,7 @@ class TestDoneUnblock:
         assert "Unblocked: arc-bbb" in result.stdout
 
         # Verify arc-bbb is now unblocked
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         bbb = next(i for i in items if i["id"] == "arc-bbb")
         assert bbb["waiting_for"] is None
@@ -87,7 +87,7 @@ class TestDoneUnblock:
         assert "Unblocked: arc-ccc" in result.stdout
 
         # arc-ccc is now unblocked
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         ccc = next(i for i in items if i["id"] == "arc-ccc")
         assert ccc["waiting_for"] is None
@@ -132,7 +132,7 @@ class TestDoneClearsTactical:
         assert result.returncode == 0
 
         # Verify tactical is cleared
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         ccc = next(i for i in items if i["id"] == "arc-ccc")
         assert "tactical" not in ccc

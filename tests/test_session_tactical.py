@@ -37,11 +37,11 @@ class TestSessionIsolation:
         ccc = next(i for i in items if i["id"] == "arc-ccc")
         assert ccc["tactical"]["session"] == str(base)
 
-        # Session B (tmp_path as different CWD): needs its own .arc/
-        # We symlink .arc so both dirs share the same data
-        arc_link = tmp_path / "session_b" / ".arc"
+        # Session B (tmp_path as different CWD): needs its own .bon/
+        # We symlink .bon so both dirs share the same data
+        arc_link = tmp_path / "session_b" / ".bon"
         arc_link.parent.mkdir()
-        arc_link.symlink_to(base / ".arc")
+        arc_link.symlink_to(base / ".bon")
         session_b = arc_link.parent
 
         result = run_arc("work", second_id, "Step B1", "Step B2", cwd=session_b)
@@ -66,11 +66,11 @@ class TestSessionScopedLookup:
         # Patch fixture: set session fields to our actual tmp dirs
         session_a = tmp_path / "worktree_a"
         session_a.mkdir()
-        (session_a / ".arc").symlink_to(base / ".arc")
+        (session_a / ".bon").symlink_to(base / ".bon")
 
         session_b = tmp_path / "worktree_b"
         session_b.mkdir()
-        (session_b / ".arc").symlink_to(base / ".arc")
+        (session_b / ".bon").symlink_to(base / ".bon")
 
         # Rewrite items with real paths
         items = _load_items(base)
@@ -98,11 +98,11 @@ class TestSessionScopedLookup:
 
         session_a = tmp_path / "worktree_a"
         session_a.mkdir()
-        (session_a / ".arc").symlink_to(base / ".arc")
+        (session_a / ".bon").symlink_to(base / ".bon")
 
         session_b = tmp_path / "worktree_b"
         session_b.mkdir()
-        (session_b / ".arc").symlink_to(base / ".arc")
+        (session_b / ".bon").symlink_to(base / ".bon")
 
         # Rewrite items with real paths
         items = _load_items(base)
@@ -132,7 +132,7 @@ class TestSessionScopedLookup:
         # Run from base which matches neither
         session_c = tmp_path / "worktree_c"
         session_c.mkdir()
-        (session_c / ".arc").symlink_to(base / ".arc")
+        (session_c / ".bon").symlink_to(base / ".bon")
 
         result = run_arc("show", "--current", cwd=session_c)
         assert result.returncode == 0
@@ -169,11 +169,11 @@ class TestSessionScopedClear:
 
         session_a = tmp_path / "worktree_a"
         session_a.mkdir()
-        (session_a / ".arc").symlink_to(base / ".arc")
+        (session_a / ".bon").symlink_to(base / ".bon")
 
         session_b = tmp_path / "worktree_b"
         session_b.mkdir()
-        (session_b / ".arc").symlink_to(base / ".arc")
+        (session_b / ".bon").symlink_to(base / ".bon")
 
         # Rewrite items with real paths
         items = _load_items(base)
@@ -202,7 +202,7 @@ class TestSessionScopedClear:
 
         session_c = tmp_path / "worktree_c"
         session_c.mkdir()
-        (session_c / ".arc").symlink_to(base / ".arc")
+        (session_c / ".bon").symlink_to(base / ".bon")
 
         result = run_arc("work", "--clear", cwd=session_c)
         assert result.returncode == 0
@@ -226,11 +226,11 @@ class TestWorkStatus:
 
         session_a = tmp_path / "worktree_a"
         session_a.mkdir()
-        (session_a / ".arc").symlink_to(base / ".arc")
+        (session_a / ".bon").symlink_to(base / ".bon")
 
         session_b = tmp_path / "worktree_b"
         session_b.mkdir()
-        (session_b / ".arc").symlink_to(base / ".arc")
+        (session_b / ".bon").symlink_to(base / ".bon")
 
         items = _load_items(base)
         for item in items:
@@ -320,7 +320,7 @@ class TestSessionStamping:
 
 def _load_items(base_dir):
     """Load items from .arc/items.jsonl."""
-    path = base_dir / ".arc" / "items.jsonl"
+    path = base_dir / ".bon" / "items.jsonl"
     items = []
     for line in path.read_text().strip().split("\n"):
         if line.strip():
@@ -330,7 +330,7 @@ def _load_items(base_dir):
 
 def _save_items(base_dir, items):
     """Save items to .arc/items.jsonl."""
-    path = base_dir / ".arc" / "items.jsonl"
+    path = base_dir / ".bon" / "items.jsonl"
     with open(path, "w") as f:
         for item in sorted(items, key=lambda i: i.get("id", "")):
             f.write(json.dumps(item, ensure_ascii=False) + "\n")

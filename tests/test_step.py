@@ -23,7 +23,7 @@ class TestStepAdvances:
         assert "Next: Step three" in result.stdout
 
         # Verify storage updated
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         child = next(i for i in items if i["id"] == "arc-child")
         assert child["tactical"]["current"] == 2
@@ -62,7 +62,7 @@ class TestStepFinalCompletes:
         assert "Action arc-child complete." in result.stdout
 
         # Verify action is done
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         child = next(i for i in items if i["id"] == "arc-child")
         assert child["status"] == "done"
@@ -96,7 +96,7 @@ class TestStepUnblocksWaiters:
         run_arc("step", cwd=arc_dir_with_fixture)
 
         # Verify waiter is unblocked
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         waiter = next(i for i in items if i["id"] == waiter_id)
         assert waiter["waiting_for"] is None
@@ -114,7 +114,7 @@ class TestStepNoTacticalErrors:
 
         assert result.returncode == 1
         assert "No steps in progress" in result.stderr
-        assert "arc work <id>" in result.stderr
+        assert "bon work <id>" in result.stderr
 
 
 class TestStepErrors:

@@ -13,7 +13,7 @@ class TestStatusBasic:
         result = run_arc("status", cwd=arc_dir)
 
         assert result.returncode == 0
-        assert "Arc status (prefix: arc)" in result.stdout
+        assert "Bon status (prefix: arc)" in result.stdout
         assert "Outcomes:   0 open, 0 done" in result.stdout
         assert "Actions:    0 open (0 ready, 0 waiting), 0 done" in result.stdout
 

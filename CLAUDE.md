@@ -1,24 +1,24 @@
 # CLAUDE.md
 
-Guidance for working on arc (the codebase, not with arc).
+Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Arc is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 18 commands, ~2000 LOC core, 269 tests.
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 18 commands, ~2000 LOC core, 269 tests.
 
 ## Quick Commands
 
 ```bash
 uv run pytest                    # Run all tests
 uv run pytest tests/test_X.py    # Run specific test file
-uv run arc list                  # See current arc state
-uv run arc --help                # CLI help
+uv run bon list                  # See current bon state
+uv run bon --help                # CLI help
 ```
 
 ## Project Structure
 
 ```
-src/arc/
+src/bon/
 ├── cli.py        # All commands, argparse setup, main entry point
 ├── storage.py    # JSONL I/O, validation, prefix management
 ├── ids.py        # ID generation (pronounceable 3-syllable)
@@ -27,12 +27,12 @@ src/arc/
 
 tests/            # pytest suite, one file per command
 fixtures/         # JSONL snapshots for parametrized tests
-arc/SKILL.md    # Claude Code integration patterns
+bon/SKILL.md    # Claude Code integration patterns
 ```
 
 ## Data Model
 
-Items live in `.arc/items.jsonl`. Two types:
+Items live in `.bon/items.jsonl`. Two types:
 
 - **Outcome**: Desired result (has children)
 - **Action**: Concrete step (has parent, waiting_for)
@@ -56,7 +56,7 @@ Both require `brief: {why, what, done}` — all three non-empty.
    mycommand_parser.set_defaults(func=cmd_mycommand)
    ```
 
-3. Create `tests/test_mycommand.py` using `run_arc()` helper
+3. Create `tests/test_mycommand.py` using `run_bon()` helper
 
 4. Update README.md command table
 
@@ -74,7 +74,7 @@ This is the dependency mechanism. Don't break it.
 
 ### Prefix-Tolerant ID Matching
 
-Users can type `gabdur` instead of `arc-gabdur`. The `find_by_id()` function handles this — always use it for lookups.
+Users can type `gabdur` instead of `bon-gabdur`. The `find_by_id()` function handles this — always use it for lookups.
 
 ### Atomic Writes
 
@@ -83,7 +83,7 @@ Users can type `gabdur` instead of `arc-gabdur`. The `find_by_id()` function han
 ### Merge-Friendly Storage
 
 `save_items()` sorts by ID before writing, producing deterministic line order.
-`.gitattributes` uses `merge=union` for `.arc/*.jsonl` so concurrent branches
+`.gitattributes` uses `merge=union` for `.bon/*.jsonl` so concurrent branches
 that touch different items merge cleanly. `load_items()` deduplicates by ID
 (last occurrence wins) to handle union merge artifacts where both old and new
 versions of an edited line survive.
@@ -98,26 +98,26 @@ work, which needs human resolution anyway.
 ## Testing Patterns
 
 **Fixtures** (`fixtures/*.jsonl`): Snapshot data for parametrized tests
-**Runner** (`conftest.py`): `run_arc(*args, cwd=...)` subprocess helper
+**Runner** (`conftest.py`): `run_bon(*args, cwd=...)` subprocess helper
 
 ```python
-def test_something(arc_dir):
-    result = run_arc("list", cwd=arc_dir)
+def test_something(bon_dir):
+    result = run_bon("list", cwd=bon_dir)
     assert result.returncode == 0
     assert "Expected output" in result.stdout
 ```
 
 Parametrized fixture loading:
 ```python
-@pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-def test_with_data(arc_dir_with_fixture):
-    result = run_arc("list", cwd=arc_dir_with_fixture)
+@pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+def test_with_data(bon_dir_with_fixture):
+    result = run_bon("list", cwd=bon_dir_with_fixture)
 ```
 
 ## Common Patterns in cli.py
 
 ```python
-check_initialized()              # Always first — errors if no .arc/
+check_initialized()              # Always first — errors if no .bon/
 items = load_items()             # Load current state
 prefix = load_prefix()           # Get ID prefix
 item = find_by_id(items, id, prefix)  # Lookup (handles prefix tolerance)
@@ -136,7 +136,7 @@ save_items(items)                # Atomic write back
 | Breaking unblock-on-done | Test with `waiting_dependency` fixture |
 | Standalone actions forgotten | Check items where `parent` is None |
 | Interactive mode untested | Test with `input=` parameter |
-| Mixed-case IDs (arc-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
+| Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
 | Changing schema fields | trousse reads items.jsonl directly with jq (see FIELD_REPORT_jq_consumers.md) |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
 
@@ -148,7 +148,7 @@ save_items(items)                # Atomic write back
 | See expected outputs | `fixtures/*.jsonl` |
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
-| Update Claude integration | `arc/SKILL.md` |
+| Update Claude integration | `bon/SKILL.md` |
 
 ## Spec-Driven Development
 
@@ -157,7 +157,7 @@ save_items(items)                # Atomic write back
 ## Migration
 
 Two-phase manifest pattern:
-1. `arc migrate --from-beads FILE --draft` → YAML with `_beads` context
-2. Fill briefs, then `arc migrate --from-draft FILE`
+1. `bon migrate --from-beads FILE --draft` → YAML with `_beads` context
+2. Fill briefs, then `bon migrate --from-draft FILE`
 
-See `src/arc/migrate.py` for implementation.
+See `src/bon/migrate.py` for implementation.

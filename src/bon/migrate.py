@@ -1,11 +1,11 @@
-"""Migration from beads to arc."""
+"""Migration from beads to bon."""
 import json
 import sys
 from pathlib import Path
 
 import yaml
 
-from arc.storage import error, get_creator, now_iso
+from bon.storage import error, get_creator, now_iso
 
 
 def migrate_to_draft(beads_path: str, promote_orphans: bool = False, orphan_parent: str | None = None):
@@ -191,12 +191,12 @@ def migrate_to_draft(beads_path: str, promote_orphans: bool = False, orphan_pare
 
 
 def migrate_from_draft(manifest_path: str):
-    """Import completed manifest into .arc/.
+    """Import completed manifest into .bon/.
 
     Validates:
     - All briefs complete (why/what/done non-empty)
     - No orphan actions
-    - .arc/ doesn't already exist (unless --force? no, we said no --force)
+    - .bon/ doesn't already exist
     """
     path = Path(manifest_path)
     if not path.exists():
@@ -205,10 +205,10 @@ def migrate_from_draft(manifest_path: str):
     with open(path) as f:
         manifest = yaml.safe_load(f)
 
-    # Check .arc/ exists
-    arc_dir = Path(".arc")
-    if arc_dir.exists():
-        error(".arc/ already exists. Remove it first or migrate to a different directory.")
+    # Check .bon/ exists
+    bon_dir = Path(".bon")
+    if bon_dir.exists():
+        error(".bon/ already exists. Remove it first or migrate to a different directory.")
 
     # Validate and collect items
     items = []
@@ -279,15 +279,15 @@ def migrate_from_draft(manifest_path: str):
     if "-" in first_id:
         prefix = first_id.rsplit("-", 1)[0]
     else:
-        prefix = "arc"
+        prefix = "bon"
 
-    # Create .arc/
-    arc_dir.mkdir()
-    (arc_dir / "prefix").write_text(prefix)
+    # Create .bon/
+    bon_dir.mkdir()
+    (bon_dir / "prefix").write_text(prefix)
 
     # Write items
-    with open(arc_dir / "items.jsonl", "w") as f:
+    with open(bon_dir / "items.jsonl", "w") as f:
         for item in items:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
-    print(f"Migrated {len(items)} items to .arc/ (prefix: {prefix})")
+    print(f"Migrated {len(items)} items to .bon/ (prefix: {prefix})")

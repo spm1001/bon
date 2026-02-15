@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from arc.storage import (
+from bon.storage import (
     ValidationError,
     find_by_id,
     load_items,
@@ -27,7 +27,7 @@ class TestLoadItems:
         """Load a single valid item."""
         monkeypatch.chdir(arc_dir)
         item = {"id": "arc-aaa", "type": "outcome", "title": "Test", "status": "open"}
-        (arc_dir / ".arc" / "items.jsonl").write_text(json.dumps(item) + "\n")
+        (arc_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
 
         items = load_items()
 
@@ -40,7 +40,7 @@ class TestLoadItems:
         content = '{"id": "arc-aaa", "type": "outcome", "title": "Good", "status": "open"}\n'
         content += 'not valid json\n'
         content += '{"id": "arc-bbb", "type": "action", "title": "Also good", "status": "open"}\n'
-        (arc_dir / ".arc" / "items.jsonl").write_text(content)
+        (arc_dir / ".bon" / "items.jsonl").write_text(content)
 
         items = load_items()
 
@@ -101,7 +101,7 @@ class TestLoadItemsDedup:
         monkeypatch.chdir(arc_dir)
         item = {"id": "arc-aaa", "type": "outcome", "title": "Test", "status": "open"}
         content = json.dumps(item) + "\n" + json.dumps(item) + "\n"
-        (arc_dir / ".arc" / "items.jsonl").write_text(content)
+        (arc_dir / ".bon" / "items.jsonl").write_text(content)
 
         items = load_items()
 
@@ -119,7 +119,7 @@ class TestLoadItemsDedup:
                "created_at": "2026-01-01T00:00:00Z", "done_at": "2026-02-01T00:00:00Z"}
         # Old appears after new — but new should still win because done_at is more recent
         content = json.dumps(new) + "\n" + json.dumps(old) + "\n"
-        (arc_dir / ".arc" / "items.jsonl").write_text(content)
+        (arc_dir / ".bon" / "items.jsonl").write_text(content)
 
         items = load_items()
 
@@ -138,7 +138,7 @@ class TestLoadItemsDedup:
             '{"id": "arc-bbb", "type": "action", "title": "Theirs", "status": "done"}\n'
             '>>>>>>> branch\n'
         )
-        (arc_dir / ".arc" / "items.jsonl").write_text(content)
+        (arc_dir / ".bon" / "items.jsonl").write_text(content)
 
         items = load_items()
 
@@ -196,18 +196,18 @@ class TestFindById:
 
 class TestLoadPrefix:
     def test_default_prefix(self, arc_dir, monkeypatch):
-        """Default prefix is 'arc' when file is empty."""
+        """Default prefix is 'bon' when file is missing."""
         monkeypatch.chdir(arc_dir)
-        (arc_dir / ".arc" / "prefix").unlink()  # Remove prefix file
+        (arc_dir / ".bon" / "prefix").unlink()  # Remove prefix file
 
         prefix = load_prefix()
 
-        assert prefix == "arc"
+        assert prefix == "bon"
 
     def test_custom_prefix(self, arc_dir, monkeypatch):
         """Read custom prefix from file."""
         monkeypatch.chdir(arc_dir)
-        (arc_dir / ".arc" / "prefix").write_text("myproject")
+        (arc_dir / ".bon" / "prefix").write_text("myproject")
 
         prefix = load_prefix()
 

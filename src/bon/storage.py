@@ -1,4 +1,4 @@
-"""Storage operations for arc items."""
+"""Storage operations for bon items."""
 import json
 import os
 import subprocess
@@ -12,14 +12,14 @@ class ValidationError(Exception):
     pass
 
 
-class ArcError(Exception):
+class BonError(Exception):
     """Raised by error() for user-facing errors."""
     pass
 
 
 def error(message: str) -> None:
-    """Raise ArcError with the given message."""
-    raise ArcError(message)
+    """Raise BonError with the given message."""
+    raise BonError(message)
 
 
 def warn(message: str) -> None:
@@ -27,11 +27,25 @@ def warn(message: str) -> None:
     print(f"Warning: {message}", file=sys.stderr)
 
 
+def _data_dir() -> Path:
+    """Return the data directory path (.bon/ preferred, .arc/ fallback).
+
+    For transition: if .bon/ exists, use it. Else if .arc/ exists, use it.
+    For new operations (neither exists), default to .bon/.
+    """
+    bon = Path(".bon")
+    if bon.is_dir():
+        return bon
+    arc = Path(".arc")
+    if arc.is_dir():
+        return arc
+    return bon  # default for new operations
+
+
 def _most_recent_timestamp(item: dict) -> str:
     """Return the most recent timestamp from an item for dedup comparison.
 
-    When updated_at is added (see FIELD_REPORT_content_hash.md), include it
-    here: done_at > updated_at > created_at.
+    When updated_at is added, include it here: done_at > updated_at > created_at.
     """
     return item.get("done_at") or item.get("created_at") or ""
 
@@ -43,7 +57,7 @@ def load_items() -> list[dict]:
     (done_at > created_at). This handles union merge artifacts where git keeps
     both old and new versions of an edited line.
     """
-    path = Path(".arc/items.jsonl")
+    path = _data_dir() / "items.jsonl"
     if not path.exists():
         return []
 
@@ -57,7 +71,7 @@ def load_items() -> list[dict]:
         if line.startswith(("<<<<<<", "======", ">>>>>>")):
             print(
                 f"Warning: Git conflict marker on line {line_num} — "
-                f"resolve merge conflicts in .arc/items.jsonl",
+                f"resolve merge conflicts in {path}",
                 file=sys.stderr,
             )
             continue
@@ -90,7 +104,7 @@ def validate_item(item: dict, strict: bool = False) -> None:
 
     Args:
         item: The item to validate
-        strict: If True, also validates brief subfields (used for arc edit).
+        strict: If True, also validates brief subfields (used for bon edit).
                 If False, lenient validation for loading potentially old data.
     """
     required = ["id", "type", "title", "status"]
@@ -120,7 +134,7 @@ def save_items(items: list[dict]) -> None:
     Deterministic order means two branches that touch different items
     produce minimal diffs, enabling clean git merges.
     """
-    path = Path(".arc/items.jsonl")
+    path = _data_dir() / "items.jsonl"
     tmp = path.with_suffix(".tmp")
 
     with open(tmp, "w") as f:
@@ -131,11 +145,11 @@ def save_items(items: list[dict]) -> None:
 
 
 def load_prefix() -> str:
-    """Load prefix, default to 'arc'."""
-    path = Path(".arc/prefix")
+    """Load prefix, default to 'bon'."""
+    path = _data_dir() / "prefix"
     if path.exists():
         return path.read_text()
-    return "arc"
+    return "bon"
 
 
 def find_by_id(items: list[dict], item_id: str, prefix: str | None = None) -> dict | None:
@@ -174,10 +188,11 @@ def get_creator() -> str:
     Result is cached after first call (git runs at most once per process).
 
     Name priority:
-    1. ARC_USER env var (explicit override)
-    2. git config user.name (most common)
-    3. USER env var (fallback)
-    4. "unknown" (last resort)
+    1. BON_USER env var (explicit override)
+    2. ARC_USER env var (transition fallback)
+    3. git config user.name (most common)
+    4. USER env var (fallback)
+    5. "unknown" (last resort)
     """
     global _creator_cache
     if _creator_cache is not None:
@@ -186,8 +201,10 @@ def get_creator() -> str:
     # Get the human identity
     name = None
 
-    # Explicit override
-    if arc_user := os.environ.get("ARC_USER"):
+    # Explicit override (BON_USER preferred, ARC_USER fallback)
+    if bon_user := os.environ.get("BON_USER"):
+        name = bon_user
+    elif arc_user := os.environ.get("ARC_USER"):
         name = arc_user
 
     # Git user name
@@ -221,12 +238,12 @@ def now_iso() -> str:
 
 
 def check_initialized() -> None:
-    """Check if .arc/ is initialized. Exit with error if not."""
-    if not Path(".arc").is_dir():
-        error("Not initialized. Run `arc init` first.")
+    """Check if .bon/ or .arc/ is initialized. Exit with error if not."""
+    if not Path(".bon").is_dir() and not Path(".arc").is_dir():
+        error("Not initialized. Run `bon init` first.")
 
 
-from arc.ids import get_siblings
+from bon.ids import get_siblings
 
 
 def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):
@@ -326,7 +343,7 @@ def find_any_active_tactical(items: list[dict]) -> list[dict]:
 
 def load_archive() -> list[dict]:
     """Load archived items from archive.jsonl."""
-    path = Path(".arc/archive.jsonl")
+    path = _data_dir() / "archive.jsonl"
     if not path.exists():
         return []
 
@@ -346,7 +363,7 @@ def load_archive() -> list[dict]:
 
 def append_archive(items: list[dict]) -> None:
     """Append items to archive.jsonl atomically."""
-    path = Path(".arc/archive.jsonl")
+    path = _data_dir() / "archive.jsonl"
 
     # Read existing content (if any)
     existing = ""
@@ -377,7 +394,7 @@ def remove_from_archive(item_id: str, prefix: str | None = None) -> dict | None:
         return None
 
     remaining = [i for i in archived if i["id"] != item["id"]]
-    path = Path(".arc/archive.jsonl")
+    path = _data_dir() / "archive.jsonl"
     tmp = path.with_suffix(".tmp")
     with open(tmp, "w") as f:
         for i in remaining:

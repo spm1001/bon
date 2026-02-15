@@ -13,10 +13,10 @@ def test_update_shows_in_help():
 
 
 def test_update_no_arc_dir_needed(tmp_path):
-    """arc update should work without .arc/ directory (it's a meta-command)."""
+    """bon update should work without .bon/ directory (it's a meta-command)."""
     result = run_arc("update", cwd=tmp_path)
     # Should not fail with "not initialized" error
-    assert "Not an arc project" not in result.stderr
+    assert "Not a bon project" not in result.stderr
 
 
 @pytest.mark.skipif(not shutil.which("uv"), reason="uv not available")
@@ -24,4 +24,4 @@ def test_update_runs():
     """arc update re-installs from source."""
     result = run_arc("update")
     assert result.returncode == 0
-    assert "Current: arc" in result.stdout
+    assert "Current: bon" in result.stdout

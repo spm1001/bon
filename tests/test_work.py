@@ -9,47 +9,47 @@ class TestParseStepsFromWhat:
     """Unit tests for parse_steps_from_what."""
 
     def test_single_line(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         assert parse_steps_from_what("1. First 2. Second 3. Third") == ["First", "Second", "Third"]
 
     def test_newlines_between_steps(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         assert parse_steps_from_what("1. First\n2. Second\n3. Third") == ["First", "Second", "Third"]
 
     def test_newlines_within_steps_normalized(self):
         """Newlines within step text should be collapsed to spaces."""
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         result = parse_steps_from_what("1. First step\nwith detail\n2. Second step\n3. Third")
         assert result == ["First step with detail", "Second step", "Third"]
 
     def test_version_numbers_not_split(self):
         """v2.0 should not be treated as step boundary."""
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         result = parse_steps_from_what("1. Create v2.0 config 2. Test 3. Ship")
         assert result == ["Create v2.0 config", "Test", "Ship"]
 
     def test_paren_style_delimiters(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         assert parse_steps_from_what("1) First 2) Second 3) Third") == ["First", "Second", "Third"]
 
     def test_trailing_newline(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         assert parse_steps_from_what("1. First\n2. Second\n") == ["First", "Second"]
 
     def test_double_newlines(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         assert parse_steps_from_what("1. First\n\n2. Second\n\n3. Third") == ["First", "Second", "Third"]
 
     def test_no_steps_returns_none(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         assert parse_steps_from_what("Just some text with no numbers") is None
 
     def test_single_step(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         assert parse_steps_from_what("1. Only one step") == ["Only one step"]
 
     def test_preamble_text_ignored(self):
-        from arc.cli import parse_steps_from_what
+        from bon.cli import parse_steps_from_what
         result = parse_steps_from_what("Setup: 1. Config 2. Test 3. Deploy")
         assert result == ["Config", "Test", "Deploy"]
 
@@ -160,7 +160,7 @@ class TestWorkOutcomeErrors:
         assert result.returncode == 1
         assert "is an outcome" in result.stderr
         assert "No actions yet" in result.stderr
-        assert "arc new" in result.stderr
+        assert "bon new" in result.stderr
 
 
 class TestWorkSerialEnforcement:
@@ -262,7 +262,7 @@ class TestWorkClear:
         assert "Cleared tactical steps from arc-child" in result.stdout
 
         # Verify tactical removed
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         child = next(i for i in items if i["id"] == "arc-child")
         assert "tactical" not in child

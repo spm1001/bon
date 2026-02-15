@@ -1,27 +1,27 @@
 # Agent Instructions
 
-**Arc** — Lightweight work tracker for agent-human collaboration. JSONL-based, Git-tracked.
+**Bon** — Lightweight work tracker for agent-human collaboration. JSONL-based, Git-tracked.
 
 ## Quick Commands
 
 ```bash
-arc list                     # See all items
-arc list --ready             # See unblocked work
-arc show <id>                # View item details
-arc new "Title"              # Create desired outcome
-arc new "Title" --outcome OUT --why "..." --what "..." --done "..."
+bon list                     # See all items
+bon list --ready             # See unblocked work
+bon show <id>                # View item details
+bon new "Title"              # Create desired outcome
+bon new "Title" --outcome OUT --why "..." --what "..." --done "..."
                              # Create action under outcome
-arc done <id>                # Mark complete
-arc work <id>                # Start tactical steps
-arc step                     # Advance to next step
-arc --help                   # Full CLI help
+bon done <id>                # Mark complete
+bon work <id>                # Start tactical steps
+bon step                     # Advance to next step
+bon --help                   # Full CLI help
 ```
 
 ## GTD Vocabulary
 
-Arc uses GTD terms:
+Bon uses GTD terms:
 
-| Arc Term | Meaning |
+| Bon Term | Meaning |
 |----------|---------|
 | Outcome | Desired result (has children) |
 | Action | Concrete step (has parent, waiting_for) |
@@ -29,7 +29,7 @@ Arc uses GTD terms:
 
 ## Data Model
 
-Items live in `.arc/items.jsonl`. Two types:
+Items live in `.bon/items.jsonl`. Two types:
 
 - **Outcome**: Goal to achieve (can have child actions)
 - **Action**: Concrete next step (can wait on another item)
@@ -41,13 +41,13 @@ Both require `brief: {why, what, done}` — all three non-empty.
 ```bash
 uv run pytest                    # Run all tests
 uv run pytest tests/test_X.py    # Run specific test file
-uv run arc list                  # Test CLI locally
+uv run bon list                  # Test CLI locally
 ```
 
 ## Project Structure
 
 ```
-src/arc/
+src/bon/
 ├── cli.py        # All commands, argparse, entry point
 ├── storage.py    # JSONL I/O, validation, prefix management
 ├── ids.py        # ID generation (pronounceable 3-syllable)
@@ -56,13 +56,13 @@ src/arc/
 
 tests/            # pytest suite
 fixtures/         # JSONL snapshots
-arc/SKILL.md    # Claude Code integration
+bon/SKILL.md    # Claude Code integration
 ```
 
 ## Key Behaviors
 
 1. **Unblock on Done**: Marking an item done unblocks items waiting for it
-2. **Prefix-Tolerant IDs**: `gabdur` and `arc-gabdur` both work
+2. **Prefix-Tolerant IDs**: `gabdur` and `bon-gabdur` both work
 3. **Atomic Writes**: All saves go through `save_items()` (temp file + rename)
 
 ## Spec-Driven

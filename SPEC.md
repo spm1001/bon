@@ -1,4 +1,4 @@
-# InnerPlan: The Arc Specification
+# InnerPlan: The Bon Specification
 
 **Version:** 2.3
 **Date:** 2026-01-25
@@ -8,11 +8,11 @@
 
 ## Vision
 
-Arc is a lightweight work tracker designed for Claude-human collaboration.
+Bon is a lightweight work tracker designed for Claude-human collaboration.
 
 **The problem:** Existing tools (Jira, Linear, beads) are built for human teams with human assumptions — dashboards, sprints, standups. When Claude uses these tools, the vocabulary triggers training-deep responses: "blocker" creates panic, "P0" triggers urgency, "backlog" implies burden.
 
-**The solution:** Arc uses GTD-aligned vocabulary that encourages thoughtful, leisurely development. Work is organized as *Outcomes* (what we're trying to achieve) and *Actions* (concrete next steps). There are no sprints, no story points, no priority levels — just ordering and a clear answer to "what can I work on now?"
+**The solution:** Bon uses GTD-aligned vocabulary that encourages thoughtful, leisurely development. Work is organized as *Outcomes* (what we're trying to achieve) and *Actions* (concrete next steps). There are no sprints, no story points, no priority levels — just ordering and a clear answer to "what can I work on now?"
 
 ### Design Principles
 
@@ -20,17 +20,17 @@ Arc is a lightweight work tracker designed for Claude-human collaboration.
 2. **GTD-aligned vocabulary** — Outcomes not Epics, Waiting not Blocked
 3. **No daemon, no dual-database** — JSONL is the source of truth
 4. **Works on Google Drive** — No SQLite, no file locking requirements
-5. **Hierarchical by default** — Claudes naturally flatten; arc enforces structure
+5. **Hierarchical by default** — Claudes naturally flatten; bon enforces structure
 6. **Natural syntax = correct syntax** — Output works with grep, jq without gymnastics
 7. **Tiny, fast, reliable** — 10 commands, not 86
 
 ### Open Question: Tool Name
 
-The CLI command is `arc` (avoids collision with Unix `ar` archive utility).
+The CLI command is `bon` (avoids collision with Unix `ar` archive utility).
 
-The tool name "arc" works but isn't as natural as "bead" for human speech:
+The tool name "bon" works but isn't as natural as "bead" for human speech:
 - "Make a bead for that" ✓ natural
-- "Make an arc for that" ⚠️ acceptable
+- "Make a bon for that" ⚠️ acceptable
 
 Alternatives under consideration: `pebble`, `mark`, `pin`. No decision yet.
 
@@ -66,9 +66,9 @@ Alternatives under consideration: `pebble`, `mark`, `pin`. No decision yet.
 ### Directory Structure
 
 ```
-.arc/
+.bon/
 ├── items.jsonl    # All items (outcomes, actions)
-└── prefix         # Just the prefix string, e.g. "arc"
+└── prefix         # Just the prefix string, e.g. "bon"
 ```
 
 No SQLite. No daemon. No config.yaml. Git tracks history.
@@ -79,13 +79,13 @@ Contains the prefix string only, **no trailing newline**.
 
 ```bash
 # Create
-echo -n "myproject" > .arc/prefix
+echo -n "myproject" > .bon/prefix
 
 # Read
-PREFIX=$(cat .arc/prefix)
+PREFIX=$(cat .bon/prefix)
 ```
 
-If missing, default to `"arc"`.
+If missing, default to `"bon"`.
 
 Used only for generating new IDs — existing IDs are not validated against it.
 
@@ -96,7 +96,7 @@ All fields shown. **Bold** = required, others optional.
 **Outcome:**
 ```json
 {
-  "id": "arc-gabdur",
+  "id": "bon-gabdur",
   "type": "outcome",
   "title": "Users can authenticate with GitHub",
   "brief": {
@@ -125,7 +125,7 @@ All fields shown. **Bold** = required, others optional.
 **Action:**
 ```json
 {
-  "id": "arc-zokte",
+  "id": "bon-zokte",
   "type": "action",
   "title": "Add OAuth callback endpoint",
   "brief": {
@@ -134,7 +134,7 @@ All fields shown. **Bold** = required, others optional.
     "done": "Endpoint returns 200 with valid token, handles errors gracefully"
   },
   "status": "open",
-  "parent": "arc-gabdur",
+  "parent": "bon-gabdur",
   "order": 1,
   "created_at": "2026-01-25T10:31:00Z",
   "created_by": "sameer",
@@ -182,7 +182,7 @@ Actions can have tactical steps for tracking progress through work. The `tactica
 - `index > current` → pending
 - `current == len(steps)` → all done (action auto-completed)
 
-**Session scoping:** The `session` field records the working directory (CWD) that created the tactical. This enables multiple worktrees sharing the same `.arc/` to have independent active tacticals. When `session` is absent (legacy data), the tactical is unscoped and claimable by any CWD.
+**Session scoping:** The `session` field records the working directory (CWD) that created the tactical. This enables multiple worktrees sharing the same `.bon/` to have independent active tacticals. When `session` is absent (legacy data), the tactical is unscoped and claimable by any CWD.
 
 **Invariant:** At most one action *per session (CWD)* may have `tactical` with `current < len(steps)` at any time. Different CWDs (worktrees) can each have their own active tactical. Two CWDs cannot claim the same action — the second gets an error.
 
@@ -305,8 +305,8 @@ import random
 CONSONANTS = "bcdfghjklmnprstvwz"  # No ambiguous: q, x, y
 VOWELS = "aeiou"
 
-def generate_id(prefix: str = "arc") -> str:
-    """Generate pronounceable ID like 'arc-gabdur'."""
+def generate_id(prefix: str = "bon") -> str:
+    """Generate pronounceable ID like 'bon-gabdur'."""
     syllables = []
     for _ in range(3):
         c = random.choice(CONSONANTS)
@@ -358,7 +358,7 @@ def get_siblings(items: list[dict], item_type: str, parent: str | None = None) -
 
 ### Reordering on Edit
 
-When an item's order is changed via `arc edit`, siblings shift to maintain density:
+When an item's order is changed via `bon edit`, siblings shift to maintain density:
 
 ```python
 def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):
@@ -396,20 +396,20 @@ Completed items retain their order. This preserves position for display (showing
 ### Commands (12)
 
 ```
-arc new "title" [--outcome PARENT] [--why W --what X --done D]
+bon new "title" [--outcome PARENT] [--why W --what X --done D]
                                   Create outcome (or action if --outcome)
-arc done ID                       Complete item
-arc show ID [--current]           View item with actions (--current for active tactical)
-arc list [--ready|--waiting|--all] List items (hierarchical)
-arc wait ID REASON                Mark as waiting (clears tactical)
-arc unwait ID                     Clear waiting
-arc work ID [STEPS...] [--status|--clear|--force]
+bon done ID                       Complete item
+bon show ID [--current]           View item with actions (--current for active tactical)
+bon list [--ready|--waiting|--all] List items (hierarchical)
+bon wait ID REASON                Mark as waiting (clears tactical)
+bon unwait ID                     Clear waiting
+bon work ID [STEPS...] [--status|--clear|--force]
                                   Manage tactical steps for an action
-arc step                          Complete current step, advance to next
-arc edit ID --flag VALUE          Edit item fields via flags
-arc status                        Overview
-arc init                          Initialize .arc/
-arc help                          Show help
+bon step                          Complete current step, advance to next
+bon edit ID --flag VALUE          Edit item fields via flags
+bon status                        Overview
+bon init                          Initialize .bon/
+bon help                          Show help
 ```
 
 ### Global Flags
@@ -424,26 +424,26 @@ arc help                          Show help
 
 ## Command Behaviors
 
-### `arc init`
+### `bon init`
 
 ```bash
-arc init [--prefix PREFIX]
+bon init [--prefix PREFIX]
 ```
 
-Creates `.arc/` directory with empty `items.jsonl` and `prefix` file.
+Creates `.bon/` directory with empty `items.jsonl` and `prefix` file.
 
 ```python
-def init(prefix: str = "arc"):
-    Path(".arc").mkdir(exist_ok=True)
-    Path(".arc/items.jsonl").touch()
-    Path(".arc/prefix").write_text(prefix)  # No trailing newline
-    print(f"Initialized .arc/ with prefix '{prefix}'")
+def init(prefix: str = "bon"):
+    Path(".bon").mkdir(exist_ok=True)
+    Path(".bon/items.jsonl").touch()
+    Path(".bon/prefix").write_text(prefix)  # No trailing newline
+    print(f"Initialized .bon/ with prefix '{prefix}'")
 ```
 
-### `arc new`
+### `bon new`
 
 ```bash
-arc new "title" [--outcome PARENT] [--why WHY] [--what WHAT] [--done DONE]
+bon new "title" [--outcome PARENT] [--why WHY] [--what WHAT] [--done DONE]
 ```
 
 Creates outcome (default) or action (if `--outcome`). Aliases: `--for`, `--parent`.
@@ -550,10 +550,10 @@ def require_brief_flags(why: str | None, what: str | None, done: str | None) -> 
     return {"why": why, "what": what, "done": done}
 ```
 
-### `arc done`
+### `bon done`
 
 ```bash
-arc done ID
+bon done ID
 ```
 
 Marks item as done. **Crucially:** clears `waiting_for` on any items waiting for this one.
@@ -589,17 +589,17 @@ def done(item_id: str):
 **`waiting_for` semantics:**
 
 The field can contain either:
-- An item ID (e.g., `"arc-mifola"`) — auto-clears when that item completes
-- Free text (e.g., `"security review approval"`) — must be manually cleared with `arc unwait`
+- An item ID (e.g., `"bon-mifola"`) — auto-clears when that item completes
+- Free text (e.g., `"security review approval"`) — must be manually cleared with `bon unwait`
 
-**How `arc done` distinguishes:** Exact string match against completed item's ID. If `waiting_for` matches, it clears. If not (free text), it remains.
+**How `bon done` distinguishes:** Exact string match against completed item's ID. If `waiting_for` matches, it clears. If not (free text), it remains.
 
 **Display:** Both render the same way (`⏳ {value}`). The receiving Claude sees what's written.
 
-### `arc wait`
+### `bon wait`
 
 ```bash
-arc wait ID REASON
+bon wait ID REASON
 ```
 
 REASON can be another item ID or free text.
@@ -622,10 +622,10 @@ def wait(item_id: str, reason: str):
     print(f"{item_id} now waiting for: {reason}")
 ```
 
-### `arc unwait`
+### `bon unwait`
 
 ```bash
-arc unwait ID
+bon unwait ID
 ```
 
 Clears `waiting_for`.
@@ -642,13 +642,13 @@ def unwait(item_id: str):
     print(f"{item_id} no longer waiting")
 ```
 
-### `arc work`
+### `bon work`
 
 ```bash
-arc work ID [STEPS...]           # Initialize tactical steps
-arc work --status                # Show current tactical state
-arc work --clear                 # Clear tactical without completing
-arc work ID --force              # Restart steps even if in progress
+bon work ID [STEPS...]           # Initialize tactical steps
+bon work --status                # Show current tactical state
+bon work --clear                 # Clear tactical without completing
+bon work ID --force              # Restart steps even if in progress
 ```
 
 Initializes tactical step tracking for an action. Steps can be parsed from `--what` (if numbered) or provided explicitly.
@@ -667,7 +667,7 @@ def work(item_id: str = None, steps: list[str] = None,
     if status:
         active = find_active_tactical(items, session=session)
         if not active:
-            print("No active tactical steps. Run `arc work <id>` to start.")
+            print("No active tactical steps. Run `bon work <id>` to start.")
             return
         print(f"Working on: {active['title']} ({active['id']})")
         print(format_tactical(active["tactical"]))
@@ -684,7 +684,7 @@ def work(item_id: str = None, steps: list[str] = None,
 
     # Initialize tactical for specific action
     if not item_id:
-        error("Usage: arc work <id> [steps...] or arc work --status/--clear")
+        error("Usage: bon work <id> [steps...] or bon work --status/--clear")
 
     item = find_by_id(items, item_id, prefix)
     if not item:
@@ -705,19 +705,19 @@ def work(item_id: str = None, steps: list[str] = None,
     # Serial enforcement scoped to THIS session
     active = find_active_tactical(items, session=session)
     if active and active["id"] != item["id"]:
-        error(f"{active['id']} has active steps. Complete it, wait it, or run `arc work --clear`")
+        error(f"{active['id']} has active steps. Complete it, wait it, or run `bon work --clear`")
 
     # Check for existing progress
     existing = item.get("tactical")
     if existing and existing.get("current", 0) > 0 and not force:
-        error(f"Steps in progress (step {existing['current'] + 1}). Run `arc work {item_id} --force` to restart")
+        error(f"Steps in progress (step {existing['current'] + 1}). Run `bon work {item_id} --force` to restart")
 
     # Get steps: explicit or parsed from --what
     if not steps:
         what = item.get("brief", {}).get("what", "")
         steps = parse_steps_from_what(what)
         if not steps:
-            error("No numbered steps in --what. Provide explicit steps: arc work <id> 'step 1' 'step 2'")
+            error("No numbered steps in --what. Provide explicit steps: bon work <id> 'step 1' 'step 2'")
 
     item["tactical"] = {"steps": steps, "current": 0, "session": session}
     save_items(items)
@@ -745,10 +745,10 @@ def parse_steps_from_what(what: str) -> list[str] | None:
   3. Test
 ```
 
-### `arc step`
+### `bon step`
 
 ```bash
-arc step
+bon step
 ```
 
 Completes current tactical step and advances to next. On final step, auto-completes the action.
@@ -759,7 +759,7 @@ def step():
     session = os.getcwd()
     active = find_active_tactical(items, session=session)
     if not active:
-        error("No steps in progress. Run `arc work <id>` first")
+        error("No steps in progress. Run `bon work <id>` first")
 
     tactical = active["tactical"]
     current = tactical["current"]
@@ -801,13 +801,13 @@ Next: Create rate limiter
 ✓ 2. Create rate limiter
 ✓ 3. Test
 
-Action arc-xyz complete.
+Action bon-xyz complete.
 ```
 
-### `arc edit`
+### `bon edit`
 
 ```bash
-arc edit ID --flag VALUE [--flag VALUE ...]
+bon edit ID --flag VALUE [--flag VALUE ...]
 ```
 
 Edits item fields via flags. At least one flag required. No interactive editor.
@@ -826,14 +826,14 @@ Edits item fields via flags. At least one flag required. No interactive editor.
 **Examples:**
 
 ```bash
-arc edit arc-abc --title "Better title"
-arc edit arc-abc --why "New reason" --what "New deliverable"
-arc edit arc-def --parent arc-xyz       # Move action to different outcome
-arc edit arc-def --parent none          # Make action standalone
-arc edit arc-abc --order 1              # Move to first position
+bon edit bon-abc --title "Better title"
+bon edit bon-abc --why "New reason" --what "New deliverable"
+bon edit bon-def --parent bon-xyz       # Move action to different outcome
+bon edit bon-def --parent none          # Make action standalone
+bon edit bon-abc --order 1              # Move to first position
 
 # Combined: retitle and update all brief fields at once
-arc edit arc-abc --title "Clearer name" --why "..." --what "..." --done "..."
+bon edit bon-abc --title "Clearer name" --why "..." --what "..." --done "..."
 ```
 
 ```python
@@ -906,10 +906,10 @@ def validate_edit(original: dict, edited: dict, all_items: list[dict]):
             error(f"Parent must be an outcome, got {parent['type']}")
 ```
 
-### `arc show`
+### `bon show`
 
 ```bash
-arc show ID
+bon show ID
 ```
 
 Displays a single item with full details. For outcomes, includes all actions.
@@ -954,7 +954,7 @@ def show(item_id: str):
 
 **Example output for outcome:**
 ```
-○ User authentication (arc-gabdur)
+○ User authentication (bon-gabdur)
    Type: outcome
    Status: open
    Created: 2026-01-25T10:30:00Z by sameer
@@ -964,22 +964,22 @@ def show(item_id: str):
    Done: New dev can set up auth in < 10 minutes following the guide
 
    Actions:
-   1. ✓ Add OAuth endpoint (arc-zokte)
-   2. ○ Add token refresh (arc-mifola) ⏳ arc-zokte
-   3. ○ Add logout (arc-havone)
+   1. ✓ Add OAuth endpoint (bon-zokte)
+   2. ○ Add token refresh (bon-mifola) ⏳ bon-zokte
+   3. ○ Add logout (bon-havone)
 ```
 
-### `arc convert`
+### `bon convert`
 
 ```bash
-arc convert ID [--outcome PARENT] [--force]
+bon convert ID [--outcome PARENT] [--force]
 ```
 
 Converts outcome↔action while preserving ID and metadata.
 
 **Action → Outcome:**
 ```bash
-arc convert arc-zokte
+bon convert bon-zokte
 ```
 - Becomes a standalone outcome
 - `waiting_for` is removed (outcomes don't wait)
@@ -987,7 +987,7 @@ arc convert arc-zokte
 
 **Outcome → Action:**
 ```bash
-arc convert arc-gabdur --parent arc-tufeme
+bon convert bon-gabdur --parent bon-tufeme
 ```
 - `--parent` required: must specify which outcome it becomes a child of
 - `waiting_for` initialized to `null`
@@ -995,7 +995,7 @@ arc convert arc-gabdur --parent arc-tufeme
 
 **Outcome with children:**
 ```bash
-arc convert arc-gabdur --outcome arc-tufeme --force
+bon convert bon-gabdur --outcome bon-tufeme --force
 ```
 - `--force` required when outcome has children
 - Children become standalone actions (orphaned)
@@ -1054,10 +1054,10 @@ def convert(item_id: str, parent: str | None = None, force: bool = False):
     print(f"Converted {item['id']} to {item['type']}")
 ```
 
-### `arc status`
+### `bon status`
 
 ```bash
-arc status
+bon status
 ```
 
 Shows overview of current state.
@@ -1080,7 +1080,7 @@ def status():
 
     standalone = [i for i in actions if not i.get("parent")]
 
-    print(f"Arc status (prefix: {prefix})")
+    print(f"Bon status (prefix: {prefix})")
     print()
     print(f"Outcomes:   {len(open_outcomes)} open, {len(done_outcomes)} done")
     print(f"Actions:    {len(open_actions)} open ({len(ready_actions)} ready, {len(waiting_actions)} waiting), {len(done_actions)} done")
@@ -1088,13 +1088,13 @@ def status():
         print(f"Standalone: {len([s for s in standalone if s['status'] == 'open'])} open")
 ```
 
-### `arc help`
+### `bon help`
 
 ```bash
-arc help [COMMAND]
+bon help [COMMAND]
 ```
 
-Without argument, shows command list (same as `arc --help`).
+Without argument, shows command list (same as `bon --help`).
 With argument, shows help for specific command.
 
 **Implementation:** Use argparse's built-in help generation.
@@ -1197,25 +1197,25 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
 
 ### Done Items in Output
 
-**`arc list` filters by outcome status, not action status:**
+**`bon list` filters by outcome status, not action status:**
 - **Done outcomes** are hidden (unless `--all`)
 - **Done actions** under open outcomes are shown (to display progress)
 
 This means an open outcome with some completed actions shows the full picture:
 ```
-○ User auth (arc-aaa)
-  1. ✓ Add endpoint (arc-bbb)    ← done action, visible
-  2. ○ Add UI (arc-ccc)          ← open action, visible
+○ User auth (bon-aaa)
+  1. ✓ Add endpoint (bon-bbb)    ← done action, visible
+  2. ○ Add UI (bon-ccc)          ← open action, visible
 ```
 
-**To see done outcomes:** Use `arc list --all`.
+**To see done outcomes:** Use `bon list --all`.
 
 **Edge case:** If all actions under an outcome are done but the outcome itself is still open, the outcome appears with all actions checked:
 
 ```
-○ User auth (arc-gabdur)
-  1. ✓ Add endpoint (arc-zokte)
-  2. ✓ Add UI (arc-mifola)
+○ User auth (bon-gabdur)
+  1. ✓ Add endpoint (bon-zokte)
+  2. ✓ Add UI (bon-mifola)
 ```
 
 This is user discipline — the tool doesn't auto-complete outcomes when actions finish.
@@ -1285,7 +1285,7 @@ Use case: Piping to `jq`, debugging, or feeding to another tool.
 
 ### Display Logic Summary
 
-| Scenario | `arc list` | `arc list --ready` |
+| Scenario | `bon list` | `bon list --ready` |
 |----------|------------|-------------------|
 | Outcome with mixed actions | All actions shown | Ready actions + "(+N waiting)" |
 | Outcome with all ready | All actions shown | All actions shown |
@@ -1305,7 +1305,7 @@ from pathlib import Path
 
 def load_items() -> list[dict]:
     """Load all items from JSONL with validation."""
-    path = Path(".arc/items.jsonl")
+    path = Path(".bon/items.jsonl")
     if not path.exists():
         return []
 
@@ -1339,7 +1339,7 @@ def validate_item(item: dict, strict: bool = False):
 
     Args:
         item: The item to validate
-        strict: If True, also validates brief subfields (used for arc edit).
+        strict: If True, also validates brief subfields (used for bon edit).
                 If False, lenient validation for loading potentially old data.
     """
     required = ["id", "type", "title", "status"]
@@ -1365,7 +1365,7 @@ def validate_item(item: dict, strict: bool = False):
 
 def save_items(items: list[dict]):
     """Save items atomically."""
-    path = Path(".arc/items.jsonl")
+    path = Path(".bon/items.jsonl")
     tmp = path.with_suffix(".tmp")
 
     with open(tmp, "w") as f:
@@ -1376,11 +1376,11 @@ def save_items(items: list[dict]):
 
 
 def load_prefix() -> str:
-    """Load prefix, default to 'arc'."""
-    path = Path(".arc/prefix")
+    """Load prefix, default to 'bon'."""
+    path = Path(".bon/prefix")
     if path.exists():
         return path.read_text()
-    return "arc"
+    return "bon"
 
 
 def find_by_id(items: list[dict], item_id: str, prefix: str | None = None) -> dict | None:
@@ -1415,7 +1415,7 @@ def get_creator() -> str:
     Returns "{name}" for AI agents (common case), "{name}-tty" for humans typing directly.
 
     Name priority:
-    1. ARC_USER env var (explicit override)
+    1. BON_USER env var (explicit override)
     2. git config user.name (most common)
     3. USER env var (fallback)
     4. "unknown" (last resort)
@@ -1428,8 +1428,8 @@ def get_creator() -> str:
     name = None
 
     # Explicit override
-    if arc_user := os.environ.get("ARC_USER"):
-        name = arc_user
+    if bon_user := os.environ.get("BON_USER"):
+        name = bon_user
 
     # Git user name
     if not name:
@@ -1462,15 +1462,15 @@ def now_iso() -> str:
 
 ---
 
-## Working with Arc (Claude Workflow)
+## Working with Bon (Claude Workflow)
 
-This section describes how Claude should use arc items — the draw-down and draw-up patterns that make sessions productive.
+This section describes how Claude should use bon items — the draw-down and draw-up patterns that make sessions productive.
 
 ### The Draw-Down Pattern
 
 **When you pick up an action to work on:**
 
-1. **Read the brief:** `arc show <id>` — understand `why`, `what`, and `done`
+1. **Read the brief:** `bon show <id>` — understand `why`, `what`, and `done`
 2. **Create TodoWrite items** from `brief.what` and `brief.done`
 3. **Show user the breakdown:** "I'm reading this as: [list]. Sound right?"
 4. **VERIFY:** TodoWrite is not empty before proceeding
@@ -1478,11 +1478,11 @@ This section describes how Claude should use arc items — the draw-down and dra
 
 **The test:** If work will take >10 minutes, it needs TodoWrite items.
 
-**Why this matters:** Without draw-down, you work from the arc item directly, context accumulates, and by close you've drifted. TodoWrite creates checkpoints where course-correction happens.
+**Why this matters:** Without draw-down, you work from the bon item directly, context accumulates, and by close you've drifted. TodoWrite creates checkpoints where course-correction happens.
 
 **Example:**
 ```
-arc show arc-zokte
+bon show bon-zokte
 # Why: OAuth flow causing race conditions...
 # What: 1. processes list command 2. --guard flag 3. --force flag
 # Done: Can see running processes, duplicates prevented
@@ -1510,7 +1510,7 @@ Each TodoWrite item is a checkpoint. When you complete item 3 and start item 4, 
 
 **Good draw-up:**
 ```bash
-arc new "Add rate limiting to API" --outcome arc-gabdur \
+bon new "Add rate limiting to API" --outcome bon-gabdur \
   --why "Users hitting 429s during peak, server struggling under load" \
   --what "1. Redis-based rate limiter 2. 100 req/min per user 3. Retry-After header" \
   --done "Load test shows 429s after 100 requests, header present, Redis storing counts"
@@ -1518,25 +1518,25 @@ arc new "Add rate limiting to API" --outcome arc-gabdur \
 
 **Bad draw-up (will fail):**
 ```bash
-arc new "Fix the API thing" --outcome arc-gabdur
+bon new "Fix the API thing" --outcome bon-gabdur
 # Error: Brief required. Missing: --why, --what, --done
 ```
 
 ### Session Boundaries
 
 **At session start:**
-1. `arc list --ready` — see what's available
+1. `bon list --ready` — see what's available
 2. Pick an action
 3. **Draw-down** — read brief, create TodoWrite items
 
 **At session close:**
-1. Update arc items with progress
+1. Update bon items with progress
 2. File new actions discovered during work
 3. **Draw-up** — ensure briefs are complete for next Claude
 
 **Between actions (mid-session):**
-1. Complete current action: `arc done <id>`
-2. Check what's unblocked: `arc list --ready`
+1. Complete current action: `bon done <id>`
+2. Check what's unblocked: `bon list --ready`
 3. If continuing, **draw-down the next action** before starting
 
 ### Anti-Patterns
@@ -1555,43 +1555,43 @@ arc new "Fix the API thing" --outcome arc-gabdur
 ### Solo Claude Session
 
 ```bash
-arc list                           # See outcomes with actions
-arc show arc-gabdur                # Read the brief
+bon list                           # See outcomes with actions
+bon show bon-gabdur                # Read the brief
 # → Create TodoWrite from brief.what/done
 # → Work through todos
-arc done arc-zokte                 # Complete action
-arc done arc-gabdur                # Complete outcome (when all done)
+bon done bon-zokte                 # Complete action
+bon done bon-gabdur                # Complete outcome (when all done)
 
 # Commit
-git add .arc/ && git commit -m "arc: implement user search"
+git add .bon/ && git commit -m "bon: implement user search"
 ```
 
 ### Waiting Dependencies
 
 ```bash
-arc new "Deploy to production" \
+bon new "Deploy to production" \
   --why "Feature complete, ready to ship" \
   --what "Production deployment with rollback plan" \
   --done "Feature live and monitored for 24h"
 
-arc new "Run tests" --outcome arc-nepato \
+bon new "Run tests" --outcome bon-nepato \
   --why "Ensure quality before deploy" \
   --what "Full test suite pass" \
   --done "All tests green, coverage maintained"
 
-arc new "Get security review" --outcome arc-nepato \
+bon new "Get security review" --outcome bon-nepato \
   --why "Compliance requirement for production" \
   --what "Security team sign-off" \
   --done "Approval email received"
 
-arc wait arc-zokte arc-mifola      # Tests wait for security review
+bon wait bon-zokte bon-mifola      # Tests wait for security review
 
-arc list
-# ○ Deploy to production (arc-nepato)
-#   1. ○ Get security review (arc-mifola)
-#   2. ○ Run tests (arc-zokte) ⏳ arc-mifola
+bon list
+# ○ Deploy to production (bon-nepato)
+#   1. ○ Get security review (bon-mifola)
+#   2. ○ Run tests (bon-zokte) ⏳ bon-mifola
 
-arc done arc-mifola                # Complete review → unblocks arc-zokte
+bon done bon-mifola                # Complete review → unblocks bon-zokte
 ```
 
 ### Standalone Actions (Field Reports)
@@ -1600,23 +1600,23 @@ Actions without a parent are standalone — observations, one-off tasks, or note
 
 ```bash
 # Claude notices something during work
-arc new "Field Report: OAuth flaky under high load" \
+bon new "Field Report: OAuth flaky under high load" \
   --why "Noticed 3 failures in 10 test runs, only under concurrent load" \
   --what "Document the pattern, identify root cause" \
   --done "Either fixed or filed as action under appropriate outcome"
 
-# Later, can attach to an outcome via arc edit
-arc edit arc-nepato --parent arc-gabdur
+# Later, can attach to an outcome via bon edit
+bon edit bon-nepato --parent bon-gabdur
 ```
 
 **Or promote observation to proper action:**
 ```bash
-arc new "Fix OAuth race condition" --outcome arc-gabdur \
-  --why "OAuth fails under concurrent load (see field report arc-nepato)" \
+bon new "Fix OAuth race condition" --outcome bon-gabdur \
+  --why "OAuth fails under concurrent load (see field report bon-nepato)" \
   --what "Add mutex or queue to prevent concurrent token refresh" \
   --done "100 concurrent requests complete without auth failures"
 
-arc done arc-nepato                                    # Dismiss the observation
+bon done bon-nepato                                    # Dismiss the observation
 ```
 
 ---
@@ -1629,7 +1629,7 @@ Git. No daemon, no locks.
 
 ### Concurrent Write Limitation
 
-**Single-writer assumed.** Arc uses atomic file rename for writes, which is safe for one writer. With two Claudes writing simultaneously:
+**Single-writer assumed.** Bon uses atomic file rename for writes, which is safe for one writer. With two Claudes writing simultaneously:
 
 1. Both read `items.jsonl`
 2. Both make changes in memory
@@ -1654,20 +1654,20 @@ Every item tracks `created_by`:
 - AI agents (Claude, Codex, etc.): `sameer` — the human in the loop
 - Human typing directly: `sameer-tty` — rare, marked explicitly
 
-The `-tty` suffix indicates a human used arc directly in a terminal. Absence of `-tty` means an AI agent created it (the common case).
+The `-tty` suffix indicates a human used bon directly in a terminal. Absence of `-tty` means an AI agent created it (the common case).
 
 ---
 
 ## Test Fixtures
 
-**Note:** Fixture IDs (`arc-aaa`, `arc-bbb`) are simplified for readability. Production IDs follow the pronounceable pattern (`arc-gabdur`).
+**Note:** Fixture IDs (`bon-aaa`, `bon-bbb`) are simplified for readability. Production IDs follow the pronounceable pattern (`bon-gabdur`).
 
 ### Fixture 1: Empty
 
 ```jsonl
 ```
 
-**`arc list` output:**
+**`bon list` output:**
 ```
 No outcomes.
 ```
@@ -1675,109 +1675,109 @@ No outcomes.
 ### Fixture 2: Single Outcome, No Actions
 
 ```jsonl
-{"id":"arc-aaa","type":"outcome","title":"User auth","brief":{"why":"New devs struggling with auth setup","what":"Simplified OAuth flow","done":"Setup takes < 10 minutes"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
+{"id":"bon-aaa","type":"outcome","title":"User auth","brief":{"why":"New devs struggling with auth setup","what":"Simplified OAuth flow","done":"Setup takes < 10 minutes"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
 ```
 
-**`arc list` output:**
+**`bon list` output:**
 ```
-○ User auth (arc-aaa)
+○ User auth (bon-aaa)
 ```
 
 ### Fixture 3: Outcome with Actions
 
 ```jsonl
-{"id":"arc-aaa","type":"outcome","title":"User auth","brief":{"why":"New devs struggling with auth setup","what":"Simplified OAuth flow","done":"Setup takes < 10 minutes"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
-{"id":"arc-bbb","type":"action","title":"Add endpoint","brief":{"why":"Need callback URL for OAuth","what":"POST /auth/callback endpoint","done":"Endpoint returns 200 with token"},"status":"done","parent":"arc-aaa","order":1,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer"}
-{"id":"arc-ccc","type":"action","title":"Add UI","brief":{"why":"Users need login button","what":"Login button in header, redirect flow","done":"Click login → GitHub → back with session"},"status":"open","parent":"arc-aaa","order":2,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":null}
+{"id":"bon-aaa","type":"outcome","title":"User auth","brief":{"why":"New devs struggling with auth setup","what":"Simplified OAuth flow","done":"Setup takes < 10 minutes"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
+{"id":"bon-bbb","type":"action","title":"Add endpoint","brief":{"why":"Need callback URL for OAuth","what":"POST /auth/callback endpoint","done":"Endpoint returns 200 with token"},"status":"done","parent":"bon-aaa","order":1,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer"}
+{"id":"bon-ccc","type":"action","title":"Add UI","brief":{"why":"Users need login button","what":"Login button in header, redirect flow","done":"Click login → GitHub → back with session"},"status":"open","parent":"bon-aaa","order":2,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":null}
 ```
 
-**`arc list` output:**
+**`bon list` output:**
 ```
-○ User auth (arc-aaa)
-  1. ✓ Add endpoint (arc-bbb)
-  2. ○ Add UI (arc-ccc)
+○ User auth (bon-aaa)
+  1. ✓ Add endpoint (bon-bbb)
+  2. ○ Add UI (bon-ccc)
 ```
 
 ### Fixture 4: Waiting Dependency
 
 ```jsonl
-{"id":"arc-aaa","type":"outcome","title":"Deploy","brief":{"why":"Ship the feature","what":"Production deployment","done":"Feature live and working"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
-{"id":"arc-bbb","type":"action","title":"Run tests","brief":{"why":"Ensure quality","what":"Full test suite","done":"All tests pass"},"status":"open","parent":"arc-aaa","order":1,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer","waiting_for":"arc-ccc"}
-{"id":"arc-ccc","type":"action","title":"Security review","brief":{"why":"Compliance requirement","what":"Security team sign-off","done":"Approval email received"},"status":"open","parent":"arc-aaa","order":2,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":null}
+{"id":"bon-aaa","type":"outcome","title":"Deploy","brief":{"why":"Ship the feature","what":"Production deployment","done":"Feature live and working"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
+{"id":"bon-bbb","type":"action","title":"Run tests","brief":{"why":"Ensure quality","what":"Full test suite","done":"All tests pass"},"status":"open","parent":"bon-aaa","order":1,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer","waiting_for":"bon-ccc"}
+{"id":"bon-ccc","type":"action","title":"Security review","brief":{"why":"Compliance requirement","what":"Security team sign-off","done":"Approval email received"},"status":"open","parent":"bon-aaa","order":2,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":null}
 ```
 
-**`arc list` output:**
+**`bon list` output:**
 ```
-○ Deploy (arc-aaa)
-  1. ○ Run tests (arc-bbb) ⏳ arc-ccc
-  2. ○ Security review (arc-ccc)
+○ Deploy (bon-aaa)
+  1. ○ Run tests (bon-bbb) ⏳ bon-ccc
+  2. ○ Security review (bon-ccc)
 ```
 
-**`arc list --ready` output:**
+**`bon list --ready` output:**
 ```
-○ Deploy (arc-aaa)
-  1. ○ Security review (arc-ccc)
+○ Deploy (bon-aaa)
+  1. ○ Security review (bon-ccc)
   (+1 waiting)
 ```
 
 ### Fixture 5: Multiple Outcomes
 
 ```jsonl
-{"id":"arc-aaa","type":"outcome","title":"First outcome","brief":{"why":"Reason one","what":"Result one","done":"Criteria one"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
-{"id":"arc-bbb","type":"outcome","title":"Second outcome","brief":{"why":"Reason two","what":"Result two","done":"Criteria two"},"status":"open","order":2,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer"}
-{"id":"arc-ccc","type":"action","title":"Action for first","brief":{"why":"Context","what":"Deliverable","done":"Done when"},"status":"open","parent":"arc-aaa","order":1,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":null}
-{"id":"arc-ddd","type":"action","title":"Action for second","brief":{"why":"Context","what":"Deliverable","done":"Done when"},"status":"open","parent":"arc-bbb","order":1,"created_at":"2026-01-25T10:03:00Z","created_by":"sameer","waiting_for":null}
+{"id":"bon-aaa","type":"outcome","title":"First outcome","brief":{"why":"Reason one","what":"Result one","done":"Criteria one"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
+{"id":"bon-bbb","type":"outcome","title":"Second outcome","brief":{"why":"Reason two","what":"Result two","done":"Criteria two"},"status":"open","order":2,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer"}
+{"id":"bon-ccc","type":"action","title":"Action for first","brief":{"why":"Context","what":"Deliverable","done":"Done when"},"status":"open","parent":"bon-aaa","order":1,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":null}
+{"id":"bon-ddd","type":"action","title":"Action for second","brief":{"why":"Context","what":"Deliverable","done":"Done when"},"status":"open","parent":"bon-bbb","order":1,"created_at":"2026-01-25T10:03:00Z","created_by":"sameer","waiting_for":null}
 ```
 
-**`arc list` output:**
+**`bon list` output:**
 ```
-○ First outcome (arc-aaa)
-  1. ○ Action for first (arc-ccc)
+○ First outcome (bon-aaa)
+  1. ○ Action for first (bon-ccc)
 
-○ Second outcome (arc-bbb)
-  1. ○ Action for second (arc-ddd)
+○ Second outcome (bon-bbb)
+  1. ○ Action for second (bon-ddd)
 ```
 
 ### Fixture 6: Standalone Actions
 
 ```jsonl
-{"id":"arc-aaa","type":"action","title":"Field Report: OAuth flaky","brief":{"why":"Noticed during testing","what":"OAuth fails under load","done":"Investigate and fix or dismiss"},"status":"open","parent":null,"order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
-{"id":"arc-bbb","type":"action","title":"Quick fix for typo","brief":{"why":"User reported","what":"Fix typo in error message","done":"Typo fixed"},"status":"open","parent":null,"order":2,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer"}
+{"id":"bon-aaa","type":"action","title":"Field Report: OAuth flaky","brief":{"why":"Noticed during testing","what":"OAuth fails under load","done":"Investigate and fix or dismiss"},"status":"open","parent":null,"order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
+{"id":"bon-bbb","type":"action","title":"Quick fix for typo","brief":{"why":"User reported","what":"Fix typo in error message","done":"Typo fixed"},"status":"open","parent":null,"order":2,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer"}
 ```
 
-**`arc list` output:**
+**`bon list` output:**
 ```
 Standalone:
-  ○ Field Report: OAuth flaky (arc-aaa)
-  ○ Quick fix for typo (arc-bbb)
+  ○ Field Report: OAuth flaky (bon-aaa)
+  ○ Quick fix for typo (bon-bbb)
 ```
 
 ### Fixture 7: All Actions Waiting
 
 ```jsonl
-{"id":"arc-aaa","type":"outcome","title":"Ship release","brief":{"why":"Q1 deadline approaching","what":"Production deployment","done":"Live and monitored"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
-{"id":"arc-bbb","type":"action","title":"Legal review","brief":{"why":"Compliance requirement","what":"Legal sign-off","done":"Approval received"},"status":"open","parent":"arc-aaa","order":1,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer","waiting_for":"external counsel"}
-{"id":"arc-ccc","type":"action","title":"Security audit","brief":{"why":"SOC2 requirement","what":"Pen test complete","done":"No critical findings"},"status":"open","parent":"arc-aaa","order":2,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":"arc-bbb"}
+{"id":"bon-aaa","type":"outcome","title":"Ship release","brief":{"why":"Q1 deadline approaching","what":"Production deployment","done":"Live and monitored"},"status":"open","order":1,"created_at":"2026-01-25T10:00:00Z","created_by":"sameer"}
+{"id":"bon-bbb","type":"action","title":"Legal review","brief":{"why":"Compliance requirement","what":"Legal sign-off","done":"Approval received"},"status":"open","parent":"bon-aaa","order":1,"created_at":"2026-01-25T10:01:00Z","created_by":"sameer","waiting_for":"external counsel"}
+{"id":"bon-ccc","type":"action","title":"Security audit","brief":{"why":"SOC2 requirement","what":"Pen test complete","done":"No critical findings"},"status":"open","parent":"bon-aaa","order":2,"created_at":"2026-01-25T10:02:00Z","created_by":"sameer","waiting_for":"bon-bbb"}
 ```
 
-**`arc list` output:**
+**`bon list` output:**
 ```
-○ Ship release (arc-aaa)
-  1. ○ Legal review (arc-bbb) ⏳ external counsel
-  2. ○ Security audit (arc-ccc) ⏳ arc-bbb
+○ Ship release (bon-aaa)
+  1. ○ Legal review (bon-bbb) ⏳ external counsel
+  2. ○ Security audit (bon-ccc) ⏳ bon-bbb
 ```
 
-**`arc list --ready` output:**
+**`bon list --ready` output:**
 ```
-○ Ship release (arc-aaa)
+○ Ship release (bon-aaa)
   (2 waiting)
 ```
 
-**`arc list --waiting` output:**
+**`bon list --waiting` output:**
 ```
-○ Ship release (arc-aaa)
-  1. ○ Legal review (arc-bbb) ⏳ external counsel
-  2. ○ Security audit (arc-ccc) ⏳ arc-bbb
+○ Ship release (bon-aaa)
+  1. ○ Legal review (bon-bbb) ⏳ external counsel
+  2. ○ Security audit (bon-ccc) ⏳ bon-bbb
 ```
 
 ---
@@ -1786,22 +1786,22 @@ Standalone:
 
 | Scenario | Behavior |
 |----------|----------|
-| `arc new` with no `.arc/` | Error: "Not initialized. Run `arc init` first." |
-| `arc done` on already-done item | No-op, print "Already done: {id}" |
-| `arc done` on non-existent ID | Error: "Item '{id}' not found" |
-| `arc wait` on item that's waiting | Overwrites previous `waiting_for` |
-| `arc wait X Y` where Y doesn't exist | Allowed — Y might be free text or future item |
-| `arc new --outcome X` where X is an action | Error: "Parent must be an outcome" |
-| `arc new --outcome X` where X doesn't exist | Error: "Parent '{X}' not found" |
-| `arc edit` with no flags | Error: "At least one edit flag required" |
-| `arc edit` on outcome with --parent | Error: "Cannot set parent on outcome" |
-| `arc edit` with --parent to non-outcome | Error: "Parent must be an outcome" |
-| `arc edit` with --parent to non-existent | Error: "Parent '{id}' not found" |
+| `bon new` with no `.bon/` | Error: "Not initialized. Run `bon init` first." |
+| `bon done` on already-done item | No-op, print "Already done: {id}" |
+| `bon done` on non-existent ID | Error: "Item '{id}' not found" |
+| `bon wait` on item that's waiting | Overwrites previous `waiting_for` |
+| `bon wait X Y` where Y doesn't exist | Allowed — Y might be free text or future item |
+| `bon new --outcome X` where X is an action | Error: "Parent must be an outcome" |
+| `bon new --outcome X` where X doesn't exist | Error: "Parent '{X}' not found" |
+| `bon edit` with no flags | Error: "At least one edit flag required" |
+| `bon edit` on outcome with --parent | Error: "Cannot set parent on outcome" |
+| `bon edit` with --parent to non-outcome | Error: "Parent must be an outcome" |
+| `bon edit` with --parent to non-existent | Error: "Parent '{id}' not found" |
 | Duplicate IDs in JSONL | Undefined — generator should prevent |
 | Empty title | Error: "Title cannot be empty" |
 | Multi-line title | Normalized to single line (spaces replace newlines) |
-| `arc new` without brief (non-interactive) | Error: "Brief required. Missing: --why, --what, --done" |
-| `arc new` with empty brief field (interactive) | Error: "'Why' cannot be empty" (etc.) |
+| `bon new` without brief (non-interactive) | Error: "Brief required. Missing: --why, --what, --done" |
+| `bon new` with empty brief field (interactive) | Error: "'Why' cannot be empty" (etc.) |
 
 ### Canonical Error Messages
 
@@ -1809,15 +1809,15 @@ All error messages use the format `Error: {message}` and exit with code 1.
 
 | Code | Message | Trigger |
 |------|---------|---------|
-| `not_initialized` | "Not initialized. Run `arc init` first." | Any command when `.arc/` missing |
+| `not_initialized` | "Not initialized. Run `bon init` first." | Any command when `.bon/` missing |
 | `not_found` | "Item '{id}' not found" | ID doesn't exist (after prefix-tolerant lookup) |
 | `parent_not_found` | "Parent '{id}' not found" | `--outcome` references non-existent ID |
 | `parent_not_outcome` | "Parent must be an outcome, got {type}" | `--outcome` references an action |
 | `empty_title` | "Title cannot be empty" | Title is whitespace-only |
 | `brief_required` | "Brief required. Missing: {flags}" | Non-interactive without all brief flags |
 | `brief_field_empty` | "'{field}' cannot be empty" | Interactive prompt gets empty input |
-| `edit_no_flags` | "At least one edit flag required" | `arc edit ID` with no flags |
-| `outcome_no_parent` | "Cannot set parent on outcome" | `arc edit` --parent on outcome |
+| `edit_no_flags` | "At least one edit flag required" | `bon edit ID` with no flags |
+| `outcome_no_parent` | "Cannot set parent on outcome" | `bon edit` --parent on outcome |
 | `missing_field` | "Missing required field: {field}" | Validation fails on load or edit |
 | `missing_brief_field` | "Missing brief.{subfield}" | Brief missing why/what/done |
 | `invalid_type` | "Invalid type: {type}" | Type not "outcome" or "action" |
@@ -1837,13 +1837,13 @@ Standard library only for core commands.
 
 - `argparse` (stdlib) — CLI parsing
 - `json` (stdlib) — Storage format
-- `pyyaml` (PyPI) — Migration only (`arc migrate --draft` / `--from-draft`)
+- `pyyaml` (PyPI) — Migration only (`bon migrate --draft` / `--from-draft`)
 
 ### Performance Target
 
 Design targets (not tested invariants):
-- `arc list` < 10ms for 500 items
-- `arc new` < 10ms
+- `bon list` < 10ms for 500 items
+- `bon new` < 10ms
 - No startup latency (no daemon)
 
 These guide implementation choices. If commands feel slow, profile and fix.
@@ -1854,7 +1854,7 @@ These guide implementation choices. If commands feel slow, profile and fix.
 
 ```
 arc/
-├── src/arc/
+├── src/bon/
 │   ├── __init__.py
 │   ├── cli.py          # argparse commands, main()
 │   ├── storage.py      # load_items, save_items, load_prefix, find_by_id
@@ -1862,19 +1862,19 @@ arc/
 │   ├── queries.py      # filter_ready, filter_waiting
 │   └── display.py      # format_hierarchical, format_json
 ├── tests/
-│   ├── conftest.py         # Fixtures and run_arc helper
+│   ├── conftest.py         # Fixtures and run_bon helper
 │   ├── test_ids.py         # ID generation
 │   ├── test_storage.py     # Storage operations
-│   ├── test_init.py        # arc init
-│   ├── test_new.py         # arc new
-│   ├── test_done.py        # arc done
-│   ├── test_list.py        # arc list
-│   ├── test_show.py        # arc show
-│   ├── test_wait.py        # arc wait
-│   ├── test_unwait.py      # arc unwait
-│   ├── test_edit.py        # arc edit
-│   ├── test_status.py      # arc status
-│   ├── test_help.py        # arc help
+│   ├── test_init.py        # bon init
+│   ├── test_new.py         # bon new
+│   ├── test_done.py        # bon done
+│   ├── test_list.py        # bon list
+│   ├── test_show.py        # bon show
+│   ├── test_wait.py        # bon wait
+│   ├── test_unwait.py      # bon unwait
+│   ├── test_edit.py        # bon edit
+│   ├── test_status.py      # bon status
+│   ├── test_help.py        # bon help
 │   ├── test_output_flags.py # --json, --jsonl, --quiet
 │   ├── test_interactive.py # TTY prompt_brief
 │   └── test_migrate.py     # Migration script
@@ -1897,19 +1897,19 @@ arc/
 
 ### Phase 1: Core CLI
 
-Build: `arc init`, `arc new`, `arc done`, `arc list`, `arc show`
+Build: `bon init`, `bon new`, `bon done`, `bon list`, `bon show`
 
 Track with TodoWrite. Delivers working hierarchical output.
 
 ### Phase 2: Dependencies & Editing
 
-Build: `arc wait`, `arc unwait`, `arc edit`
+Build: `bon wait`, `bon unwait`, `bon edit`
 
-Dogfood arc itself.
+Dogfood bon itself.
 
 ### Phase 3: Polish
 
-Build: `arc status`, `arc help`, error messages, `--json` output.
+Build: `bon status`, `bon help`, error messages, `--json` output.
 
 ### Phase 4: Skill
 
@@ -1921,7 +1921,7 @@ Write companion skill for Claude workflow guidance.
 
 ```bash
 bd export --format jsonl > /tmp/beads.jsonl
-python transform.py < /tmp/beads.jsonl > .arc/items.jsonl
+python transform.py < /tmp/beads.jsonl > .bon/items.jsonl
 ```
 
 Transform: `issue_type: epic` → `type: outcome`, `closed` → `done`, etc.
@@ -1930,7 +1930,7 @@ Transform: `issue_type: epic` → `type: outcome`, `closed` → `done`, etc.
 
 ```python
 def migrate_item(item: dict) -> dict:
-    """Migrate beads item to arc schema."""
+    """Migrate beads item to bon schema."""
     # Type mapping
     if item.get("issue_type") == "epic":
         item["type"] = "outcome"
@@ -1976,7 +1976,7 @@ Deferred:
 
 ## Summary
 
-| Beads | Arc |
+| Beads | Bon |
 |-------|-----|
 | 86 commands | 10 commands |
 | SQLite + JSONL dual | JSONL only |
@@ -1993,9 +1993,9 @@ Deferred:
 ## Appendix: Command Reference
 
 ```
-arc — Work tracker for Claude-human collaboration
+bon — Work tracker for Claude-human collaboration
 
-Usage: arc [command] [options]
+Usage: bon [command] [options]
 
 Commands:
   new TITLE [--outcome PARENT] [--why W --what X --done D]
@@ -2007,7 +2007,7 @@ Commands:
   unwait ID                   Clear waiting status
   edit ID --FLAGS             Edit item fields via flags
   status                      Show overview
-  init [--prefix PREFIX]      Initialize .arc/
+  init [--prefix PREFIX]      Initialize .bon/
   help [COMMAND]              Show help
 
 Flags:

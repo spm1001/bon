@@ -18,7 +18,7 @@ class TestEditBasic:
         assert result.returncode == 0
         assert "Updated: arc-aaa" in result.stdout
 
-        item = json.loads((arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert item["title"] == "New Title"
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
@@ -30,7 +30,7 @@ class TestEditBasic:
 
         assert result.returncode == 0
 
-        item = json.loads((arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert item["brief"]["why"] == "New reason"
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
@@ -42,7 +42,7 @@ class TestEditBasic:
 
         assert result.returncode == 0
 
-        item = json.loads((arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert item["brief"]["what"] == "New deliverable"
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
@@ -54,7 +54,7 @@ class TestEditBasic:
 
         assert result.returncode == 0
 
-        item = json.loads((arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert item["brief"]["done"] == "New criteria"
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
@@ -70,7 +70,7 @@ class TestEditBasic:
 
         assert result.returncode == 0
 
-        item = json.loads((arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert item["title"] == "New Title"
         assert item["brief"]["why"] == "New reason"
         assert item["brief"]["what"] == "New deliverable"
@@ -125,7 +125,7 @@ class TestEditReorder:
 
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-bbb should now be order 1
@@ -144,7 +144,7 @@ class TestEditReorder:
 
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-aaa should now be order 2
@@ -166,7 +166,7 @@ class TestEditReparent:
 
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-ccc should now be under arc-bbb
@@ -185,7 +185,7 @@ class TestEditReparent:
                 cwd=arc_dir_with_fixture)
 
         # Get the new outcome's ID
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         new_outcome_id = None
         for line in lines:
             item = json.loads(line)
@@ -200,7 +200,7 @@ class TestEditReparent:
                 cwd=arc_dir_with_fixture)
 
         # Verify setup: arc-bbb (order 1), arc-ccc (order 2), new action (order 3)
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         actions_under_aaa = [json.loads(line) for line in lines
                            if json.loads(line).get("parent") == "arc-aaa"]
         assert len(actions_under_aaa) == 3
@@ -210,7 +210,7 @@ class TestEditReparent:
         assert result.returncode == 0
 
         # Check that the third action (was order 3) is now order 2
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         third_action = [i for i in items.values()
@@ -227,7 +227,7 @@ class TestEditReparent:
                 "--why", "w", "--what", "x", "--done", "d",
                 cwd=arc_dir_with_fixture)
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         empty_outcome_id = None
         for line in lines:
             item = json.loads(line)
@@ -239,7 +239,7 @@ class TestEditReparent:
         result = run_arc("edit", "arc-ccc", "--parent", empty_outcome_id, cwd=arc_dir_with_fixture)
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-ccc"]["parent"] == empty_outcome_id
@@ -255,7 +255,7 @@ class TestEditReparent:
 
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         # arc-ccc should now be standalone (no parent)

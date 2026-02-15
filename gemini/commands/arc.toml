@@ -1,8 +1,0 @@
-description = "Run arc work-tracker commands (init, new, list, show, done, work, step, etc.)"
-prompt = """Run the following arc CLI command and display the output:
-
-!{arc {{args}}}
-
-If the command was `arc list`, format the output as a readable hierarchy showing outcomes and their child actions. If the command was `arc show`, highlight the three flags (--why, --what, --done). If the command was `arc work` or `arc step`, show the tactical step progression clearly.
-
-If no args are provided, run `arc status` to show the current overview."""

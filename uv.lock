@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [[package]]
-name = "arc"
+name = "bon"
 version = "0.4.0"
 source = { editable = "." }
 dependencies = [

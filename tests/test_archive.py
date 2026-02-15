@@ -39,7 +39,7 @@ def test_archive_single_done_action(done_action):
     assert item_id not in all_ids
 
     # Item present in archive.jsonl
-    archive_path = arc_dir / ".arc" / "archive.jsonl"
+    archive_path = arc_dir / ".bon" / "archive.jsonl"
     assert archive_path.exists()
     archived = [json.loads(line) for line in archive_path.read_text().splitlines() if line.strip()]
     assert len(archived) == 1
@@ -85,13 +85,13 @@ def test_archive_all(arc_dir_with_fixture):
     assert "Archived" in result.stdout
 
     # Only open items remain
-    items_path = arc_dir_with_fixture / ".arc" / "items.jsonl"
+    items_path = arc_dir_with_fixture / ".bon" / "items.jsonl"
     remaining = [json.loads(line) for line in items_path.read_text().splitlines() if line.strip()]
     for item in remaining:
         assert item["status"] == "open"
 
     # Archived items are in archive.jsonl
-    archive_path = arc_dir_with_fixture / ".arc" / "archive.jsonl"
+    archive_path = arc_dir_with_fixture / ".bon" / "archive.jsonl"
     archived = [json.loads(line) for line in archive_path.read_text().splitlines() if line.strip()]
     for item in archived:
         assert item["status"] == "done"
@@ -117,13 +117,13 @@ def test_archive_outcome_cascades_actions(arc_dir_with_fixture):
     assert "Archived 3 item(s)" in result.stdout
 
     # All three items archived
-    archive_path = arc_dir_with_fixture / ".arc" / "archive.jsonl"
+    archive_path = arc_dir_with_fixture / ".bon" / "archive.jsonl"
     archived = [json.loads(line) for line in archive_path.read_text().splitlines() if line.strip()]
     archived_ids = {a["id"] for a in archived}
     assert archived_ids == {"arc-aaa", "arc-bbb", "arc-ccc"}
 
     # items.jsonl is empty
-    items_path = arc_dir_with_fixture / ".arc" / "items.jsonl"
+    items_path = arc_dir_with_fixture / ".bon" / "items.jsonl"
     remaining = [line for line in items_path.read_text().splitlines() if line.strip()]
     assert len(remaining) == 0
 
@@ -172,7 +172,7 @@ def test_archive_appends(done_action):
     run_arc("archive", second_id, cwd=arc_dir)
 
     # Both in archive
-    archive_path = arc_dir / ".arc" / "archive.jsonl"
+    archive_path = arc_dir / ".bon" / "archive.jsonl"
     archived = [json.loads(line) for line in archive_path.read_text().splitlines() if line.strip()]
     assert len(archived) == 2
     archived_ids = {a["id"] for a in archived}

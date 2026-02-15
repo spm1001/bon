@@ -20,7 +20,7 @@ class TestUnwaitBasic:
         assert "arc-bbb no longer waiting" in result.stdout
 
         # Verify the item was updated
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         bbb = json.loads(lines[1])
         assert bbb["waiting_for"] is None
 
@@ -34,7 +34,7 @@ class TestUnwaitBasic:
 
         assert result.returncode == 0
 
-        lines = (arc_dir_with_fixture / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         bbb = json.loads(lines[1])
         assert bbb["waiting_for"] is None
 

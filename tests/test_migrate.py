@@ -163,8 +163,8 @@ outcomes:
 
         assert result.returncode == 0
         assert "Migrated 1 items" in result.stdout
-        assert (work_dir / ".arc" / "items.jsonl").exists()
-        assert (work_dir / ".arc" / "prefix").read_text() == "proj"
+        assert (work_dir / ".bon" / "items.jsonl").exists()
+        assert (work_dir / ".bon" / "prefix").read_text() == "proj"
 
     def test_strips_beads_context(self, tmp_path):
         """Strips _beads context from imported items."""
@@ -189,7 +189,7 @@ outcomes:
 
         run_arc("migrate", "--from-draft", str(manifest_file), cwd=work_dir)
 
-        items_content = (work_dir / ".arc" / "items.jsonl").read_text()
+        items_content = (work_dir / ".bon" / "items.jsonl").read_text()
         item = json.loads(items_content.strip())
         assert "_beads" not in item
 
@@ -215,7 +215,7 @@ outcomes:
 
         assert result.returncode == 1
         assert "incomplete brief" in result.stderr
-        assert not (work_dir / ".arc").exists()
+        assert not (work_dir / ".bon").exists()
 
     def test_rejects_when_arc_exists(self, tmp_path):
         """Rejects migration when .arc/ already exists."""
@@ -234,12 +234,12 @@ outcomes:
 """)
         work_dir = tmp_path / "work"
         work_dir.mkdir()
-        (work_dir / ".arc").mkdir()
+        (work_dir / ".bon").mkdir()
 
         result = run_arc("migrate", "--from-draft", str(manifest_file), cwd=work_dir)
 
         assert result.returncode == 1
-        assert ".arc/ already exists" in result.stderr
+        assert ".bon/ already exists" in result.stderr
 
     def test_imports_children_as_actions(self, tmp_path):
         """Imports children as actions with parent reference."""
@@ -269,7 +269,7 @@ outcomes:
 
         run_arc("migrate", "--from-draft", str(manifest_file), cwd=work_dir)
 
-        items_content = (work_dir / ".arc" / "items.jsonl").read_text()
+        items_content = (work_dir / ".bon" / "items.jsonl").read_text()
         lines = items_content.strip().split("\n")
         assert len(lines) == 2
 
@@ -297,7 +297,7 @@ outcomes:
 
         run_arc("migrate", "--from-draft", str(manifest_file), cwd=work_dir)
 
-        items_content = (work_dir / ".arc" / "items.jsonl").read_text()
+        items_content = (work_dir / ".bon" / "items.jsonl").read_text()
         item = json.loads(items_content.strip())
         assert item["status"] == "done"
         assert "done_at" in item

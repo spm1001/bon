@@ -1,8 +1,8 @@
-"""Display formatting for arc output."""
+"""Display formatting for bon output."""
 import json
 
-from arc.ids import DEFAULT_ORDER
-from arc.queries import filter_ready, filter_waiting
+from bon.ids import DEFAULT_ORDER
+from bon.queries import filter_ready, filter_waiting
 
 
 def format_tactical(tactical: dict) -> str:

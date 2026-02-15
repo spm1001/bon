@@ -6,10 +6,10 @@ Migration is a two-phase process — the tool extracts structure, you write prop
 
 ```bash
 # From exported JSONL
-arc migrate --from-beads beads-export.jsonl --draft > manifest.yaml
+bon migrate --from-beads beads-export.jsonl --draft > manifest.yaml
 
 # Or directly from .beads/ directory
-arc migrate --from-beads .beads/ --draft > manifest.yaml
+bon migrate --from-beads .beads/ --draft > manifest.yaml
 ```
 
 This produces a YAML manifest with:
@@ -20,13 +20,13 @@ This produces a YAML manifest with:
 **Orphan handling options:**
 ```bash
 # Default: orphans excluded, listed in orphans_excluded section
-arc migrate --from-beads .beads/ --draft
+bon migrate --from-beads .beads/ --draft
 
 # Promote orphans to outcomes (empty children)
-arc migrate --from-beads .beads/ --draft --promote-orphans
+bon migrate --from-beads .beads/ --draft --promote-orphans
 
 # Assign orphans to a specific parent outcome
-arc migrate --from-beads .beads/ --draft --orphan-parent proj-abc
+bon migrate --from-beads .beads/ --draft --orphan-parent proj-abc
 ```
 
 **Field reports don't migrate.** Field reports (Claude-to-Claude knowledge transfer) aren't actionable work — they belong in skill docs, not a work tracker. Close them in beads rather than migrating.
@@ -51,14 +51,14 @@ Review `manifest.yaml`. For each item, use `_beads` context to write proper brie
 Then import:
 
 ```bash
-arc migrate --from-draft manifest.yaml
+bon migrate --from-draft manifest.yaml
 ```
 
 **Validation enforced:**
 - All briefs must be complete (why/what/done non-empty)
-- `.arc/` must not already exist
+- `.bon/` must not already exist
 - `_beads` context is stripped on import
 
 ## Why This Pattern?
 
-Beads fields don't map cleanly to arc's opinionated brief structure. Rather than auto-generating weak briefs, the manifest pattern forces you to think about each item's why/what/done — resulting in items that future Claudes can actually execute.
+Beads fields don't map cleanly to bon's opinionated brief structure. Rather than auto-generating weak briefs, the manifest pattern forces you to think about each item's why/what/done — resulting in items that future Claudes can actually execute.

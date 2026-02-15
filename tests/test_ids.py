@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from arc.ids import generate_id, generate_unique_id, next_order
+from bon.ids import generate_id, generate_unique_id, next_order
 
 
 class TestGenerateId:
@@ -47,7 +47,7 @@ class TestGenerateUniqueId:
     def test_raises_after_max_attempts(self):
         """Raises RuntimeError if can't generate unique ID after 100 attempts."""
         # Mock generate_id to always return the same ID
-        with patch('arc.ids.generate_id', return_value='arc-bababa'):
+        with patch('bon.ids.generate_id', return_value='arc-bababa'):
             existing = {"arc-bababa"}
 
             with pytest.raises(RuntimeError, match="Failed to generate unique ID after 100 attempts"):

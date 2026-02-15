@@ -21,7 +21,7 @@ class TestNewOutcome:
         assert "Created:" in result.stdout
 
         # Verify the item was saved
-        items = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())
+        items = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
         assert items["type"] == "outcome"
         assert items["title"] == "Test outcome"
         assert items["brief"]["why"] == "Testing the feature"
@@ -33,7 +33,7 @@ class TestNewOutcome:
 
         run_arc("new", "First", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
 
-        items = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())
+        items = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
         assert items["order"] == 1
 
     def test_empty_title_rejected(self, arc_dir, monkeypatch):
@@ -63,7 +63,7 @@ class TestNewOutcome:
         assert result.returncode == 0
 
         # Verify title was normalized
-        item = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
         assert item["title"] == "This is a multi-line title with spaces"
 
 
@@ -74,7 +74,7 @@ class TestNewAction:
 
         # Create outcome first
         run_arc("new", "Parent outcome", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
-        items = (arc_dir / ".arc" / "items.jsonl").read_text().strip()
+        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
         outcome_id = json.loads(items)["id"]
 
         # Create action under it (--outcome is primary flag)
@@ -88,7 +88,7 @@ class TestNewAction:
         assert result.returncode == 0
 
         # Verify action
-        lines = (arc_dir / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         action = next(i for i in items if i["type"] == "action")
         assert action["parent"] == outcome_id
@@ -114,10 +114,10 @@ class TestNewAction:
 
         # Create outcome and action
         run_arc("new", "Outcome", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
-        outcome_id = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())["id"]
+        outcome_id = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())["id"]
 
         run_arc("new", "Action", "--outcome", outcome_id, "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
-        lines = (arc_dir / ".arc" / "items.jsonl").read_text().strip().split("\n")
+        lines = (arc_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         action_id = next(i for i in items if i["type"] == "action")["id"]
 
@@ -182,7 +182,7 @@ class TestOutcomeLanguageLint:
 
         # Create outcome first
         run_arc("new", "Auth works", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
-        outcome_id = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())["id"]
+        outcome_id = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())["id"]
 
         result = run_arc(
             "new", "Implement the callback endpoint",
@@ -233,7 +233,7 @@ class TestOutcomeLanguageLint:
         assert result.returncode == 0
         assert "Created:" in result.stdout
 
-        item = json.loads((arc_dir / ".arc" / "items.jsonl").read_text().strip())
+        item = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
         assert item["title"] == "Add rate limiting"
         assert item["type"] == "outcome"
 

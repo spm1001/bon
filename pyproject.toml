@@ -1,5 +1,5 @@
 [project]
-name = "arc"
+name = "bon"
 version = "0.4.0"
 description = "Lightweight work tracker for Claude-human collaboration"
 requires-python = ">=3.11"
@@ -8,14 +8,14 @@ dependencies = [
 ]
 
 [project.scripts]
-arc = "arc.cli:main"
+bon = "bon.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/arc"]
+packages = ["src/bon"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

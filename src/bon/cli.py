@@ -1,15 +1,16 @@
-"""Arc CLI - main entry point."""
+"""Bon CLI - main entry point."""
 import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
-from arc.display import format_hierarchical, format_json, format_jsonl, format_tactical
-from arc.ids import DEFAULT_ORDER, generate_unique_id, next_order
-from arc.storage import (
-    ArcError,
+from bon.display import format_hierarchical, format_json, format_jsonl, format_tactical
+from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
+from bon.storage import (
+    BonError,
     ValidationError,
     append_archive,
     apply_reorder,
@@ -60,21 +61,21 @@ def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
 
 
 def cmd_init(args):
-    """Initialize .arc/ directory."""
+    """Initialize .bon/ directory."""
     prefix = args.prefix
 
     # Validate prefix: alphanumeric only, no spaces or hyphens
     if not prefix.isalnum():
         error(f"Prefix must be alphanumeric (no spaces or hyphens), got '{prefix}'")
 
-    arc_dir = Path(".arc")
-    if arc_dir.exists():
-        error(".arc/ already exists.")
+    bon_dir = Path(".bon")
+    if bon_dir.exists():
+        error(".bon/ already exists.")
 
-    arc_dir.mkdir()
-    (arc_dir / "items.jsonl").touch()
-    (arc_dir / "prefix").write_text(prefix)  # No trailing newline
-    print(f"Initialized .arc/ with prefix '{prefix}'")
+    bon_dir.mkdir()
+    (bon_dir / "items.jsonl").touch()
+    (bon_dir / "prefix").write_text(prefix)  # No trailing newline
+    print(f"Initialized .bon/ with prefix '{prefix}'")
 
 
 def prompt_brief() -> dict:
@@ -121,7 +122,7 @@ def require_brief_flags(why: str | None, what: str | None, done: str | None) -> 
 
 
 # Activity verbs that suggest an outcome title describes work, not achievement.
-# Kept deliberately small — the arc skill provides richer coaching.
+# Kept deliberately small — the bon skill provides richer coaching.
 ACTIVITY_VERBS = [
     "add", "build", "configure", "create", "decide", "deploy",
     "document", "fix", "implement", "improve", "investigate",
@@ -263,7 +264,7 @@ def cmd_show(args):
         return
 
     if not args.id:
-        error("Usage: arc show <id> or arc show --current")
+        error("Usage: bon show <id> or bon show --current")
 
     item = find_by_id(items, args.id, prefix)
 
@@ -377,7 +378,7 @@ def cmd_wait(args):
     if item.get("tactical"):
         item.pop("tactical")
 
-    # Warn if reason looks like an arc ID but can't be found
+    # Warn if reason looks like a bon ID but can't be found
     reason = args.reason
     if re.match(r'^[a-z]+-[a-z]+$', reason) and not find_by_id(items, reason, prefix):
         warn(f"'{reason}' not found in active items — waiting_for may never resolve automatically")
@@ -482,7 +483,7 @@ def cmd_status(args):
 
     standalone = [i for i in actions if not i.get("parent")]
 
-    print(f"Arc status (prefix: {prefix})")
+    print(f"Bon status (prefix: {prefix})")
     print()
     print(f"Outcomes:   {len(open_outcomes)} open, {len(done_outcomes)} done")
     print(f"Actions:    {len(open_actions)} open ({len(ready_actions)} ready, {len(waiting_actions)} waiting), {len(done_actions)} done")
@@ -629,7 +630,7 @@ def cmd_convert(args):
 
 
 def cmd_archive(args):
-    """Archive done items to .arc/archive.jsonl."""
+    """Archive done items to archive.jsonl."""
     check_initialized()
 
     items = load_items()
@@ -783,13 +784,13 @@ def cmd_log(args):
 
 
 def cmd_migrate(args):
-    """Migrate from beads to arc.
+    """Migrate from beads to bon.
 
     Two modes:
     - --draft: Generate manifest YAML from beads export (for Claude to complete)
-    - --from-draft: Import completed manifest into .arc/
+    - --from-draft: Import completed manifest into .bon/
     """
-    from arc.migrate import migrate_from_draft, migrate_to_draft
+    from bon.migrate import migrate_from_draft, migrate_to_draft
 
     if args.from_draft:
         # Import mode
@@ -875,7 +876,7 @@ def cmd_work(args):
     if args.status:
         active = find_active_tactical(items, session=session)
         if not active:
-            print("No active tactical steps. Run `arc work <id>` to start.")
+            print("No active tactical steps. Run `bon work <id>` to start.")
             return
         print(f"Working on: {active['title']} ({active['id']})")
         print()
@@ -894,7 +895,7 @@ def cmd_work(args):
 
     # Initialize tactical for specific action
     if not work_id:
-        error("Usage: arc work <id> [steps...] or arc work --status/--clear")
+        error("Usage: bon work <id> [steps...] or bon work --status/--clear")
 
     item = find_by_id(items, work_id, prefix)
     if not item:
@@ -913,7 +914,7 @@ def cmd_work(args):
             if len(children) > 5:
                 msg += f"\n  (+{len(children) - 5} more)"
         else:
-            msg += f"\n\nNo actions yet. Create one:\n  arc new \"title\" --for {item['id']} --why \"...\" --what \"...\" --done \"...\""
+            msg += f"\n\nNo actions yet. Create one:\n  bon new \"title\" --for {item['id']} --why \"...\" --what \"...\" --done \"...\""
         error(msg)
     if item["status"] == "done":
         error(f"Action '{work_id}' is already complete")
@@ -929,12 +930,12 @@ def cmd_work(args):
     # Serial enforcement scoped to THIS session
     active = find_active_tactical(items, session=session)
     if active and active["id"] != item["id"]:
-        error(f"{active['id']} has active steps. Complete it, wait it, or run `arc work --clear`")
+        error(f"{active['id']} has active steps. Complete it, wait it, or run `bon work --clear`")
 
     # Check for existing progress
     existing = item.get("tactical")
     if existing and existing.get("current", 0) > 0 and not args.force:
-        error(f"Steps in progress (step {existing['current'] + 1}). Run `arc work {work_id} --force` to restart")
+        error(f"Steps in progress (step {existing['current'] + 1}). Run `bon work {work_id} --force` to restart")
 
     # Get steps
     if work_steps:
@@ -943,7 +944,7 @@ def cmd_work(args):
         what = item.get("brief", {}).get("what", "")
         steps = parse_steps_from_what(what)
         if not steps:
-            error("No numbered steps in --what. Provide explicit steps: arc work <id> 'step 1' 'step 2'")
+            error("No numbered steps in --what. Provide explicit steps: bon work <id> 'step 1' 'step 2'")
 
     # Validate
     try:
@@ -966,7 +967,7 @@ def cmd_step(args):
 
     active = find_active_tactical(items, session=session)
     if not active:
-        error("No steps in progress. Run `arc work <id>` first")
+        error("No steps in progress. Run `bon work <id>` first")
 
     tactical = active["tactical"]
     current = tactical["current"]
@@ -995,16 +996,111 @@ def cmd_step(args):
 
 try:
     from importlib.metadata import version as _meta_version
-    __version__ = _meta_version("arc")
+    __version__ = _meta_version("bon")
 except Exception:
     __version__ = "0.0.0"
 
 
+def cmd_migrate_repo(args):
+    """Migrate a repo from .arc/ to .bon/.
+
+    Renames .arc/ → .bon/, optionally updates the prefix file,
+    updates .gitattributes, and commits.
+    """
+    import shutil
+
+    arc_dir = Path(".arc")
+    bon_dir = Path(".bon")
+    dry_run = args.dry_run
+
+    # Validate preconditions
+    if bon_dir.exists():
+        error(".bon/ already exists — already migrated?")
+    if not arc_dir.exists():
+        error("No .arc/ directory found. Nothing to migrate.")
+
+    # Check if we're in a git repo
+    in_git = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        capture_output=True, text=True
+    ).returncode == 0
+
+    # Determine prefix update
+    prefix_path = arc_dir / "prefix"
+    update_prefix = False
+    if prefix_path.exists() and prefix_path.read_text() == "arc":
+        update_prefix = True
+
+    # Check .gitattributes
+    gitattributes = Path(".gitattributes")
+    update_gitattributes = False
+    if gitattributes.exists():
+        content = gitattributes.read_text()
+        if ".arc/" in content:
+            update_gitattributes = True
+
+    # Dry run: report and exit
+    if dry_run:
+        print("Dry run — would perform:")
+        if in_git:
+            print("  git mv .arc .bon")
+        else:
+            print("  rename .arc/ → .bon/")
+        if update_prefix:
+            print("  update .bon/prefix: 'arc' → 'bon'")
+        if update_gitattributes:
+            print("  update .gitattributes: .arc/ → .bon/")
+        if in_git:
+            print("  git commit 'Rename .arc/ → .bon/ (arc→bon migration)'")
+        return
+
+    # 1. Rename .arc/ → .bon/
+    if in_git:
+        result = subprocess.run(
+            ["git", "mv", ".arc", ".bon"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            error(f"git mv failed: {result.stderr.strip()}")
+    else:
+        shutil.move(str(arc_dir), str(bon_dir))
+
+    # 2. Update prefix if it was "arc" (the old default)
+    if update_prefix:
+        (bon_dir / "prefix").write_text("bon")
+
+    # 3. Update .gitattributes
+    if update_gitattributes:
+        content = gitattributes.read_text()
+        content = content.replace(".arc/", ".bon/")
+        gitattributes.write_text(content)
+
+    # 4. Commit
+    if in_git:
+        # Stage any additional changes (prefix edit, gitattributes)
+        to_add = [".bon/"]
+        if update_gitattributes:
+            to_add.append(".gitattributes")
+        subprocess.run(["git", "add", *to_add], capture_output=True, text=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Rename .arc/ → .bon/ (arc→bon migration)"],
+            capture_output=True, text=True
+        )
+
+    # Report
+    print("Migrated .arc/ → .bon/")
+    if update_prefix:
+        print("  prefix: 'arc' → 'bon'")
+    if update_gitattributes:
+        print("  .gitattributes updated")
+    if in_git:
+        print("  committed")
+
+
 def cmd_update(args):
-    """Re-install arc from source via uv tool upgrade."""
-    import subprocess
-    print(f"Current: arc {__version__}")
-    result = subprocess.run(["uv", "tool", "upgrade", "arc"], capture_output=True, text=True)
+    """Re-install bon from source via uv tool upgrade."""
+    print(f"Current: bon {__version__}")
+    result = subprocess.run(["uv", "tool", "upgrade", "bon"], capture_output=True, text=True)
     if result.returncode != 0:
         stderr = result.stderr.strip()
         error(f"Update failed: {stderr}")
@@ -1013,7 +1109,7 @@ def cmd_update(args):
     if output:
         print(output)
     # Report new version by re-checking
-    result2 = subprocess.run(["arc", "--version"], capture_output=True, text=True)
+    result2 = subprocess.run(["bon", "--version"], capture_output=True, text=True)
     if result2.returncode == 0:
         new_version = result2.stdout.strip()
         print(f"Updated: {new_version}")
@@ -1022,15 +1118,15 @@ def cmd_update(args):
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        prog="arc",
+        prog="bon",
         description="Work tracker for Claude-human collaboration"
     )
-    parser.add_argument("--version", action="version", version=f"arc {__version__}")
+    parser.add_argument("--version", action="version", version=f"bon {__version__}")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # init
-    init_parser = subparsers.add_parser("init", help="Initialize .arc/")
-    init_parser.add_argument("--prefix", default="arc", help="ID prefix (default: arc)")
+    init_parser = subparsers.add_parser("init", help="Initialize .bon/")
+    init_parser.add_argument("--prefix", default="bon", help="ID prefix (default: bon)")
     init_parser.set_defaults(func=cmd_init)
 
     # new
@@ -1114,6 +1210,11 @@ def main():
     migrate_parser.add_argument("--orphan-parent", metavar="ID", help="Assign orphans to this parent outcome")
     migrate_parser.set_defaults(func=cmd_migrate)
 
+    # migrate-repo
+    migrate_repo_parser = subparsers.add_parser("migrate-repo", help="Migrate .arc/ → .bon/")
+    migrate_repo_parser.add_argument("--dry-run", action="store_true", help="Preview changes without executing")
+    migrate_repo_parser.set_defaults(func=cmd_migrate_repo)
+
     # convert
     convert_parser = subparsers.add_parser("convert", help="Convert outcome↔action")
     convert_parser.add_argument("id", help="Item ID to convert")
@@ -1140,7 +1241,7 @@ def main():
     reopen_parser.set_defaults(func=cmd_reopen)
 
     # update
-    update_parser = subparsers.add_parser("update", help="Re-install arc from source")
+    update_parser = subparsers.add_parser("update", help="Re-install bon from source")
     update_parser.set_defaults(func=cmd_update)
 
     # help
@@ -1160,7 +1261,7 @@ def main():
         else:
             print(f"Command '{args.command}' not yet implemented")
             sys.exit(1)
-    except ArcError as e:
+    except BonError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 

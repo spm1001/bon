@@ -1,28 +1,28 @@
-# Arc
+# Bon
 
 Lightweight work tracker for Claude-human collaboration using GTD vocabulary.
 
-Arc organizes work as **Outcomes** (desired results) and **Actions** (concrete next steps). No sprints, no story points — just ordering and a clear answer to "what can I work on now?"
+Bon organizes work as **Outcomes** (desired results) and **Actions** (concrete next steps). No sprints, no story points — just ordering and a clear answer to "what can I work on now?"
 
 ## Install
 
 ```bash
-git clone https://github.com/spm1001/arc.git
-cd arc
+git clone https://github.com/spm1001/bon.git
+cd bon
 uv tool install .
 ```
 
-This installs `arc` globally — available from any directory. To develop arc itself, also run `uv sync` for the dev dependencies (pytest, ruff).
+This installs `bon` globally — available from any directory. To develop bon itself, also run `uv sync` for the dev dependencies (pytest, ruff).
 
 ### Updating
 
 `uv tool install` copies the package — edits to source aren't reflected until you re-install:
 
 ```bash
-arc update          # re-installs from source
+bon update          # re-installs from source
 ```
 
-Or manually: `uv tool install ~/Repos/arc`.
+Or manually: `uv tool install ~/Repos/bon`.
 
 > **Note:** `uv tool install` doesn't support editable mode (`-e`) yet. When uv adds this, the update step goes away.
 
@@ -30,33 +30,33 @@ Or manually: `uv tool install ~/Repos/arc`.
 
 ```bash
 # Initialize in your project
-arc init
+bon init
 
 # Create an outcome (desired result)
-arc new "Users can export data" \
+bon new "Users can export data" \
   --why "Users requesting CSV exports" \
   --what "Export button, CSV generation, download" \
   --done "Can export any table to CSV"
 
 # Add actions to that outcome
-arc new "Add export button to toolbar" \
-  --outcome arc-abcdef \
+bon new "Add export button to toolbar" \
+  --outcome bon-abcdef \
   --why "Entry point for export flow" \
   --what "Button in toolbar, opens format picker" \
   --done "Button visible, click opens modal"
 
 # See what's ready
-arc list --ready
+bon list --ready
 
 # Mark done when complete
-arc done arc-ghijkl
+bon done bon-ghijkl
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `init [--prefix P]` | Initialize `.arc/` directory |
+| `init [--prefix P]` | Initialize `.bon/` directory |
 | `new TITLE [--outcome PARENT] --why W --what X --done D` | Create outcome or action |
 | `list [--ready\|--waiting\|--all]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
@@ -70,7 +70,8 @@ arc done arc-ghijkl
 | `archive [IDs...] [--all]` | Move done items to archive.jsonl |
 | `log [-n N]` | Show recent activity (creations, completions, archives) |
 | `reopen ID` | Reopen a completed or archived item |
-| `update` | Re-install arc from source |
+| `migrate-repo [--dry-run]` | Migrate `.arc/` → `.bon/` in current repo |
+| `update` | Re-install bon from source |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
 
@@ -84,19 +85,19 @@ arc done arc-ghijkl
 
 | Command | Shape | Example `jq` |
 |---------|-------|--------------|
-| `arc list --json` | `{"outcomes": [...], "standalone": [...]}` | `.outcomes[0].title` |
-| `arc show ID --json` | Single object (action or outcome) | `.title`, `.brief.why` |
-| `arc show OUTCOME --json` | Object with nested `"actions"` array | `.actions[0].title` |
+| `bon list --json` | `{"outcomes": [...], "standalone": [...]}` | `.outcomes[0].title` |
+| `bon show ID --json` | Single object (action or outcome) | `.title`, `.brief.why` |
+| `bon show OUTCOME --json` | Object with nested `"actions"` array | `.actions[0].title` |
 
-`arc show` returns an **object**, not an array. Use `.field` not `.[0].field`.
+`bon show` returns an **object**, not an array. Use `.field` not `.[0].field`.
 
 ### List Filters
 
 ```bash
-arc list              # Open outcomes + their actions (default)
-arc list --ready      # Only items ready to work on
-arc list --waiting    # Only items that are waiting
-arc list --all        # Include done items
+bon list              # Open outcomes + their actions (default)
+bon list --ready      # Only items ready to work on
+bon list --waiting    # Only items that are waiting
+bon list --all        # Include done items
 ```
 
 **What `--ready` shows:**
@@ -106,10 +107,10 @@ arc list --all        # Include done items
 
 **Example:**
 ```
-○ API Improvements (arc-abc)
-  1. ○ Add rate limiting (arc-def)      # ready - shown
-  2. ○ Add logging (arc-ghi)            # ready - shown
-  (+1 waiting)                          # arc-jkl waiting for review - hidden
+○ API Improvements (bon-abc)
+  1. ○ Add rate limiting (bon-def)      # ready - shown
+  2. ○ Add logging (bon-ghi)            # ready - shown
+  (+1 waiting)                          # bon-jkl waiting for review - hidden
 ```
 
 Use `--ready` to answer "what can I work on right now?" without clutter from blocked items.
@@ -120,19 +121,19 @@ Track progress through an action's steps:
 
 ```bash
 # Initialize steps (parses from --what if numbered)
-arc work arc-def
+bon work bon-def
 
 # Or provide explicit steps
-arc work arc-def "Add scope" "Create module" "Test"
+bon work bon-def "Add scope" "Create module" "Test"
 
 # Advance to next step (auto-completes on final)
-arc step
+bon step
 
 # Check current status
-arc work --status
+bon work --status
 
 # Clear steps (e.g., to restructure)
-arc work --clear
+bon work --clear
 ```
 
 **Output:**
@@ -144,17 +145,17 @@ arc work --clear
 
 **Constraints:**
 - Only one action may have active steps at a time (serial execution)
-- `arc wait` clears tactical steps (long blocks warrant re-planning)
-- Final `arc step` auto-completes the action
+- `bon wait` clears tactical steps (long blocks warrant re-planning)
+- Final `bon step` auto-completes the action
 
 ## Data Model
 
-Arc stores work in `.arc/items.jsonl` as two item types:
+Bon stores work in `.bon/items.jsonl` as two item types:
 
 **Outcomes** — Desired results that matter. Have child actions.
 ```json
 {
-  "id": "arc-abcdef",
+  "id": "bon-abcdef",
   "type": "outcome",
   "title": "Users can export data",
   "brief": { "why": "...", "what": "...", "done": "..." },
@@ -165,10 +166,10 @@ Arc stores work in `.arc/items.jsonl` as two item types:
 **Actions** — Concrete next steps. Belong to outcomes.
 ```json
 {
-  "id": "arc-ghijkl",
+  "id": "bon-ghijkl",
   "type": "action",
   "title": "Add export button",
-  "parent": "arc-abcdef",
+  "parent": "bon-abcdef",
   "waiting_for": null,
   "brief": { "why": "...", "what": "...", "done": "..." },
   "status": "open"
@@ -189,23 +190,23 @@ Interactive mode prompts for these. Non-interactive requires all three flags.
 
 ## Claude Code Integration
 
-Arc includes a skill for Claude Code at `arc/SKILL.md`. After installing arc, symlink the skill directory:
+Bon includes a skill for Claude Code at `bon/SKILL.md`. After installing bon, symlink the skill directory:
 
 ```bash
-ln -s ~/Repos/arc/arc ~/.claude/skills/arc
+ln -s ~/Repos/bon/bon ~/.claude/skills/bon
 ```
 
 This gives Claude access to the draw-down workflow (read item → activate tactical steps → work with pauses) and draw-up patterns (file work with complete briefs for future sessions).
 
-## Why Arc?
+## Why Bon?
 
-Arc was built after discovering that Claude working without checkpoints leads to drift. Complex work needs:
+Bon was built after discovering that Claude working without checkpoints leads to drift. Complex work needs:
 
 1. **Clear scope** — Brief fields force "why/what/done" clarity
 2. **Checkpoints** — Draw-down to TodoWrite creates pause points
 3. **Handoff** — Briefs written for zero-context readers survive session boundaries
 
-See `ORCHESTRATION.md` for patterns used to build arc with Claude.
+See `ORCHESTRATION.md` for patterns used to build bon with Claude.
 
 ## Development
 

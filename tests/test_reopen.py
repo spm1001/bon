@@ -66,7 +66,7 @@ def test_reopen_clears_done_at(arc_dir_with_fixture):
 def test_reopen_preserves_tactical(arc_dir_with_fixture):
     """Tactical steps are preserved when reopening."""
     # action_tactical_complete has a done action with completed tactical
-    items_path = arc_dir_with_fixture / ".arc" / "items.jsonl"
+    items_path = arc_dir_with_fixture / ".bon" / "items.jsonl"
     items = [json.loads(l) for l in items_path.read_text().splitlines() if l.strip()]
     # Find the action with tactical
     action = next(i for i in items if i.get("tactical"))
@@ -91,7 +91,7 @@ def test_reopen_from_archive(arc_dir_with_fixture):
     run_arc("archive", "--all", cwd=arc_dir_with_fixture)
 
     # Confirm items.jsonl is empty
-    items_path = arc_dir_with_fixture / ".arc" / "items.jsonl"
+    items_path = arc_dir_with_fixture / ".bon" / "items.jsonl"
     assert items_path.read_text().strip() == ""
 
     # Reopen one item
@@ -111,7 +111,7 @@ def test_reopen_from_archive(arc_dir_with_fixture):
     assert "archived_at" not in restored
 
     # Archive file has the other two still
-    archive_path = arc_dir_with_fixture / ".arc" / "archive.jsonl"
+    archive_path = arc_dir_with_fixture / ".bon" / "archive.jsonl"
     archived = [json.loads(l) for l in archive_path.read_text().splitlines() if l.strip()]
     archived_ids = {a["id"] for a in archived}
     assert "arc-bbb" not in archived_ids

@@ -4,8 +4,8 @@ from unittest.mock import patch
 import pytest
 from conftest import run_arc
 
-from arc.cli import prompt_brief
-from arc.storage import ArcError
+from bon.cli import prompt_brief
+from bon.storage import BonError
 
 
 class TestPromptBrief:
@@ -25,25 +25,25 @@ class TestPromptBrief:
     def test_empty_why_rejected(self):
         """Empty 'why' raises ArcError."""
         with patch('builtins.input', side_effect=["", "A thing", "It works"]):
-            with pytest.raises(ArcError):
+            with pytest.raises(BonError):
                 prompt_brief()
 
     def test_empty_what_rejected(self):
         """Empty 'what' raises ArcError."""
         with patch('builtins.input', side_effect=["Because reasons", "", "It works"]):
-            with pytest.raises(ArcError):
+            with pytest.raises(BonError):
                 prompt_brief()
 
     def test_empty_done_rejected(self):
         """Empty 'done' raises ArcError."""
         with patch('builtins.input', side_effect=["Because reasons", "A thing", ""]):
-            with pytest.raises(ArcError):
+            with pytest.raises(BonError):
                 prompt_brief()
 
     def test_whitespace_only_rejected(self):
         """Whitespace-only input raises ArcError."""
         with patch('builtins.input', side_effect=["   ", "A thing", "It works"]):
-            with pytest.raises(ArcError):
+            with pytest.raises(BonError):
                 prompt_brief()
 
     def test_input_stripped(self):
@@ -61,8 +61,8 @@ class TestArcErrorInProcess:
 
     def test_error_raises_arc_error(self):
         """error() raises ArcError catchable in-process."""
-        from arc.storage import error
-        with pytest.raises(ArcError, match="test message"):
+        from bon.storage import error
+        with pytest.raises(BonError, match="test message"):
             error("test message")
 
 
@@ -77,13 +77,13 @@ class TestInteractiveCLI:
         with patch('sys.stdin.isatty', return_value=True):
             with patch('builtins.input', side_effect=["Test why", "Test what", "Test done"]):
                 # Import and call main directly to use mocked stdin
-                from arc.cli import main
+                from bon.cli import main
                 with patch('sys.argv', ['arc', 'new', 'Interactive test']):
                     main()
 
         # Verify item created
         import json
-        items = (arc_dir / ".arc" / "items.jsonl").read_text().strip()
+        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
         item = json.loads(items)
         assert item["title"] == "Interactive test"
         assert item["brief"]["why"] == "Test why"
@@ -106,7 +106,7 @@ class TestInteractiveCLI:
         assert result.returncode == 0
 
         import json
-        items = (arc_dir / ".arc" / "items.jsonl").read_text().strip()
+        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
         item = json.loads(items)
         assert item["brief"]["why"] == "Flag why"
 
@@ -117,12 +117,12 @@ class TestInteractiveCLI:
         # Provide only --why, should prompt for all three
         with patch('sys.stdin.isatty', return_value=True):
             with patch('builtins.input', side_effect=["Interactive why", "Interactive what", "Interactive done"]):
-                from arc.cli import main
+                from bon.cli import main
                 with patch('sys.argv', ['arc', 'new', 'Partial flags', '--why', 'Ignored']):
                     main()
 
         import json
-        items = (arc_dir / ".arc" / "items.jsonl").read_text().strip()
+        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
         item = json.loads(items)
         # Interactive input should be used, not the flag
         assert item["brief"]["why"] == "Interactive why"

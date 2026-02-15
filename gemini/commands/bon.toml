@@ -1,0 +1,8 @@
+description = "Run bon work-tracker commands (init, new, list, show, done, work, step, etc.)"
+prompt = """Run the following bon CLI command and display the output:
+
+!{bon {{args}}}
+
+If the command was `bon list`, format the output as a readable hierarchy showing outcomes and their child actions. If the command was `bon show`, highlight the three flags (--why, --what, --done). If the command was `bon work` or `bon step`, show the tactical step progression clearly.
+
+If no args are provided, run `bon status` to show the current overview."""

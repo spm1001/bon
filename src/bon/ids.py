@@ -1,4 +1,4 @@
-"""ID generation and ordering for arc items."""
+"""ID generation and ordering for bon items."""
 import random
 
 CONSONANTS = "bcdfghjklmnprstvwz"  # No ambiguous: q, x, y
@@ -10,8 +10,8 @@ VOWELS = "aeiou"
 DEFAULT_ORDER = 999
 
 
-def generate_id(prefix: str = "arc") -> str:
-    """Generate pronounceable ID like 'arc-gabdur'."""
+def generate_id(prefix: str = "bon") -> str:
+    """Generate pronounceable ID like 'bon-gabdur'."""
     syllables = []
     for _ in range(3):
         c = random.choice(CONSONANTS)
