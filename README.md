@@ -4,6 +4,11 @@ Lightweight work tracker for Claude-human collaboration using GTD vocabulary.
 
 Bon organizes work as **Outcomes** (desired results) and **Actions** (concrete next steps). No sprints, no story points — just ordering and a clear answer to "what can I work on now?"
 
+> **Status:** Stable — used daily
+> **Works with:** Any agent, standalone CLI
+> **Install:** `uv tool install .`
+> **Requires:** Python 3.11+
+
 ## Install
 
 ```bash
