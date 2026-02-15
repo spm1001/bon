@@ -106,8 +106,6 @@ bon convert ID               # Action → outcome (preserves ID/metadata)
 bon convert ID --outcome P    # Outcome → action under P
 bon convert ID --outcome P --force  # Outcome with children → action (children become standalone)
 bon status                   # Overview counts
-bon migrate --from-beads F --draft  # Generate migration manifest
-bon migrate --from-draft F   # Import completed manifest
 ```
 
 All commands support `--json` for structured output. `bon new` supports `-q` for quiet mode (just prints ID).
@@ -116,16 +114,6 @@ All commands support `--json` for structured output. `bon new` supports `-q` for
 - `bon list --json` → `{"outcomes": [...], "standalone": [...]}` (wrapper object)
 - `bon show ID --json` → single object, NOT an array (use `.field` not `.[0].field`)
 - `bon show OUTCOME --json` → object with nested `"actions"` array
-
-## Migrating from Beads
-
-Two-phase process: generate manifest, fill briefs, import. See [references/migration.md](references/migration.md) for full guide.
-
-```bash
-bon migrate --from-beads .beads/ --draft > manifest.yaml  # Phase 1: extract
-# ... fill why/what/done briefs in manifest.yaml ...
-bon migrate --from-draft manifest.yaml                     # Phase 2: import
-```
 
 ## The Draw-Down Pattern
 

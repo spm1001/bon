@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 18 commands, ~2000 LOC core, 269 tests.
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 17 commands, ~1800 LOC core, 253 tests.
 
 ## Quick Commands
 
@@ -20,14 +20,14 @@ uv run bon --help                # CLI help
 ```
 src/bon/
 ├── cli.py        # All commands, argparse setup, main entry point
-├── storage.py    # JSONL I/O, validation, prefix management
+├── storage.py    # JSONL I/O, validation, prefix management, dedup
 ├── ids.py        # ID generation (pronounceable 3-syllable)
 ├── display.py    # Output formatting (hierarchical, JSON, JSONL)
 └── queries.py    # Filtering (ready, waiting)
 
 tests/            # pytest suite, one file per command
 fixtures/         # JSONL snapshots for parametrized tests
-bon/SKILL.md    # Claude Code integration patterns
+bon/SKILL.md      # Claude Code integration patterns
 ```
 
 ## Data Model
@@ -154,10 +154,4 @@ save_items(items)                # Atomic write back
 
 `SPEC.md` is authoritative (~55k). When behavior is unclear, check the spec. Tests are often derived from spec examples.
 
-## Migration
 
-Two-phase manifest pattern:
-1. `bon migrate --from-beads FILE --draft` → YAML with `_beads` context
-2. Fill briefs, then `bon migrate --from-draft FILE`
-
-See `src/bon/migrate.py` for implementation.

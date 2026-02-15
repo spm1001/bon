@@ -1,8 +1,11 @@
 """Tests for arc step command."""
 import json
+import re
 
 import pytest
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 class TestStepAdvances:
@@ -128,3 +131,20 @@ class TestStepErrors:
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
+
+
+class TestStepUpdatedAt:
+    """Verify step sets updated_at timestamp."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_step_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
+        """arc step sets updated_at on the item."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("step", cwd=arc_dir_with_fixture)
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = [json.loads(line) for line in lines]
+        child = next(i for i in items if i["id"] == "arc-child")
+        assert "updated_at" in child
+        assert ISO_RE.match(child["updated_at"])

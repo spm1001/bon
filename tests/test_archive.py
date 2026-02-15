@@ -1,9 +1,12 @@
 """Tests for arc archive command."""
 import json
+import re
 
 import pytest
 
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 # --- Fixtures ---
@@ -190,3 +193,23 @@ def test_archive_prefix_tolerant(done_action):
     result = run_arc("archive", suffix, cwd=arc_dir)
     assert result.returncode == 0
     assert "Archived 1 item(s)" in result.stdout
+
+
+# --- updated_at ---
+
+
+class TestArchiveUpdatedAt:
+    """Verify archive sets updated_at on archived items."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["done_outcome_with_actions"], indirect=True)
+    def test_archive_all_sets_updated_at(self, arc_dir_with_fixture):
+        """Archived items have updated_at set in ISO format."""
+        result = run_arc("archive", "--all", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+
+        archive_path = arc_dir_with_fixture / ".bon" / "archive.jsonl"
+        archived = [json.loads(line) for line in archive_path.read_text().splitlines() if line.strip()]
+        assert len(archived) > 0
+        for item in archived:
+            assert "updated_at" in item
+            assert ISO_RE.match(item["updated_at"])

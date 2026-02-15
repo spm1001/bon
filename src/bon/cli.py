@@ -290,6 +290,8 @@ def cmd_show(args):
     print(f"   Type: {item['type']}")
     print(f"   Status: {item['status']}")
     print(f"   Created: {item['created_at']} by {item['created_by']}")
+    if item.get("updated_at"):
+        print(f"   Updated: {item['updated_at']}")
 
     if item.get("waiting_for"):
         print(f"   Waiting for: {item['waiting_for']}")
@@ -384,6 +386,7 @@ def cmd_wait(args):
         warn(f"'{reason}' not found in active items — waiting_for may never resolve automatically")
 
     item["waiting_for"] = reason
+    item["updated_at"] = now_iso()
     save_items(items)
     if getattr(args, 'quiet', False):
         print(item['id'])
@@ -403,6 +406,7 @@ def cmd_unwait(args):
         error(f"Item '{args.id}' not found")
 
     item["waiting_for"] = None
+    item["updated_at"] = now_iso()
     save_items(items)
     if getattr(args, 'quiet', False):
         print(item['id'])
@@ -560,6 +564,8 @@ def cmd_edit(args):
             items[i] = edited
             break
 
+    edited["updated_at"] = now_iso()
+
     save_items(items)
     if getattr(args, 'quiet', False):
         print(item['id'])
@@ -625,6 +631,7 @@ def cmd_convert(args):
         else:
             item["order"] = 1
 
+    item["updated_at"] = now_iso()
     save_items(items)
     print(f"Converted {item['id']} to {item['type']}")
 
@@ -677,6 +684,7 @@ def cmd_archive(args):
     archive_ids = set()
     for item in to_archive:
         item["archived_at"] = now_iso()
+        item["updated_at"] = now_iso()
         archive_ids.add(item["id"])
 
     # Append to archive, remove from items
@@ -705,6 +713,7 @@ def cmd_reopen(args):
             archive_item["status"] = "open"
             archive_item.pop("done_at", None)
             archive_item.pop("archived_at", None)
+            archive_item["updated_at"] = now_iso()
             items.append(archive_item)
             save_items(items)
             print(f"Reopened: {archive_item['id']} (restored from archive)")
@@ -716,6 +725,7 @@ def cmd_reopen(args):
 
     item["status"] = "open"
     item.pop("done_at", None)
+    item["updated_at"] = now_iso()
     # Preserve tactical steps if any (per brief)
 
     save_items(items)
@@ -752,6 +762,12 @@ def cmd_log(args):
                 "verb": "archived",
                 "item": item,
             })
+        if item.get("updated_at"):
+            events.append({
+                "time": item["updated_at"],
+                "verb": "updated",
+                "item": item,
+            })
 
     # Sort newest first
     events.sort(key=lambda e: e["time"], reverse=True)
@@ -779,41 +795,8 @@ def cmd_log(args):
     for e in events:
         # Compact timestamp: strip seconds and Z for readability
         t = e["time"][:16].replace("T", " ")
-        icon = {"created": "+", "completed": "✓", "archived": "⌂"}[e["verb"]]
+        icon = {"created": "+", "completed": "✓", "archived": "⌂", "updated": "~"}[e["verb"]]
         print(f"  {icon} {t}  {e['verb']} {e['item']['title']} ({e['item']['id']})")
-
-
-def cmd_migrate(args):
-    """Migrate from beads to bon.
-
-    Two modes:
-    - --draft: Generate manifest YAML from beads export (for Claude to complete)
-    - --from-draft: Import completed manifest into .bon/
-    """
-    from bon.migrate import migrate_from_draft, migrate_to_draft
-
-    if args.from_draft:
-        # Import mode
-        migrate_from_draft(args.from_draft)
-    elif args.from_beads:
-        if not args.draft:
-            error("--from-beads requires --draft flag (direct migration not supported)")
-
-        # Handle directory shorthand: if path is directory, look for issues.jsonl
-        beads_path = Path(args.from_beads)
-        if beads_path.is_dir():
-            issues_file = beads_path / "issues.jsonl"
-            if not issues_file.exists():
-                error(f"Directory '{args.from_beads}' has no issues.jsonl")
-            beads_path = issues_file
-
-        migrate_to_draft(
-            str(beads_path),
-            promote_orphans=args.promote_orphans,
-            orphan_parent=args.orphan_parent,
-        )
-    else:
-        error("Specify --from-beads FILE --draft or --from-draft FILE")
 
 
 def add_output_flags(subparser, json=False, jsonl=False, quiet=False):
@@ -889,6 +872,7 @@ def cmd_work(args):
         if not active:
             return  # Silent success
         active.pop("tactical", None)
+        active["updated_at"] = now_iso()
         save_items(items)
         print(f"Cleared tactical steps from {active['id']}")
         return
@@ -954,6 +938,7 @@ def cmd_work(args):
 
     # Set tactical with session stamp
     item["tactical"] = {"steps": steps, "current": 0, "session": session}
+    item["updated_at"] = now_iso()
     save_items(items)
 
     print(format_tactical(item["tactical"]))
@@ -975,6 +960,7 @@ def cmd_step(args):
 
     # Advance
     tactical["current"] = current + 1
+    active["updated_at"] = now_iso()
 
     # Check if complete
     if tactical["current"] >= len(steps):
@@ -999,102 +985,6 @@ try:
     __version__ = _meta_version("bon")
 except Exception:
     __version__ = "0.0.0"
-
-
-def cmd_migrate_repo(args):
-    """Migrate a repo from .arc/ to .bon/.
-
-    Renames .arc/ → .bon/, optionally updates the prefix file,
-    updates .gitattributes, and commits.
-    """
-    import shutil
-
-    arc_dir = Path(".arc")
-    bon_dir = Path(".bon")
-    dry_run = args.dry_run
-
-    # Validate preconditions
-    if bon_dir.exists():
-        error(".bon/ already exists — already migrated?")
-    if not arc_dir.exists():
-        error("No .arc/ directory found. Nothing to migrate.")
-
-    # Check if we're in a git repo
-    in_git = subprocess.run(
-        ["git", "rev-parse", "--is-inside-work-tree"],
-        capture_output=True, text=True
-    ).returncode == 0
-
-    # Determine prefix update
-    prefix_path = arc_dir / "prefix"
-    update_prefix = False
-    if prefix_path.exists() and prefix_path.read_text() == "arc":
-        update_prefix = True
-
-    # Check .gitattributes
-    gitattributes = Path(".gitattributes")
-    update_gitattributes = False
-    if gitattributes.exists():
-        content = gitattributes.read_text()
-        if ".arc/" in content:
-            update_gitattributes = True
-
-    # Dry run: report and exit
-    if dry_run:
-        print("Dry run — would perform:")
-        if in_git:
-            print("  git mv .arc .bon")
-        else:
-            print("  rename .arc/ → .bon/")
-        if update_prefix:
-            print("  update .bon/prefix: 'arc' → 'bon'")
-        if update_gitattributes:
-            print("  update .gitattributes: .arc/ → .bon/")
-        if in_git:
-            print("  git commit 'Rename .arc/ → .bon/ (arc→bon migration)'")
-        return
-
-    # 1. Rename .arc/ → .bon/
-    if in_git:
-        result = subprocess.run(
-            ["git", "mv", ".arc", ".bon"],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            error(f"git mv failed: {result.stderr.strip()}")
-    else:
-        shutil.move(str(arc_dir), str(bon_dir))
-
-    # 2. Update prefix if it was "arc" (the old default)
-    if update_prefix:
-        (bon_dir / "prefix").write_text("bon")
-
-    # 3. Update .gitattributes
-    if update_gitattributes:
-        content = gitattributes.read_text()
-        content = content.replace(".arc/", ".bon/")
-        gitattributes.write_text(content)
-
-    # 4. Commit
-    if in_git:
-        # Stage any additional changes (prefix edit, gitattributes)
-        to_add = [".bon/"]
-        if update_gitattributes:
-            to_add.append(".gitattributes")
-        subprocess.run(["git", "add", *to_add], capture_output=True, text=True)
-        subprocess.run(
-            ["git", "commit", "-m", "Rename .arc/ → .bon/ (arc→bon migration)"],
-            capture_output=True, text=True
-        )
-
-    # Report
-    print("Migrated .arc/ → .bon/")
-    if update_prefix:
-        print("  prefix: 'arc' → 'bon'")
-    if update_gitattributes:
-        print("  .gitattributes updated")
-    if in_git:
-        print("  committed")
 
 
 def cmd_update(args):
@@ -1200,20 +1090,6 @@ def main():
     # step
     step_parser = subparsers.add_parser("step", help="Complete current step, advance to next")
     step_parser.set_defaults(func=cmd_step)
-
-    # migrate
-    migrate_parser = subparsers.add_parser("migrate", help="Migrate from beads")
-    migrate_parser.add_argument("--from-beads", metavar="PATH", help="Beads JSONL file or .beads/ directory")
-    migrate_parser.add_argument("--draft", action="store_true", help="Output manifest YAML for Claude to complete")
-    migrate_parser.add_argument("--from-draft", metavar="FILE", help="Import completed manifest YAML")
-    migrate_parser.add_argument("--promote-orphans", action="store_true", help="Convert orphan tasks to outcomes")
-    migrate_parser.add_argument("--orphan-parent", metavar="ID", help="Assign orphans to this parent outcome")
-    migrate_parser.set_defaults(func=cmd_migrate)
-
-    # migrate-repo
-    migrate_repo_parser = subparsers.add_parser("migrate-repo", help="Migrate .arc/ → .bon/")
-    migrate_repo_parser.add_argument("--dry-run", action="store_true", help="Preview changes without executing")
-    migrate_repo_parser.set_defaults(func=cmd_migrate_repo)
 
     # convert
     convert_parser = subparsers.add_parser("convert", help="Convert outcome↔action")

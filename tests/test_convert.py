@@ -1,8 +1,11 @@
 """Tests for arc convert command."""
 import json
+import re
 
 import pytest
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 class TestConvertActionToOutcome:
@@ -318,3 +321,21 @@ class TestConvertPreservesMetadata:
         items = {json.loads(line)["id"]: json.loads(line) for line in lines}
 
         assert items["arc-bbb"]["status"] == "done"
+
+
+class TestConvertUpdatedAt:
+    """Verify convert sets updated_at on the converted item."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_convert_action_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
+        """Converting action to outcome sets updated_at."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("convert", "arc-ccc", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
+
+        assert "updated_at" in items["arc-ccc"]
+        assert ISO_RE.match(items["arc-ccc"]["updated_at"])

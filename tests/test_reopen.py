@@ -1,9 +1,12 @@
 """Tests for arc reopen command."""
 import json
+import re
 
 import pytest
 
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 # --- Basic ---
@@ -139,3 +142,23 @@ def test_reopen_not_initialized(tmp_path):
     result = run_arc("reopen", "arc-xyz", cwd=tmp_path)
     assert result.returncode == 1
     assert "Not initialized" in result.stderr
+
+
+# --- updated_at ---
+
+
+class TestReopenUpdatedAt:
+    """Verify reopen sets updated_at timestamp."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["mixed_done_open"], indirect=True)
+    def test_reopen_sets_updated_at(self, arc_dir_with_fixture):
+        """Reopening a done item sets updated_at."""
+        # arc-bbb is done in mixed_done_open
+        result = run_arc("reopen", "arc-bbb", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
+
+        assert "updated_at" in items["arc-bbb"]
+        assert ISO_RE.match(items["arc-bbb"]["updated_at"])

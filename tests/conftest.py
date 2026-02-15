@@ -5,6 +5,16 @@ from pathlib import Path
 
 import pytest
 
+from bon.storage import _reset_data_dir
+
+
+@pytest.fixture(autouse=True)
+def _reset_storage_cache():
+    """Reset cached data dir between tests so monkeypatch.chdir works."""
+    _reset_data_dir()
+    yield
+    _reset_data_dir()
+
 
 @pytest.fixture
 def fixtures_dir():

@@ -6,6 +6,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from bon.ids import get_siblings
+
 
 class ValidationError(Exception):
     """Raised when item validation fails."""
@@ -27,34 +29,48 @@ def warn(message: str) -> None:
     print(f"Warning: {message}", file=sys.stderr)
 
 
-def _data_dir() -> Path:
-    """Return the data directory path (.bon/ preferred, .arc/ fallback).
+_cached_data_dir: Path | None = None
 
-    For transition: if .bon/ exists, use it. Else if .arc/ exists, use it.
-    For new operations (neither exists), default to .bon/.
+
+def _data_dir() -> Path:
+    """Return the data directory as an absolute path (.bon/ preferred, .arc/ fallback).
+
+    Resolves to absolute on first call and caches, so CWD changes mid-process
+    can't cause reads/writes to target the wrong directory.
     """
-    bon = Path(".bon")
+    global _cached_data_dir
+    if _cached_data_dir is not None:
+        return _cached_data_dir
+
+    bon = Path(".bon").resolve()
     if bon.is_dir():
+        _cached_data_dir = bon
         return bon
-    arc = Path(".arc")
+    arc = Path(".arc").resolve()
     if arc.is_dir():
+        _cached_data_dir = arc
         return arc
-    return bon  # default for new operations
+    _cached_data_dir = bon  # default for new operations
+    return bon
+
+
+def _reset_data_dir() -> None:
+    """Reset cached data dir. For tests only."""
+    global _cached_data_dir
+    _cached_data_dir = None
 
 
 def _most_recent_timestamp(item: dict) -> str:
-    """Return the most recent timestamp from an item for dedup comparison.
-
-    When updated_at is added, include it here: done_at > updated_at > created_at.
-    """
-    return item.get("done_at") or item.get("created_at") or ""
+    """Return the most recent timestamp from an item for dedup comparison."""
+    return (item.get("done_at") or item.get("archived_at")
+            or item.get("updated_at") or item.get("created_at") or "")
 
 
 def load_items() -> list[dict]:
     """Load all items from JSONL with validation.
 
     Deduplicates by ID, preferring the version with the most recent timestamp
-    (done_at > created_at). This handles union merge artifacts where git keeps
+    (done_at > archived_at > updated_at > created_at). This handles union merge artifacts where git keeps
     both old and new versions of an edited line.
     """
     path = _data_dir() / "items.jsonl"
@@ -131,14 +147,33 @@ def validate_item(item: dict, strict: bool = False) -> None:
 def save_items(items: list[dict]) -> None:
     """Save items atomically, sorted by ID for deterministic output.
 
+    Deduplicates by ID before writing, keeping the version with the most
+    recent timestamp. This prevents duplicate lines from any source
+    (migrate, manual edits, agent mistakes).
+
     Deterministic order means two branches that touch different items
     produce minimal diffs, enabling clean git merges.
     """
+    seen: dict[str, dict] = {}
+    duplicates: set[str] = set()
+    for item in items:
+        item_id = item.get("id", "")
+        if item_id in seen:
+            duplicates.add(item_id)
+            if _most_recent_timestamp(item) >= _most_recent_timestamp(seen[item_id]):
+                seen[item_id] = item
+        else:
+            seen[item_id] = item
+
+    if duplicates:
+        ids = ", ".join(sorted(duplicates))
+        print(f"Warning: Deduplicated IDs on save: {ids}", file=sys.stderr)
+
     path = _data_dir() / "items.jsonl"
     tmp = path.with_suffix(".tmp")
 
     with open(tmp, "w") as f:
-        for item in sorted(items, key=lambda i: i.get("id", "")):
+        for item in sorted(seen.values(), key=lambda i: i.get("id", "")):
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     tmp.rename(path)  # Atomic on POSIX
@@ -241,9 +276,6 @@ def check_initialized() -> None:
     """Check if .bon/ or .arc/ is initialized. Exit with error if not."""
     if not Path(".bon").is_dir() and not Path(".arc").is_dir():
         error("Not initialized. Run `bon init` first.")
-
-
-from bon.ids import get_siblings
 
 
 def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):
@@ -362,22 +394,26 @@ def load_archive() -> list[dict]:
 
 
 def append_archive(items: list[dict]) -> None:
-    """Append items to archive.jsonl atomically."""
+    """Append items to archive.jsonl atomically.
+
+    Deduplicates by ID (keeping most recent via _most_recent_timestamp),
+    same as save_items. Writes atomically with tmp+rename.
+    """
+    existing = load_archive()
+
+    seen: dict[str, dict] = {}
+    for item in existing + items:
+        item_id = item.get("id", "")
+        if item_id in seen:
+            if _most_recent_timestamp(item) >= _most_recent_timestamp(seen[item_id]):
+                seen[item_id] = item
+        else:
+            seen[item_id] = item
+
     path = _data_dir() / "archive.jsonl"
-
-    # Read existing content (if any)
-    existing = ""
-    if path.exists():
-        existing = path.read_text()
-
-    # Write existing + new atomically
     tmp = path.with_suffix(".tmp")
     with open(tmp, "w") as f:
-        if existing:
-            f.write(existing)
-            if not existing.endswith("\n"):
-                f.write("\n")
-        for item in items:
+        for item in sorted(seen.values(), key=lambda i: i.get("id", "")):
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     tmp.rename(path)  # Atomic on POSIX

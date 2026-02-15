@@ -1,8 +1,11 @@
 """Tests for arc edit command (flag-based, non-interactive)."""
 import json
+import re
 
 import pytest
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 class TestEditBasic:
@@ -293,3 +296,19 @@ class TestEditErrors:
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
+
+
+class TestEditUpdatedAt:
+    """Verify edit sets updated_at timestamp."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_edit_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
+        """arc edit sets updated_at on the item."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("edit", "arc-aaa", "--title", "New Title", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
+        assert "updated_at" in item
+        assert ISO_RE.match(item["updated_at"])

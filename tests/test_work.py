@@ -1,8 +1,11 @@
 """Tests for arc work command."""
 import json
+import re
 
 import pytest
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 class TestParseStepsFromWhat:
@@ -323,3 +326,31 @@ class TestWorkErrors:
 
         assert result.returncode == 1
         assert "Usage:" in result.stderr
+
+
+class TestWorkUpdatedAt:
+    """Verify work sets updated_at timestamp."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
+        """arc work sets updated_at on the item."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("work", "arc-ccc", "Step A", "Step B", cwd=arc_dir_with_fixture)
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        ccc = json.loads(lines[2])
+        assert "updated_at" in ccc
+        assert ISO_RE.match(ccc["updated_at"])
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_work_clear_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
+        """arc work --clear sets updated_at on the item."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("work", "--clear", cwd=arc_dir_with_fixture)
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        child = next(json.loads(line) for line in lines if json.loads(line)["id"] == "arc-child")
+        assert "updated_at" in child
+        assert ISO_RE.match(child["updated_at"])

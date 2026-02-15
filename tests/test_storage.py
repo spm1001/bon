@@ -127,6 +127,22 @@ class TestLoadItemsDedup:
         assert items[0]["title"] == "New"
         assert items[0]["status"] == "done"
 
+    def test_duplicate_prefers_updated_at(self, arc_dir, monkeypatch, capsys):
+        """Dedup considers updated_at in timestamp comparison."""
+        monkeypatch.chdir(arc_dir)
+        old = {"id": "arc-aaa", "type": "outcome", "title": "Old", "status": "open",
+               "created_at": "2026-01-01T00:00:00Z"}
+        new = {"id": "arc-aaa", "type": "outcome", "title": "Edited", "status": "open",
+               "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-02-01T00:00:00Z"}
+        # Old appears after new — but new should win because updated_at is more recent
+        content = json.dumps(new) + "\n" + json.dumps(old) + "\n"
+        (arc_dir / ".bon" / "items.jsonl").write_text(content)
+
+        items = load_items()
+
+        assert len(items) == 1
+        assert items[0]["title"] == "Edited"
+
     def test_conflict_markers_warn(self, arc_dir, monkeypatch, capsys):
         """Git conflict markers produce a specific diagnostic."""
         monkeypatch.chdir(arc_dir)
@@ -163,6 +179,53 @@ class TestSaveItems:
         assert len(reloaded) == 2
         assert reloaded[0]["id"] == "arc-aaa"
         assert reloaded[1]["id"] == "arc-bbb"
+
+
+    def test_save_deduplicates(self, arc_dir, monkeypatch, capsys):
+        """save_items deduplicates by ID, keeping the most recent version."""
+        monkeypatch.chdir(arc_dir)
+        items = [
+            {"id": "arc-aaa", "type": "outcome", "title": "Old", "status": "open",
+             "created_at": "2026-01-01T00:00:00Z"},
+            {"id": "arc-bbb", "type": "action", "title": "Other", "status": "open",
+             "created_at": "2026-01-01T00:00:00Z"},
+            {"id": "arc-aaa", "type": "outcome", "title": "New", "status": "open",
+             "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-02-01T00:00:00Z"},
+        ]
+
+        save_items(items)
+
+        # Check raw file — not load_items, which also deduplicates
+        raw_lines = (arc_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        assert len(raw_lines) == 2
+        saved = [json.loads(line) for line in raw_lines]
+        aaa = next(i for i in saved if i["id"] == "arc-aaa")
+        assert aaa["title"] == "New"
+        assert any(i["id"] == "arc-bbb" for i in saved)
+
+        captured = capsys.readouterr()
+        assert "Deduplicated" in captured.err
+        assert "arc-aaa" in captured.err
+
+
+class TestDataDirCaching:
+    def test_cwd_change_doesnt_break_storage(self, arc_dir, tmp_path, monkeypatch):
+        """After resolving data dir, CWD changes don't affect storage operations."""
+        monkeypatch.chdir(arc_dir)
+        items = [
+            {"id": "arc-aaa", "type": "outcome", "title": "Test", "status": "open"},
+        ]
+        save_items(items)
+
+        # Change CWD to a directory with no .bon/
+        other_dir = tmp_path / "other"
+        other_dir.mkdir()
+        monkeypatch.chdir(other_dir)
+
+        # load_items should still find the original .bon/
+        reloaded = load_items()
+        assert len(reloaded) == 1
+        assert reloaded[0]["id"] == "arc-aaa"
 
 
 class TestFindById:

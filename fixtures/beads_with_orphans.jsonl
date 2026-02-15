@@ -1,7 +1,0 @@
-{"id": "proj-epic1", "title": "User Auth", "issue_type": "epic", "description": "Authentication system", "status": "open"}
-{"id": "proj-epic2", "title": "API Work", "issue_type": "epic", "description": "API improvements", "status": "open"}
-{"id": "proj-task1", "title": "Add OAuth", "issue_type": "task", "description": "OAuth implementation", "dependencies": [{"type": "parent-child", "depends_on_id": "proj-epic1"}]}
-{"id": "proj-task2", "title": "Add JWT", "issue_type": "task", "description": "JWT tokens", "dependencies": [{"type": "parent-child", "depends_on_id": "proj-epic1"}]}
-{"id": "proj-orphan1", "title": "Fix login bug", "issue_type": "bug", "description": "Login fails on Safari"}
-{"id": "proj-orphan2", "title": "Update docs", "issue_type": "task", "description": "README needs updating"}
-{"id": "proj-orphan3", "title": "Research caching", "issue_type": "spike", "description": "Evaluate Redis vs Memcached", "status": "closed"}

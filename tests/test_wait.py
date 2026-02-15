@@ -1,8 +1,11 @@
 """Tests for arc wait command."""
 import json
+import re
 
 import pytest
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 class TestWaitBasic:
@@ -130,3 +133,18 @@ class TestWaitWarnings:
 
         assert result.returncode == 0
         assert "not found" not in result.stderr
+
+
+class TestWaitUpdatedAt:
+    """Verify wait sets updated_at timestamp."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_wait_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
+        """arc wait sets updated_at on the item."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("wait", "arc-aaa", "blocker", cwd=arc_dir_with_fixture)
+
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
+        assert "updated_at" in item
+        assert ISO_RE.match(item["updated_at"])

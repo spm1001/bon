@@ -289,7 +289,7 @@ The `brief` field enables Claude-to-Claude handoff. It has three required subfie
 | `.waiting_for` | Exclude non-ready items |
 | `.tactical` | Presence check, `.steps[]`, `.current` |
 
-**Not read externally:** `.brief`, `.created_at`, `.created_by`, `.done_at`
+**Not read externally:** `.brief`, `.created_at`, `.created_by`, `.done_at`, `.updated_at`, `.archived_at`
 
 Changes to stable field names, value shapes, or status string values require checking trousse's jq queries. Adding new fields or new status values is safe — jq ignores unknown fields and queries filter explicitly. trousse has 34 pytest tests covering its jq queries as a safety net, but these test against fixture data, not live schema, so they catch query regressions but not schema drift.
 

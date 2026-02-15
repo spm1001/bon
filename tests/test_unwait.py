@@ -1,8 +1,11 @@
 """Tests for arc unwait command."""
 import json
+import re
 
 import pytest
 from conftest import run_arc
+
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 
 class TestUnwaitBasic:
@@ -71,3 +74,19 @@ class TestUnwaitErrors:
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
+
+
+class TestUnwaitUpdatedAt:
+    """Verify unwait sets updated_at timestamp."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_waiting"], indirect=True)
+    def test_unwait_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
+        """arc unwait sets updated_at on the item."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("unwait", "arc-bbb", cwd=arc_dir_with_fixture)
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        bbb = json.loads(lines[1])
+        assert "updated_at" in bbb
+        assert ISO_RE.match(bbb["updated_at"])
