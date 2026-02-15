@@ -213,6 +213,10 @@ Bon was built after discovering that Claude working without checkpoints leads to
 
 See `ORCHESTRATION.md` for patterns used to build bon with Claude.
 
+## Acknowledgements
+
+Bon owes a huge debt to Steve Yegge's [Beads](https://github.com/steveyegge/beads). Bon is a simpler, more opinionated tool, but it borrows heavily from Beads — especially the idea of **agent-first ergonomics**. Beads demonstrated that work-tracking tools should be designed *for agents*, not just *used by* agents. If an agent felt a flag or switch would help, it got added. Bon follows that principle: every command, every output format, every flag was shaped by what makes an AI agent effective at managing work.
+
 ## Development
 
 ```bash
