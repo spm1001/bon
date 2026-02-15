@@ -227,6 +227,10 @@ uv run pytest
 uv run pytest tests/test_done.py -k "test_done"
 ```
 
+## The Kitchen
+
+Bon is part of [Batterie de Savoir](https://spm1001.github.io/batterie-de-savoir/) — a suite of tools for AI-assisted knowledge work. See the [full brigade and design principles](https://spm1001.github.io/batterie-de-savoir/) for how the tools fit together.
+
 ## License
 
 MIT
