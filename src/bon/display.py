@@ -10,16 +10,22 @@ def format_tactical(tactical: dict) -> str:
 
     Uses markers:
     - ✓ for completed steps (index < current)
+    - ⊘ for skipped steps (index in skipped dict)
     - → for active step (index == current) with [current] suffix
     - (space) for pending steps (index > current)
     """
     lines = []
     steps = tactical.get("steps", [])
     current = tactical.get("current", 0)
+    skipped = tactical.get("skipped", {})
 
     for i, step in enumerate(steps):
+        skip_reason = skipped.get(str(i))
         if i < current:
-            lines.append(f"✓ {i + 1}. {step}")
+            if skip_reason:
+                lines.append(f"⊘ {i + 1}. {step} [skipped: {skip_reason}]")
+            else:
+                lines.append(f"✓ {i + 1}. {step}")
         elif i == current:
             lines.append(f"→ {i + 1}. {step} [current]")
         else:

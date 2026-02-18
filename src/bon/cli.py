@@ -958,22 +958,36 @@ def cmd_step(args):
     current = tactical["current"]
     steps = tactical["steps"]
 
+    # Record skip if requested
+    skip_reason = getattr(args, "skip", None)
+    if skip_reason:
+        skipped = tactical.setdefault("skipped", {})
+        skipped[str(current)] = skip_reason
+
     # Advance
     tactical["current"] = current + 1
     active["updated_at"] = now_iso()
 
+    no_complete = getattr(args, "no_complete", False)
+
     # Check if complete
     if tactical["current"] >= len(steps):
-        # Auto-complete the action
-        active["status"] = "done"
-        active["done_at"] = now_iso()
-        # Unblock waiters
-        for other in items:
-            if other.get("waiting_for") == active["id"]:
-                other["waiting_for"] = None
-        save_items(items)
-        print(format_tactical(tactical))
-        print(f"\nAction {active['id']} complete.")
+        if no_complete:
+            # All steps done but don't auto-complete the action
+            save_items(items)
+            print(format_tactical(tactical))
+            print(f"\nAll steps done. Action {active['id']} left open (--no-complete).")
+        else:
+            # Auto-complete the action
+            active["status"] = "done"
+            active["done_at"] = now_iso()
+            # Unblock waiters
+            for other in items:
+                if other.get("waiting_for") == active["id"]:
+                    other["waiting_for"] = None
+            save_items(items)
+            print(format_tactical(tactical))
+            print(f"\nAction {active['id']} complete.")
     else:
         save_items(items)
         print(format_tactical(tactical))
@@ -1089,6 +1103,8 @@ def main():
 
     # step
     step_parser = subparsers.add_parser("step", help="Complete current step, advance to next")
+    step_parser.add_argument("--skip", metavar="REASON", help="Skip current step with a reason instead of completing it")
+    step_parser.add_argument("--no-complete", action="store_true", help="Don't auto-complete action on final step")
     step_parser.set_defaults(func=cmd_step)
 
     # convert

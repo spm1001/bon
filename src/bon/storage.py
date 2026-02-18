@@ -455,3 +455,11 @@ def validate_tactical(tactical: dict) -> None:
     session = tactical.get("session")
     if session is not None and (not isinstance(session, str) or not session):
         raise ValidationError("tactical.session must be a non-empty string")
+    # skipped is optional; when present must be dict with string keys and string values
+    skipped = tactical.get("skipped")
+    if skipped is not None:
+        if not isinstance(skipped, dict):
+            raise ValidationError("tactical.skipped must be a dict")
+        for key, value in skipped.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                raise ValidationError("tactical.skipped keys and values must be strings")
