@@ -91,6 +91,70 @@ def test_log_json(arc_dir_with_fixture):
         assert "type" in e
 
 
+# --- Mutation verbs ---
+
+
+@pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+def test_log_shows_edited_verb(arc_dir_with_fixture):
+    """Editing an item shows 'edited' verb in log."""
+    run_arc("edit", "arc-aaa", "--title", "New title", cwd=arc_dir_with_fixture)
+    result = run_arc("log", cwd=arc_dir_with_fixture)
+    assert result.returncode == 0
+    assert "edited" in result.stdout
+
+
+@pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+def test_log_shows_waited_verb(arc_dir_with_fixture):
+    """Waiting on an item shows 'waited' verb in log."""
+    run_arc("wait", "arc-bbb", "needs review", cwd=arc_dir_with_fixture)
+    result = run_arc("log", cwd=arc_dir_with_fixture)
+    assert result.returncode == 0
+    assert "waited" in result.stdout
+
+
+@pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+def test_log_shows_unwaited_verb(arc_dir_with_fixture):
+    """Unwaiting shows 'unwaited' verb in log."""
+    run_arc("wait", "arc-bbb", "needs review", cwd=arc_dir_with_fixture)
+    run_arc("unwait", "arc-bbb", cwd=arc_dir_with_fixture)
+    result = run_arc("log", cwd=arc_dir_with_fixture)
+    assert result.returncode == 0
+    assert "unwaited" in result.stdout
+
+
+@pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
+def test_log_shows_stepped_verb(arc_dir_with_fixture, monkeypatch):
+    """Stepping shows 'stepped' verb in log."""
+    monkeypatch.chdir(arc_dir_with_fixture)
+    run_arc("step", cwd=arc_dir_with_fixture)
+    result = run_arc("log", cwd=arc_dir_with_fixture)
+    assert result.returncode == 0
+    assert "stepped" in result.stdout
+
+
+@pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+def test_log_json_has_distinct_verb(arc_dir_with_fixture):
+    """JSON log output includes the specific mutation verb."""
+    run_arc("edit", "arc-aaa", "--title", "Changed", cwd=arc_dir_with_fixture)
+    result = run_arc("log", "--json", cwd=arc_dir_with_fixture)
+    assert result.returncode == 0
+    events = json.loads(result.stdout)
+    verbs = [e["verb"] for e in events]
+    assert "edited" in verbs
+
+
+# --- Show updated_by ---
+
+
+@pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+def test_show_displays_updated_by(arc_dir_with_fixture):
+    """bon show displays the mutation type alongside updated_at."""
+    run_arc("edit", "arc-aaa", "--title", "Changed", cwd=arc_dir_with_fixture)
+    result = run_arc("show", "arc-aaa", cwd=arc_dir_with_fixture)
+    assert result.returncode == 0
+    assert "(edited)" in result.stdout
+
+
 # --- Not initialized ---
 
 

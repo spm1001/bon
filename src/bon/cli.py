@@ -291,7 +291,8 @@ def cmd_show(args):
     print(f"   Status: {item['status']}")
     print(f"   Created: {item['created_at']} by {item['created_by']}")
     if item.get("updated_at"):
-        print(f"   Updated: {item['updated_at']}")
+        updated_by = item.get("updated_by", "updated")
+        print(f"   Updated: {item['updated_at']} ({updated_by})")
 
     if item.get("waiting_for"):
         print(f"   Waiting for: {item['waiting_for']}")
@@ -387,6 +388,7 @@ def cmd_wait(args):
 
     item["waiting_for"] = reason
     item["updated_at"] = now_iso()
+    item["updated_by"] = "waited"
     save_items(items)
     if getattr(args, 'quiet', False):
         print(item['id'])
@@ -407,6 +409,7 @@ def cmd_unwait(args):
 
     item["waiting_for"] = None
     item["updated_at"] = now_iso()
+    item["updated_by"] = "unwaited"
     save_items(items)
     if getattr(args, 'quiet', False):
         print(item['id'])
@@ -565,6 +568,7 @@ def cmd_edit(args):
             break
 
     edited["updated_at"] = now_iso()
+    edited["updated_by"] = "edited"
 
     save_items(items)
     if getattr(args, 'quiet', False):
@@ -632,6 +636,7 @@ def cmd_convert(args):
             item["order"] = 1
 
     item["updated_at"] = now_iso()
+    item["updated_by"] = "converted"
     save_items(items)
     print(f"Converted {item['id']} to {item['type']}")
 
@@ -685,6 +690,7 @@ def cmd_archive(args):
     for item in to_archive:
         item["archived_at"] = now_iso()
         item["updated_at"] = now_iso()
+        item["updated_by"] = "archived"
         archive_ids.add(item["id"])
 
     # Append to archive, remove from items
@@ -714,6 +720,7 @@ def cmd_reopen(args):
             archive_item.pop("done_at", None)
             archive_item.pop("archived_at", None)
             archive_item["updated_at"] = now_iso()
+            archive_item["updated_by"] = "reopened"
             items.append(archive_item)
             save_items(items)
             print(f"Reopened: {archive_item['id']} (restored from archive)")
@@ -726,6 +733,7 @@ def cmd_reopen(args):
     item["status"] = "open"
     item.pop("done_at", None)
     item["updated_at"] = now_iso()
+    item["updated_by"] = "reopened"
     # Preserve tactical steps if any (per brief)
 
     save_items(items)
@@ -765,7 +773,7 @@ def cmd_log(args):
         if item.get("updated_at"):
             events.append({
                 "time": item["updated_at"],
-                "verb": "updated",
+                "verb": item.get("updated_by", "updated"),
                 "item": item,
             })
 
@@ -795,7 +803,7 @@ def cmd_log(args):
     for e in events:
         # Compact timestamp: strip seconds and Z for readability
         t = e["time"][:16].replace("T", " ")
-        icon = {"created": "+", "completed": "✓", "archived": "⌂", "updated": "~"}[e["verb"]]
+        icon = {"created": "+", "completed": "✓", "archived": "⌂"}.get(e["verb"], "~")
         print(f"  {icon} {t}  {e['verb']} {e['item']['title']} ({e['item']['id']})")
 
 
@@ -873,6 +881,7 @@ def cmd_work(args):
             return  # Silent success
         active.pop("tactical", None)
         active["updated_at"] = now_iso()
+        active["updated_by"] = "cleared"
         save_items(items)
         print(f"Cleared tactical steps from {active['id']}")
         return
@@ -939,6 +948,7 @@ def cmd_work(args):
     # Set tactical with session stamp
     item["tactical"] = {"steps": steps, "current": 0, "session": session}
     item["updated_at"] = now_iso()
+    item["updated_by"] = "worked"
     save_items(items)
 
     print(format_tactical(item["tactical"]))
@@ -967,6 +977,7 @@ def cmd_step(args):
     # Advance
     tactical["current"] = current + 1
     active["updated_at"] = now_iso()
+    active["updated_by"] = "stepped"
 
     no_complete = getattr(args, "no_complete", False)
 
