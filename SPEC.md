@@ -165,7 +165,8 @@ Actions can have tactical steps for tracking progress through work. The `tactica
   "tactical": {
     "steps": ["Add scope", "Create rate limiter", "Test"],
     "current": 1,
-    "session": "/Users/modha/worktrees/feature-a"
+    "session": "/Users/modha/worktrees/feature-a",
+    "skipped": {"2": "needs manual phone test"}
   }
 }
 ```
@@ -175,12 +176,14 @@ Actions can have tactical steps for tracking progress through work. The `tactica
 | `steps` | array of strings | Step descriptions |
 | `current` | integer | 0-indexed pointer to current step |
 | `session` | string or absent | CWD that owns this tactical (absent = legacy unscoped) |
+| `skipped` | dict or absent | Step indices (as strings) → skip reasons. Absent when no steps skipped |
 
-**Progress derived from `current`:**
-- `index < current` → done
+**Progress derived from `current` and `skipped`:**
+- `index < current` and not in `skipped` → done
+- `index < current` and in `skipped` → skipped (with reason)
 - `index == current` → active
 - `index > current` → pending
-- `current == len(steps)` → all done (action auto-completed)
+- `current == len(steps)` → all done (action auto-completed, unless `--no-complete` was used)
 
 **Session scoping:** The `session` field records the working directory (CWD) that created the tactical. This enables multiple worktrees sharing the same `.bon/` to have independent active tacticals. When `session` is absent (legacy data), the tactical is unscoped and claimable by any CWD.
 
@@ -405,7 +408,8 @@ bon wait ID REASON                Mark as waiting (clears tactical)
 bon unwait ID                     Clear waiting
 bon work ID [STEPS...] [--status|--clear|--force]
                                   Manage tactical steps for an action
-bon step                          Complete current step, advance to next
+bon step [--skip REASON] [--no-complete]
+                                  Complete current step, advance to next
 bon edit ID --flag VALUE          Edit item fields via flags
 bon status                        Overview
 bon init                          Initialize .bon/
@@ -748,10 +752,19 @@ def parse_steps_from_what(what: str) -> list[str] | None:
 ### `bon step`
 
 ```bash
-bon step
+bon step [--skip REASON] [--no-complete]
 ```
 
-Completes current tactical step and advances to next. On final step, auto-completes the action.
+Completes current tactical step and advances to next. On final step, auto-completes the action unless `--no-complete` is used.
+
+**Flags:**
+
+| Flag | Effect |
+|------|--------|
+| `--skip REASON` | Skip current step instead of completing it. Records reason in `tactical.skipped` |
+| `--no-complete` | On final step, don't auto-complete the parent action. Action stays open |
+
+Both flags compose: `bon step --skip "reason" --no-complete` skips the final step and keeps the action open.
 
 ```python
 def step():
@@ -765,21 +778,31 @@ def step():
     current = tactical["current"]
     steps = tactical["steps"]
 
+    # Record skip if requested
+    if args.skip:
+        skipped = tactical.setdefault("skipped", {})
+        skipped[str(current)] = args.skip
+
     # Advance
     tactical["current"] = current + 1
 
     # Check if complete
     if tactical["current"] >= len(steps):
-        # Auto-complete the action
-        active["status"] = "done"
-        active["done_at"] = now_iso()
-        # Unblock waiters
-        for other in items:
-            if other.get("waiting_for") == active["id"]:
-                other["waiting_for"] = None
-        save_items(items)
-        print(format_tactical(tactical))
-        print(f"\nAction {active['id']} complete.")
+        if args.no_complete:
+            save_items(items)
+            print(format_tactical(tactical))
+            print(f"\nAll steps done. Action {active['id']} left open (--no-complete).")
+        else:
+            # Auto-complete the action
+            active["status"] = "done"
+            active["done_at"] = now_iso()
+            # Unblock waiters
+            for other in items:
+                if other.get("waiting_for") == active["id"]:
+                    other["waiting_for"] = None
+            save_items(items)
+            print(format_tactical(tactical))
+            print(f"\nAction {active['id']} complete.")
     else:
         save_items(items)
         print(format_tactical(tactical))
@@ -793,6 +816,15 @@ def step():
   3. Test
 
 Next: Create rate limiter
+```
+
+**Output (with skip):**
+```
+✓ 1. Add scope
+⊘ 2. Create rate limiter [skipped: needs manual test]
+→ 3. Test [current]
+
+Next: Test
 ```
 
 **Output (final step):**
