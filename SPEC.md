@@ -1837,8 +1837,6 @@ Standard library only for core commands.
 
 - `argparse` (stdlib) — CLI parsing
 - `json` (stdlib) — Storage format
-- `pyyaml` (PyPI) — Migration only (`bon migrate --draft` / `--from-draft`)
-
 ### Performance Target
 
 Design targets (not tested invariants):
@@ -1877,7 +1875,6 @@ arc/
 │   ├── test_help.py        # bon help
 │   ├── test_output_flags.py # --json, --jsonl, --quiet
 │   ├── test_interactive.py # TTY prompt_brief
-│   └── test_migrate.py     # Migration script
 ├── fixtures/
 │   ├── empty.jsonl
 │   ├── single_outcome.jsonl
@@ -1914,52 +1911,6 @@ Build: `bon status`, `bon help`, error messages, `--json` output.
 ### Phase 4: Skill
 
 Write companion skill for Claude workflow guidance.
-
----
-
-## Migration from Beads
-
-```bash
-bd export --format jsonl > /tmp/beads.jsonl
-python transform.py < /tmp/beads.jsonl > .bon/items.jsonl
-```
-
-Transform: `issue_type: epic` → `type: outcome`, `closed` → `done`, etc.
-
-### Migration Script
-
-```python
-def migrate_item(item: dict) -> dict:
-    """Migrate beads item to bon schema."""
-    # Type mapping
-    if item.get("issue_type") == "epic":
-        item["type"] = "outcome"
-    else:
-        item["type"] = "action"
-
-    # Status mapping
-    if item.get("status") == "closed":
-        item["status"] = "done"
-    elif item.get("status") not in ("open", "done"):
-        item["status"] = "open"
-
-    # Brief from description/design/acceptance
-    desc = item.pop("description", "") or ""
-    design = item.pop("design", "") or ""
-    acceptance = item.pop("acceptance_criteria", "") or ""
-
-    item["brief"] = {
-        "why": desc if desc else "Migrated from beads",
-        "what": design if design else "See title",
-        "done": acceptance if acceptance else "When complete"
-    }
-
-    # Clean up beads-specific fields
-    for field in ["issue_type", "notes", "labels", "priority"]:
-        item.pop(field, None)
-
-    return item
-```
 
 ---
 
