@@ -98,6 +98,8 @@ bon work ID "step1" "step2"  # Initialize with explicit steps (actions only, not
 bon work --status            # Show current tactical state
 bon work --clear             # Clear tactical steps without completing
 bon step                     # Complete current step, advance to next
+bon step --skip "reason"     # Skip current step (records reason, shows ⊘ marker)
+bon step --no-complete       # On final step, don't auto-complete the action
 bon edit ID --title T        # Change title
 bon edit ID --why/--what/--done  # Edit brief fields
 bon edit ID --parent P       # Reparent (use 'none' for standalone)

@@ -121,6 +121,8 @@ All fields shown. **Bold** = required, others optional.
 | `order` | ✓ | integer | Position among outcomes |
 | `created_at` | ✓ | ISO8601 | |
 | `created_by` | ✓ | string | |
+| `updated_at` | | ISO8601 | Set on any mutation |
+| `updated_by` | | string | Verb identifying mutation type (e.g. `"edited"`, `"waited"`) |
 
 **Action:**
 ```json
@@ -155,6 +157,8 @@ All fields shown. **Bold** = required, others optional.
 | `created_by` | ✓ | string | |
 | `waiting_for` | | string or null | ID or free text |
 | `tactical` | | object or null | Step tracking (see below) |
+| `updated_at` | | ISO8601 | Set on any mutation |
+| `updated_by` | | string | Verb identifying mutation type (e.g. `"stepped"`, `"cleared"`) |
 
 ### The `tactical` Field
 
@@ -292,7 +296,7 @@ The `brief` field enables Claude-to-Claude handoff. It has three required subfie
 | `.waiting_for` | Exclude non-ready items |
 | `.tactical` | Presence check, `.steps[]`, `.current` |
 
-**Not read externally:** `.brief`, `.created_at`, `.created_by`, `.done_at`, `.updated_at`, `.archived_at`
+**Not read externally:** `.brief`, `.created_at`, `.created_by`, `.done_at`, `.updated_at`, `.updated_by`, `.archived_at`
 
 Changes to stable field names, value shapes, or status string values require checking trousse's jq queries. Adding new fields or new status values is safe — jq ignores unknown fields and queries filter explicitly. trousse has 34 pytest tests covering its jq queries as a safety net, but these test against fixture data, not live schema, so they catch query regressions but not schema drift.
 
