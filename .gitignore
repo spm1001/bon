@@ -1,18 +1,6 @@
 # Python
-__pycache__/
-*.py[cod]
 *.egg-info/
 dist/
 build/
 .venv/
 .pytest_cache/
-
-
-# Claude Code
-.claude/
-
-# Editor
-*.swp
-*~
-.DS_Store
-mise-fetch/
