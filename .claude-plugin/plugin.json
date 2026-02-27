@@ -1,0 +1,9 @@
+{
+  "name": "bon",
+  "version": "0.4.0",
+  "description": "GTD-native work tracker for AI coding agents. Requires: bon CLI (uv tool install bon)",
+  "author": { "name": "Sameer Modha", "url": "https://github.com/spm1001" },
+  "repository": "https://github.com/spm1001/bon",
+  "license": "MIT",
+  "keywords": ["gtd", "tracking", "productivity", "work-management"]
+}
