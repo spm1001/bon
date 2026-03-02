@@ -11,6 +11,7 @@ from bon.display import format_hierarchical, format_json, format_jsonl, format_t
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from bon.storage import (
     BonError,
+    KNOWN_VERBS,
     ValidationError,
     append_archive,
     apply_reorder,
@@ -22,6 +23,7 @@ from bon.storage import (
     find_no_complete_tactical,
     find_by_id,
     get_creator,
+    items_path,
     load_archive,
     load_items,
     load_prefix,
@@ -1058,6 +1060,141 @@ def cmd_update(args):
         print(f"Updated: {new_version}")
 
 
+def cmd_doctor(args):
+    """Check items.jsonl for health issues."""
+    check_initialized()
+    path = items_path()
+    issues = []
+
+    if not path.exists():
+        print("No items.jsonl found — nothing to check.")
+        return
+
+    raw_text = path.read_text()
+    lines = raw_text.splitlines()
+
+    # --- Phase 1: Raw-file checks ---
+    seen_ids: dict[str, list[int]] = {}  # id -> list of line numbers
+    parsed_items: list[tuple[int, dict]] = []  # (line_num, item)
+
+    for line_num, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Git conflict markers
+        if stripped.startswith(("<<<<<<", "======", ">>>>>>")):
+            issues.append(f"line {line_num}: git conflict marker")
+            continue
+
+        # Malformed JSON
+        try:
+            item = json.loads(stripped)
+        except json.JSONDecodeError as e:
+            issues.append(f"line {line_num}: malformed JSON — {e}")
+            continue
+
+        parsed_items.append((line_num, item))
+
+        # Track IDs for duplicate detection
+        item_id = item.get("id")
+        if item_id:
+            seen_ids.setdefault(item_id, []).append(line_num)
+
+    # Report duplicates
+    for item_id, line_nums in seen_ids.items():
+        if len(line_nums) > 1:
+            nums = ", ".join(str(n) for n in line_nums)
+            issues.append(f"duplicate ID '{item_id}' on lines {nums}")
+
+    # --- Phase 2: Per-item schema checks ---
+    valid_items: list[dict] = []
+    for line_num, item in parsed_items:
+        # Basic structure
+        for field in ("id", "type", "title", "status"):
+            if field not in item:
+                issues.append(f"line {line_num}: missing required field '{field}'")
+
+        if item.get("type") not in ("outcome", "action"):
+            issues.append(f"line {line_num}: invalid type '{item.get('type')}'")
+        if item.get("status") not in ("open", "done"):
+            issues.append(f"line {line_num}: invalid status '{item.get('status')}'")
+
+        # Brief completeness
+        brief = item.get("brief")
+        if not brief:
+            issues.append(f"line {line_num} ({item.get('id', '?')}): missing brief")
+        elif isinstance(brief, dict):
+            for subfield in ("why", "what", "done"):
+                if subfield not in brief:
+                    issues.append(f"line {line_num} ({item.get('id', '?')}): missing brief.{subfield}")
+
+        # updated_by verb validation
+        verb = item.get("updated_by")
+        if verb and verb not in KNOWN_VERBS:
+            issues.append(f"line {line_num} ({item.get('id', '?')}): unknown updated_by verb '{verb}'")
+
+        # Tactical validation
+        tactical = item.get("tactical")
+        if tactical:
+            try:
+                validate_tactical(tactical)
+            except Exception as e:
+                issues.append(f"line {line_num} ({item.get('id', '?')}): bad tactical — {e}")
+
+        # Type-specific field rules
+        if item.get("type") == "outcome":
+            if item.get("waiting_for"):
+                issues.append(f"line {line_num} ({item.get('id', '?')}): outcome has waiting_for")
+            if item.get("tactical"):
+                issues.append(f"line {line_num} ({item.get('id', '?')}): outcome has tactical")
+
+        valid_items.append(item)
+
+    # --- Phase 3: Cross-item referential integrity ---
+    all_ids = {item.get("id") for item in valid_items if item.get("id")}
+    prefix = load_prefix()
+
+    for item in valid_items:
+        # Parent references
+        parent_id = item.get("parent")
+        if parent_id and parent_id not in all_ids:
+            issues.append(f"{item['id']}: parent '{parent_id}' does not exist")
+
+        # Parent must be an outcome
+        if parent_id and parent_id in all_ids:
+            parent = next((i for i in valid_items if i.get("id") == parent_id), None)
+            if parent and parent.get("type") != "outcome":
+                issues.append(f"{item['id']}: parent '{parent_id}' is not an outcome")
+
+        # waiting_for references (only check ID-shaped values)
+        wf = item.get("waiting_for")
+        if wf and ("-" in wf) and wf not in all_ids:
+            issues.append(f"{item['id']}: waiting_for '{wf}' does not exist")
+
+    # Check order gaps/duplicates among siblings
+    from collections import defaultdict
+    siblings_by_parent: dict[str | None, list[dict]] = defaultdict(list)
+    for item in valid_items:
+        if item.get("type") == "action" and item.get("status") == "open":
+            siblings_by_parent[item.get("parent")].append(item)
+
+    for parent_id, siblings in siblings_by_parent.items():
+        orders = [s.get("order") for s in siblings if s.get("order") is not None]
+        if len(orders) != len(set(orders)):
+            dupes = [o for o in orders if orders.count(o) > 1]
+            label = parent_id or "standalone"
+            issues.append(f"under {label}: duplicate order values {sorted(set(dupes))}")
+
+    # --- Output ---
+    if issues:
+        for issue in issues:
+            print(f"  {issue}")
+        print(f"\n{len(issues)} issue(s) found.")
+    else:
+        print("All clear.")
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -1171,6 +1308,10 @@ def main():
     reopen_parser = subparsers.add_parser("reopen", help="Reopen a completed item")
     reopen_parser.add_argument("id", help="Item ID to reopen")
     reopen_parser.set_defaults(func=cmd_reopen)
+
+    # doctor
+    doctor_parser = subparsers.add_parser("doctor", help="Check items.jsonl for health issues")
+    doctor_parser.set_defaults(func=cmd_doctor)
 
     # update
     update_parser = subparsers.add_parser("update", help="Re-install bon from source")

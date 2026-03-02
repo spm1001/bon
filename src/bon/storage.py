@@ -9,6 +9,13 @@ from pathlib import Path
 from bon.ids import get_siblings
 
 
+# Known updated_by verbs, used by cmd_doctor for validation
+KNOWN_VERBS = frozenset({
+    "edited", "waited", "unwaited", "worked", "stepped",
+    "cleared", "archived", "converted", "reopened",
+})
+
+
 class ValidationError(Exception):
     """Raised when item validation fails."""
     pass
@@ -58,6 +65,11 @@ def _reset_data_dir() -> None:
     """Reset cached data dir. For tests only."""
     global _cached_data_dir
     _cached_data_dir = None
+
+
+def items_path() -> Path:
+    """Return the path to items.jsonl."""
+    return _data_dir() / "items.jsonl"
 
 
 def _most_recent_timestamp(item: dict) -> str:
