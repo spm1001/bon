@@ -343,25 +343,25 @@ def _tactical_is_active(item: dict) -> bool:
     return bool(tactical and tactical.get("current", 0) < len(tactical.get("steps", [])))
 
 
-def find_active_tactical(items: list[dict], session: str | None = None) -> dict | None:
-    """Find the item with active tactical steps for a given session, or None.
+def _matches_session(item_session: str | None, session: str | None) -> bool:
+    """Check if an item's tactical session matches the requested session.
 
-    Session scoping (CWD-based):
     - session=None: match only unscoped tacticals (no session field) — backward compat
     - session="/path": match tactical.session == path OR unscoped (legacy claimable)
     """
+    if session is None:
+        return item_session is None
+    return item_session == session or item_session is None
+
+
+def find_active_tactical(items: list[dict], session: str | None = None) -> dict | None:
+    """Find the item with active tactical steps for a given session, or None."""
     for item in items:
         if not _tactical_is_active(item):
             continue
         item_session = item.get("tactical", {}).get("session")
-        if session is None:
-            # Caller wants unscoped only
-            if item_session is None:
-                return item
-        else:
-            # Caller wants their session OR unscoped (legacy)
-            if item_session == session or item_session is None:
-                return item
+        if _matches_session(item_session, session):
+            return item
     return None
 
 
@@ -374,10 +374,7 @@ def find_any_active_tactical(items: list[dict]) -> list[dict]:
 
 
 def find_no_complete_tactical(items: list[dict], session: str | None = None) -> dict | None:
-    """Find an open action where all tactical steps are done (--no-complete state).
-
-    Same session scoping as find_active_tactical.
-    """
+    """Find an open action where all tactical steps are done (--no-complete state)."""
     for item in items:
         if item.get("status") != "open" or not item.get("tactical"):
             continue
@@ -385,13 +382,8 @@ def find_no_complete_tactical(items: list[dict], session: str | None = None) -> 
         steps = tactical.get("steps", [])
         if not steps or tactical.get("current", 0) < len(steps):
             continue
-        item_session = tactical.get("session")
-        if session is None:
-            if item_session is None:
-                return item
-        else:
-            if item_session == session or item_session is None:
-                return item
+        if _matches_session(tactical.get("session"), session):
+            return item
     return None
 
 

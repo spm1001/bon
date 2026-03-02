@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 17 commands, ~1800 LOC core, 253 tests.
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 17 commands, ~1900 LOC core, 274 tests.
 
 ## Quick Commands
 

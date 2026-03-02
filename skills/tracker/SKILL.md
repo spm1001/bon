@@ -140,6 +140,7 @@ All commands support `--json` for structured output. `bon new` supports `-q` for
   "updated_at": "2026-03-01T22:32:28Z",
   "updated_by": "stepped",
   "done_at": null,
+  "done_note": null,
   "tactical": {
     "steps": ["Step 1", "Step 2"],
     "current": 0,
@@ -158,6 +159,7 @@ All commands support `--json` for structured output. `bon new` supports `-q` for
 | `item["why"]` | `item["brief"]["why"]` | Brief fields are nested |
 | `item["what"]` | `item["brief"]["what"]` | Brief fields are nested |
 | `item["done"]` | `item["brief"]["done"]` | Also: `item["done_at"]` is the completion timestamp |
+| `item["note"]` | `item["done_note"]` | Only present when `bon done --note` was used |
 | `item["parent_id"]` | `item["parent"]` | String ID or null |
 | `item["actions"][0]` | Check `"actions" in item` first | Only present on outcomes via `bon show` |
 | `item["tactical"]` | May be absent | Only present after `bon work` has been run |
