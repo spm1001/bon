@@ -293,6 +293,8 @@ def cmd_show(args):
     if item.get("updated_at"):
         updated_by = item.get("updated_by", "updated")
         print(f"   Updated: {item['updated_at']} ({updated_by})")
+    if item.get("done_note"):
+        print(f"   Note: {item['done_note']}")
 
     if item.get("waiting_for"):
         print(f"   Waiting for: {item['waiting_for']}")
@@ -346,6 +348,9 @@ def cmd_done(args):
     # Mark as done
     item["status"] = "done"
     item["done_at"] = now_iso()
+    note = getattr(args, "note", None)
+    if note:
+        item["done_note"] = note
 
     # Clear tactical steps (action is done, steps are moot)
     item.pop("tactical", None)
@@ -790,13 +795,16 @@ def cmd_log(args):
     if args.json:
         log_entries = []
         for e in events:
-            log_entries.append({
+            entry = {
                 "time": e["time"],
                 "verb": e["verb"],
                 "id": e["item"]["id"],
                 "title": e["item"]["title"],
                 "type": e["item"]["type"],
-            })
+            }
+            if e["verb"] == "completed" and e["item"].get("done_note"):
+                entry["note"] = e["item"]["done_note"]
+            log_entries.append(entry)
         print(json.dumps(log_entries, indent=2, ensure_ascii=False))
         return
 
@@ -804,7 +812,10 @@ def cmd_log(args):
         # Compact timestamp: strip seconds and Z for readability
         t = e["time"][:16].replace("T", " ")
         icon = {"created": "+", "completed": "✓", "archived": "⌂"}.get(e["verb"], "~")
-        print(f"  {icon} {t}  {e['verb']} {e['item']['title']} ({e['item']['id']})")
+        line = f"  {icon} {t}  {e['verb']} {e['item']['title']} ({e['item']['id']})"
+        if e["verb"] == "completed" and e["item"].get("done_note"):
+            line += f" — {e['item']['done_note']}"
+        print(line)
 
 
 def add_output_flags(subparser, json=False, jsonl=False, quiet=False):
@@ -962,6 +973,18 @@ def cmd_step(args):
 
     active = find_active_tactical(items, session=session)
     if not active:
+        # Find most recently worked/stepped action as a suggestion
+        worked = [
+            i for i in items
+            if i["type"] == "action" and i["status"] == "open"
+            and i.get("updated_by") in ("worked", "stepped")
+        ]
+        if worked:
+            last = max(worked, key=lambda i: i.get("updated_at", ""))
+            error(
+                f"No steps in progress. Last worked: {last['id']} ({last['title']})\n"
+                f"Run `bon work {last['id']}` to resume"
+            )
         error("No steps in progress. Run `bon work <id>` first")
 
     tactical = active["tactical"]
@@ -1072,6 +1095,7 @@ def main():
     # done
     done_parser = subparsers.add_parser("done", help="Complete item")
     done_parser.add_argument("id", help="Item ID to mark done")
+    done_parser.add_argument("--note", help="Completion context (why/how it was done)")
     add_output_flags(done_parser, quiet=True)
     done_parser.set_defaults(func=cmd_done)
 

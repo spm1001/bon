@@ -36,6 +36,57 @@ class TestDoneBasic:
         assert "Done: arc-ccc" in result.stdout
 
 
+class TestDoneNote:
+    """Test --note flag on arc done."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_done_with_note(self, arc_dir_with_fixture, monkeypatch):
+        """arc done --note stores completion context."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("done", "arc-aaa", "--note", "Verified in production", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "Done: arc-aaa" in result.stdout
+
+        item = json.loads((arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
+        assert item["done_note"] == "Verified in production"
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_done_without_note(self, arc_dir_with_fixture, monkeypatch):
+        """arc done without --note has no done_note field."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("done", "arc-ccc", cwd=arc_dir_with_fixture)
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = [json.loads(line) for line in lines]
+        ccc = next(i for i in items if i["id"] == "arc-ccc")
+        assert "done_note" not in ccc
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_done_note_in_log(self, arc_dir_with_fixture, monkeypatch):
+        """bon log shows note on completed items."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("done", "arc-aaa", "--note", "Shipped to prod", cwd=arc_dir_with_fixture)
+        result = run_arc("log", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "Shipped to prod" in result.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_done_note_in_show(self, arc_dir_with_fixture, monkeypatch):
+        """bon show displays note on completed items."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        run_arc("done", "arc-aaa", "--note", "Customer confirmed fix", cwd=arc_dir_with_fixture)
+        result = run_arc("show", "arc-aaa", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "Note: Customer confirmed fix" in result.stdout
+
+
 class TestDoneAlready:
     """Test arc done on already-done items."""
 

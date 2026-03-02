@@ -119,6 +119,18 @@ class TestStepNoTacticalErrors:
         assert "No steps in progress" in result.stderr
         assert "bon work <id>" in result.stderr
 
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_previously_worked"], indirect=True)
+    def test_step_suggests_last_worked(self, arc_dir_with_fixture, monkeypatch):
+        """arc step with no active tactical suggests last-worked action."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("step", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 1
+        assert "Last worked: arc-child" in result.stderr
+        assert "Previously worked action" in result.stderr
+        assert "bon work arc-child" in result.stderr
+
 
 class TestStepErrors:
     """Test various error cases."""

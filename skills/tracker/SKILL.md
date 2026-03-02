@@ -91,6 +91,7 @@ bon show --current           # Show action with active tactical steps (for hooks
 bon new "title" --why W --what X --done D       # Create outcome
 bon new "title" --outcome PARENT --why W --what X --done D  # Create action (--for and --parent are aliases)
 bon done ID                  # Complete item (also unblocks waiters)
+bon done ID --note "reason"  # Complete with context (stored as done_note)
 bon wait ID REASON           # Mark as waiting (clears tactical steps)
 bon unwait ID                # Clear waiting
 bon work ID                  # Initialize tactical steps from --what (if numbered)
@@ -388,7 +389,7 @@ These errors appear repeatedly in real Claude sessions. Check here before invent
 |---|---|---|
 | `bon add "title"` | `bon new "title"` | `add` isn't a command. The command is `new`. |
 | `bon new -t action -p proj` | `bon new "title" --outcome ID --why ...` | No short flags. All flags are long-form (`--outcome`, `--why`, `--what`, `--done`). |
-| `bon done ID --resolution "text"` | `bon done ID` | `--resolution` doesn't exist. `done` takes only the ID. |
+| `bon done ID --resolution "text"` | `bon done ID --note "text"` | `--resolution` doesn't exist. Use `--note` for completion context. |
 | `bon --dir /path done ID` | `cd /path && bon done ID` | No `--dir` flag. Bon always uses CWD. |
 | `bon work OUTCOME_ID` | `bon show OUTCOME_ID` then pick an action | `work` is for actions only. Outcomes contain actions; they aren't workable themselves. |
 | `bon step` (at session start) | `bon show --current` or `bon work ID` | No tactical steps persist across sessions unless `bon work` was run. Check first. |
