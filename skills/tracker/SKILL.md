@@ -117,13 +117,60 @@ All commands support `--json` for structured output. `bon new` supports `-q` for
 - `bon show ID --json` → single object, NOT an array (use `.field` not `.[0].field`)
 - `bon show OUTCOME --json` → object with nested `"actions"` array
 
+### JSON Field Reference
+
+**`bon show ACTION --json`** returns:
+```json
+{
+  "id": "bon-muvuri",
+  "type": "action",
+  "title": "Add common mistakes to SKILL.md",
+  "brief": {
+    "why": "reason text",
+    "what": "deliverable text",
+    "done": "completion criteria"
+  },
+  "status": "open",
+  "parent": "bon-zovili",
+  "order": 2,
+  "created_at": "2026-03-01T22:11:55Z",
+  "created_by": "spm1001",
+  "waiting_for": null,
+  "updated_at": "2026-03-01T22:32:28Z",
+  "updated_by": "stepped",
+  "done_at": null,
+  "tactical": {
+    "steps": ["Step 1", "Step 2"],
+    "current": 0,
+    "session": "/home/modha/Repos/bon"
+  }
+}
+```
+
+**`bon show OUTCOME --json`** returns the same shape but with `"actions": [...]` array nested inside, and no `parent` or `waiting_for` fields.
+
+**Common field-name traps** (from real failures):
+
+| Wrong | Right | Notes |
+|---|---|---|
+| `item["created"]` | `item["created_at"]` | Timestamp, not date |
+| `item["why"]` | `item["brief"]["why"]` | Brief fields are nested |
+| `item["what"]` | `item["brief"]["what"]` | Brief fields are nested |
+| `item["done"]` | `item["brief"]["done"]` | Also: `item["done_at"]` is the completion timestamp |
+| `item["parent_id"]` | `item["parent"]` | String ID or null |
+| `item["actions"][0]` | Check `"actions" in item` first | Only present on outcomes via `bon show` |
+| `item["tactical"]` | May be absent | Only present after `bon work` has been run |
+
 ## The Draw-Down Pattern
 
-**When you pick up an action to work on:**
+**Pre-flight checklist** (before touching code):
 
-1. **Read the item:** `bon show <id>` — understand `--why`, `--what`, and `--done`
-2. **Initialize tactical steps:** `bon work <id>` — parses numbered steps from `--what`
-   - If `--what` has no numbers, provide explicit steps: `bon work <id> "Step 1" "Step 2"`
+1. **`bon show <id>`** — verify the item exists and check its type
+   - If the ID came from a handoff, memory, or previous session, it may have been archived or done. Verify first.
+   - If `Type: outcome`, you can't `bon work` it — pick one of its actions instead.
+   - If `Type: action`, proceed.
+2. **`bon work <id>`** — initialize tactical steps from `--what`
+   - If `--what` has no numbered steps, provide explicit ones: `bon work <id> "Step 1" "Step 2"`
 3. **Work through with checkpoints:** `bon step` after each — pauses for confirmation
 4. **Final step auto-completes** the action
 
@@ -332,6 +379,50 @@ Coach **before** running `bon new` for outcomes. When the user or you propose an
 | Thin briefs | Next Claude can't execute | Write for zero-context reader |
 | Skipping draw-down on "continue" | Scope ambiguity | Always read brief, activate tactical |
 | Motor through without `bon step` | Miss direction changes | Run `bon step` after each completion |
+
+## Common Mistakes
+
+These errors appear repeatedly in real Claude sessions. Check here before inventing flags.
+
+| What you typed | What to use instead | Why it fails |
+|---|---|---|
+| `bon new --parent ID` | `bon new --outcome ID` or `--for ID` | `--parent` doesn't exist. Use `--outcome` or its alias `--for`. |
+| `bon add "title"` | `bon new "title"` | `add` isn't a command. The command is `new`. |
+| `bon new -t action -p proj` | `bon new "title" --outcome ID --why ...` | No short flags. All flags are long-form (`--outcome`, `--why`, `--what`, `--done`). |
+| `bon done ID --resolution "text"` | `bon done ID` | `--resolution` doesn't exist. `done` takes only the ID. |
+| `bon --dir /path done ID` | `cd /path && bon done ID` | No `--dir` flag. Bon always uses CWD. |
+| `bon edit ID --parent ID` | `bon edit ID --outcome ID` | Same as `new` — the flag is `--outcome`, not `--parent`. |
+| `bon work OUTCOME_ID` | `bon show OUTCOME_ID` then pick an action | `work` is for actions only. Outcomes contain actions; they aren't workable themselves. |
+| `bon step` (at session start) | `bon show --current` or `bon work ID` | No tactical steps persist across sessions unless `bon work` was run. Check first. |
+
+### Shell Escaping in Inline Python
+
+When piping `bon --json` through inline python, **use a heredoc, not a double-quoted string**:
+
+```bash
+# WRONG — the \! bug (seen in 4+ separate sessions):
+bon list --json | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+for o in data['outcomes']:
+    if o['status'] != 'done': print(o['id'])   # bash mangles \!=
+"
+
+# RIGHT — heredoc avoids all shell escaping issues:
+bon list --json | python3 << 'PYEOF'
+import json, sys
+data = json.load(sys.stdin)
+for o in data["outcomes"]:
+    if o["status"] != "done":
+        print(o["id"])
+PYEOF
+```
+
+The `\!=` pattern is a known model-weight bug — Claude writes `\!=` inside double-quoted strings because `!` triggers bash history expansion. It has appeared in **4 separate sessions** across different machines. Always use heredoc.
+
+### Creating Multiple Items
+
+**Create bon items sequentially, not in parallel tool calls.** If one `bon new` fails (e.g. missing `--why`), Claude Code cancels all sibling tool calls — you'll get 1 real error and N `<tool_use_error>Sibling tool call errored</tool_use_error>` ghosts.
 
 ## Reorganization with Convert
 
