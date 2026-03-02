@@ -1047,7 +1047,7 @@ def main():
     # new
     new_parser = subparsers.add_parser("new", help="Create outcome or action")
     new_parser.add_argument("title", help="Title for the item")
-    new_parser.add_argument("--outcome", "--for", dest="parent", help="Parent outcome ID (creates action)")
+    new_parser.add_argument("--outcome", "--for", "--parent", dest="parent", help="Parent outcome ID (creates action)")
     new_parser.add_argument("--why", help="Brief: why are we doing this?")
     new_parser.add_argument("--what", help="Brief: what will we produce?")
     new_parser.add_argument("--done", help="Brief: how do we know it's done?")

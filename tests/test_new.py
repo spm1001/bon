@@ -94,6 +94,28 @@ class TestNewAction:
         assert action["parent"] == outcome_id
         assert action["waiting_for"] is None
 
+    def test_parent_alias_creates_action(self, arc_dir, monkeypatch):
+        """--parent works as alias for --outcome in bon new."""
+        monkeypatch.chdir(arc_dir)
+
+        run_arc("new", "Parent outcome", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
+        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
+        outcome_id = json.loads(items)["id"]
+
+        result = run_arc(
+            "new", "Child via --parent",
+            "--parent", outcome_id,
+            "--why", "w", "--what", "x", "--done", "d",
+            cwd=arc_dir
+        )
+
+        assert result.returncode == 0
+
+        lines = (arc_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = [json.loads(line) for line in lines]
+        action = next(i for i in items if i["type"] == "action")
+        assert action["parent"] == outcome_id
+
     def test_action_parent_not_found(self, arc_dir, monkeypatch):
         """Error when parent doesn't exist."""
         monkeypatch.chdir(arc_dir)

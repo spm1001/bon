@@ -89,7 +89,7 @@ bon list --ready             # Actions with no waiting_for (outcomes always show
 bon show ID                  # Full details including brief
 bon show --current           # Show action with active tactical steps (for hooks)
 bon new "title" --why W --what X --done D       # Create outcome
-bon new "title" --outcome PARENT --why W --what X --done D  # Create action
+bon new "title" --outcome PARENT --why W --what X --done D  # Create action (--for and --parent are aliases)
 bon done ID                  # Complete item (also unblocks waiters)
 bon wait ID REASON           # Mark as waiting (clears tactical steps)
 bon unwait ID                # Clear waiting
@@ -386,12 +386,10 @@ These errors appear repeatedly in real Claude sessions. Check here before invent
 
 | What you typed | What to use instead | Why it fails |
 |---|---|---|
-| `bon new --parent ID` | `bon new --outcome ID` or `--for ID` | `--parent` doesn't exist. Use `--outcome` or its alias `--for`. |
 | `bon add "title"` | `bon new "title"` | `add` isn't a command. The command is `new`. |
 | `bon new -t action -p proj` | `bon new "title" --outcome ID --why ...` | No short flags. All flags are long-form (`--outcome`, `--why`, `--what`, `--done`). |
 | `bon done ID --resolution "text"` | `bon done ID` | `--resolution` doesn't exist. `done` takes only the ID. |
 | `bon --dir /path done ID` | `cd /path && bon done ID` | No `--dir` flag. Bon always uses CWD. |
-| `bon edit ID --parent ID` | `bon edit ID --outcome ID` | Same as `new` — the flag is `--outcome`, not `--parent`. |
 | `bon work OUTCOME_ID` | `bon show OUTCOME_ID` then pick an action | `work` is for actions only. Outcomes contain actions; they aren't workable themselves. |
 | `bon step` (at session start) | `bon show --current` or `bon work ID` | No tactical steps persist across sessions unless `bon work` was run. Check first. |
 
