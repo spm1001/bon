@@ -1111,7 +1111,7 @@ def cmd_doctor(args):
     valid_items: list[dict] = []
     for line_num, item in parsed_items:
         # Basic structure
-        for field in ("id", "type", "title", "status"):
+        for field in ("id", "type", "title", "status", "created_at", "created_by"):
             if field not in item:
                 issues.append(f"line {line_num}: missing required field '{field}'")
 

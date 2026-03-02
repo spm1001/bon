@@ -68,6 +68,7 @@ bon done bon-ghijkl
 | `list [--ready\|--waiting\|--all]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
+| `doctor` | Check items.jsonl for health issues |
 | `wait ID REASON` | Mark as waiting for something |
 | `unwait ID` | Clear waiting status |
 | `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |

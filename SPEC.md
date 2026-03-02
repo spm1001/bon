@@ -400,7 +400,7 @@ Completed items retain their order. This preserves position for display (showing
 
 ## CLI Reference
 
-### Commands (12)
+### Commands (13)
 
 ```
 bon new "title" [--outcome PARENT] [--why W --what X --done D]
@@ -416,6 +416,7 @@ bon step [--skip REASON] [--no-complete]
                                   Complete current step, advance to next
 bon edit ID --flag VALUE          Edit item fields via flags
 bon status                        Overview
+bon doctor                        Check items.jsonl for health issues (read-only)
 bon init                          Initialize .bon/
 bon help                          Show help
 ```
@@ -1122,6 +1123,173 @@ def status():
     print(f"Actions:    {len(open_actions)} open ({len(ready_actions)} ready, {len(waiting_actions)} waiting), {len(done_actions)} done")
     if standalone:
         print(f"Standalone: {len([s for s in standalone if s['status'] == 'open'])} open")
+```
+
+### `bon doctor`
+
+```bash
+bon doctor
+```
+
+Checks `items.jsonl` for health issues without modifying anything. Read-only — never writes to disk.
+
+**Three phases:**
+
+**Phase 1: Raw-file checks** — operates on lines before any JSON parsing:
+- Malformed JSON (any line that fails `json.loads`)
+- Git conflict markers (`<<<<<<`, `======`, `>>>>>>`) — indicates an unresolved merge
+- Duplicate IDs — same ID appearing on multiple lines
+
+**Phase 2: Per-item schema checks** — validates each successfully parsed item:
+- Required fields present: `id`, `type`, `title`, `status`, `created_at`, `created_by`
+- `type` must be `"outcome"` or `"action"`
+- `status` must be `"open"` or `"done"`
+- `brief` must be present and contain all three subfields: `why`, `what`, `done`
+- `updated_by` verb must be one of the known set (`edited`, `waited`, `unwaited`, `worked`, `stepped`, `cleared`, `archived`, `converted`, `reopened`) when present
+- `tactical` structure is valid (steps array, current index, session field) when present
+- Type-specific rules:
+  - Outcomes must not have `waiting_for` (only actions wait)
+  - Outcomes must not have `tactical` (only actions have steps)
+
+**Phase 3: Cross-item referential integrity** — checks relationships between items:
+- Orphaned parent references: `parent` ID does not exist in the file
+- Parent must be an outcome: if `parent` resolves to an item of type `"action"`, that is an error
+- Broken `waiting_for` references: values that look like IDs (contain `-`) but don't exist
+- Duplicate `order` values among siblings (items sharing the same parent group)
+
+**Output:**
+
+```
+  line 3: malformed JSON — Expecting value: line 1 column 1 (char 0)
+  line 7 (bon-gabdur): missing brief.done
+  bon-zokte: parent 'bon-missing' does not exist
+
+3 issue(s) found.
+```
+
+Or, when clean:
+
+```
+All clear.
+```
+
+Each issue is prefixed with its location: `line N` for raw/schema issues, `line N (ID)` when the ID is available, or `ID:` for cross-item issues.
+
+```python
+def doctor():
+    check_initialized()
+    path = items_path()
+    issues = []
+
+    if not path.exists():
+        print("No items.jsonl found — nothing to check.")
+        return
+
+    raw_text = path.read_text()
+    lines = raw_text.splitlines()
+
+    # Phase 1: raw-file checks
+    seen_ids: dict[str, list[int]] = {}
+    parsed_items: list[tuple[int, dict]] = []
+
+    for line_num, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if stripped.startswith(("<<<<<<", "======", ">>>>>>")):
+            issues.append(f"line {line_num}: git conflict marker")
+            continue
+
+        try:
+            item = json.loads(stripped)
+        except json.JSONDecodeError as e:
+            issues.append(f"line {line_num}: malformed JSON — {e}")
+            continue
+
+        parsed_items.append((line_num, item))
+        item_id = item.get("id")
+        if item_id:
+            seen_ids.setdefault(item_id, []).append(line_num)
+
+    for item_id, line_nums in seen_ids.items():
+        if len(line_nums) > 1:
+            nums = ", ".join(str(n) for n in line_nums)
+            issues.append(f"duplicate ID '{item_id}' on lines {nums}")
+
+    # Phase 2: per-item schema checks
+    valid_items: list[dict] = []
+    for line_num, item in parsed_items:
+        for field in ("id", "type", "title", "status", "created_at", "created_by"):
+            if field not in item:
+                issues.append(f"line {line_num}: missing required field '{field}'")
+
+        if item.get("type") not in ("outcome", "action"):
+            issues.append(f"line {line_num}: invalid type '{item.get('type')}'")
+        if item.get("status") not in ("open", "done"):
+            issues.append(f"line {line_num}: invalid status '{item.get('status')}'")
+
+        brief = item.get("brief")
+        if not brief:
+            issues.append(f"line {line_num} ({item.get('id', '?')}): missing brief")
+        elif isinstance(brief, dict):
+            for subfield in ("why", "what", "done"):
+                if subfield not in brief:
+                    issues.append(f"line {line_num} ({item.get('id', '?')}): missing brief.{subfield}")
+
+        verb = item.get("updated_by")
+        if verb and verb not in KNOWN_VERBS:
+            issues.append(f"line {line_num} ({item.get('id', '?')}): unknown updated_by verb '{verb}'")
+
+        if item.get("tactical"):
+            validate_tactical(item["tactical"])  # raises on invalid structure
+
+        if item.get("type") == "outcome":
+            if item.get("waiting_for"):
+                issues.append(f"line {line_num} ({item.get('id', '?')}): outcome has waiting_for")
+            if item.get("tactical"):
+                issues.append(f"line {line_num} ({item.get('id', '?')}): outcome has tactical")
+
+        valid_items.append(item)
+
+    # Phase 3: cross-item referential integrity
+    all_ids = {item.get("id") for item in valid_items if item.get("id")}
+
+    for item in valid_items:
+        parent_id = item.get("parent")
+        if parent_id and parent_id not in all_ids:
+            issues.append(f"{item['id']}: parent '{parent_id}' does not exist")
+
+        if parent_id and parent_id in all_ids:
+            parent = next((i for i in valid_items if i.get("id") == parent_id), None)
+            if parent and parent.get("type") != "outcome":
+                issues.append(f"{item['id']}: parent '{parent_id}' is not an outcome")
+
+        wf = item.get("waiting_for")
+        if wf and "-" in wf and wf not in all_ids:
+            issues.append(f"{item['id']}: waiting_for '{wf}' does not exist")
+
+    # Duplicate order among siblings
+    from collections import defaultdict
+    siblings_by_parent: dict[str | None, list[dict]] = defaultdict(list)
+    for item in valid_items:
+        if item.get("type") == "action" and item.get("status") == "open":
+            siblings_by_parent[item.get("parent")].append(item)
+
+    for parent_id, siblings in siblings_by_parent.items():
+        orders = [s.get("order") for s in siblings if s.get("order") is not None]
+        if len(orders) != len(set(orders)):
+            dupes = [o for o in orders if orders.count(o) > 1]
+            label = parent_id or "standalone"
+            issues.append(f"under {label}: duplicate order values {sorted(set(dupes))}")
+
+    # Output
+    if issues:
+        for issue in issues:
+            print(f"  {issue}")
+        print(f"\n{len(issues)} issue(s) found.")
+    else:
+        print("All clear.")
 ```
 
 ### `bon help`
@@ -1994,6 +2162,7 @@ Commands:
   unwait ID                   Clear waiting status
   edit ID --FLAGS             Edit item fields via flags
   status                      Show overview
+  doctor                      Check items.jsonl for health issues (read-only)
   init [--prefix PREFIX]      Initialize .bon/
   help [COMMAND]              Show help
 
