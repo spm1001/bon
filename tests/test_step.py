@@ -274,3 +274,26 @@ class TestStepNoComplete:
 
         assert result.returncode == 0
         assert "Next: Step three" in result.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_no_complete"], indirect=True)
+    def test_work_status_shows_no_complete_indicator(self, arc_dir_with_fixture, monkeypatch):
+        """bon work --status on no-complete action shows deliberate-open indicator."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("work", "--status", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "No-complete action" in result.stdout
+        assert "All steps done" in result.stdout
+        assert "--no-complete" in result.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_no_complete"], indirect=True)
+    def test_show_displays_no_complete_indicator(self, arc_dir_with_fixture, monkeypatch):
+        """bon show on no-complete action shows deliberate-open indicator."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+
+        result = run_arc("show", "arc-child", cwd=arc_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "All steps done" in result.stdout
+        assert "--no-complete" in result.stdout

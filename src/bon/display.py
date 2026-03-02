@@ -5,7 +5,7 @@ from bon.ids import DEFAULT_ORDER
 from bon.queries import filter_ready, filter_waiting
 
 
-def format_tactical(tactical: dict) -> str:
+def format_tactical(tactical: dict, action_status: str | None = None) -> str:
     """Format tactical steps for display.
 
     Uses markers:
@@ -13,6 +13,9 @@ def format_tactical(tactical: dict) -> str:
     - ⊘ for skipped steps (index in skipped dict)
     - → for active step (index == current) with [current] suffix
     - (space) for pending steps (index > current)
+
+    If action_status is provided and all steps are done but action is still
+    open, appends a deliberate-open indicator line.
     """
     lines = []
     steps = tactical.get("steps", [])
@@ -30,6 +33,9 @@ def format_tactical(tactical: dict) -> str:
             lines.append(f"→ {i + 1}. {step} [current]")
         else:
             lines.append(f"  {i + 1}. {step}")
+
+    if action_status == "open" and current >= len(steps) and steps:
+        lines.append("\nAll steps done — action left open (--no-complete)")
 
     return "\n".join(lines)
 

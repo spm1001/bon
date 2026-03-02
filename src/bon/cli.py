@@ -19,6 +19,7 @@ from bon.storage import (
     error,
     find_active_tactical,
     find_any_active_tactical,
+    find_no_complete_tactical,
     find_by_id,
     get_creator,
     load_archive,
@@ -258,9 +259,11 @@ def cmd_show(args):
         session = os.path.realpath(os.getcwd())
         active = find_active_tactical(items, session=session)
         if not active:
+            active = find_no_complete_tactical(items, session=session)
+        if not active:
             return  # Silent exit 0, no output
         print(f"Working: {active['title']} ({active['id']})")
-        print(format_tactical(active["tactical"]))
+        print(format_tactical(active["tactical"], action_status=active["status"]))
         return
 
     if not args.id:
@@ -311,9 +314,9 @@ def cmd_show(args):
         tactical = item["tactical"]
         total = len(tactical["steps"])
         current = tactical["current"]
-        if current < total:
+        if current < total or (current >= total and item["status"] == "open"):
             print(f"\n   Steps ({current}/{total}):")
-            for line in format_tactical(tactical).split("\n"):
+            for line in format_tactical(tactical, action_status=item["status"]).split("\n"):
                 print(f"   {line}")
 
     # For outcomes, show actions
@@ -878,11 +881,13 @@ def cmd_work(args):
     if args.status:
         active = find_active_tactical(items, session=session)
         if not active:
+            active = find_no_complete_tactical(items, session=session)
+        if not active:
             print("No active tactical steps. Run `bon work <id>` to start.")
             return
         print(f"Working on: {active['title']} ({active['id']})")
         print()
-        print(format_tactical(active["tactical"]))
+        print(format_tactical(active["tactical"], action_status=active["status"]))
         return
 
     # --clear: clear active tactical (scoped to CWD)

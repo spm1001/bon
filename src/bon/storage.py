@@ -373,6 +373,28 @@ def find_any_active_tactical(items: list[dict]) -> list[dict]:
     return [item for item in items if _tactical_is_active(item)]
 
 
+def find_no_complete_tactical(items: list[dict], session: str | None = None) -> dict | None:
+    """Find an open action where all tactical steps are done (--no-complete state).
+
+    Same session scoping as find_active_tactical.
+    """
+    for item in items:
+        if item.get("status") != "open" or not item.get("tactical"):
+            continue
+        tactical = item["tactical"]
+        steps = tactical.get("steps", [])
+        if not steps or tactical.get("current", 0) < len(steps):
+            continue
+        item_session = tactical.get("session")
+        if session is None:
+            if item_session is None:
+                return item
+        else:
+            if item_session == session or item_session is None:
+                return item
+    return None
+
+
 def load_archive() -> list[dict]:
     """Load archived items from archive.jsonl."""
     path = _data_dir() / "archive.jsonl"
