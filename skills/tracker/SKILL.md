@@ -275,9 +275,10 @@ bon new "Fix the API thing" --outcome bon-gabdur
 
 ### What to Check
 
-1. **Read the bon context file** — shows ready work and full hierarchy
-2. **Check for handoff** — previous session may have left "Next" suggestions
-3. **Present ready items** — outcomes and actions that can be worked on now
+1. **Read `.bon/understanding.md`** if it exists — this is the project's living portrait. Dense prose, not instructions. Read it first; it orients you faster than any other file.
+2. **Read the bon context file** — shows ready work and full hierarchy
+3. **Check for handoff** — previous session may have left "Next" suggestions
+4. **Present ready items** — outcomes and actions that can be worked on now
 
 ### Presenting Bon Items to User
 
@@ -309,6 +310,7 @@ Which would you like to work on?
 2. File new actions discovered during work (with full briefs)
 3. **Draw-up** — ensure briefs are complete for next Claude
 4. Handoff mentions bon items worked on
+5. **Contribute to understanding** — if you learned something durable about the project this session (a landmine, an architectural insight, a taste judgment, a decision with real alternatives), write a short prose fragment to `.bon/contributions/`. One paragraph, timestamped filename (`YYYY-MM-DDTHHMMSS.md`). Not everything — only what a future Claude would benefit from knowing. These get synthesized into `.bon/understanding.md` by a future session.
 
 ## Mid-Session Transitions
 
