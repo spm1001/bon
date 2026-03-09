@@ -398,6 +398,10 @@ These errors appear repeatedly in real Claude sessions. Check here before invent
 | `bon work OUTCOME_ID` | `bon show OUTCOME_ID` then pick an action | `work` is for actions only. Outcomes contain actions; they aren't workable themselves. |
 | `bon step` (at session start) | `bon show --current` or `bon work ID` | No tactical steps persist across sessions unless `bon work` was run. Check first. |
 
+### Stale Global Install
+
+If a valid flag (e.g. `--note`) gives `unrecognized arguments`, the global `bon` binary is stale. Ask the user to run: `uv cache clean bon && uv tool install ~/Repos/bon --force --reinstall`
+
 ### Shell Escaping in Inline Python
 
 When piping `bon --json` through inline python, **use a heredoc, not a double-quoted string**:
