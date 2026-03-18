@@ -198,11 +198,7 @@ Interactive mode prompts for these. Non-interactive requires all three flags.
 
 ## Claude Code Integration
 
-Bon includes a skill for Claude Code at `bon/SKILL.md`. After installing bon, symlink the skill directory:
-
-```bash
-ln -s ~/Repos/bon/bon ~/.claude/skills/bon
-```
+Bon includes a skill for Claude Code at `skills/tracker/SKILL.md`. The plugin system auto-discovers skills from the `skills/` directory.
 
 This gives Claude access to the draw-down workflow (read item → activate tactical steps → work with pauses) and draw-up patterns (file work with complete briefs for future sessions).
 
@@ -214,7 +210,7 @@ Bon was built after discovering that Claude working without checkpoints leads to
 2. **Checkpoints** — Draw-down to TodoWrite creates pause points
 3. **Handoff** — Briefs written for zero-context readers survive session boundaries
 
-See `ORCHESTRATION.md` for patterns used to build bon with Claude.
+See `docs/HOW_WE_BUILT_BON.md` (in aboyeur) for patterns used to build bon with Claude.
 
 ## Acknowledgements
 
