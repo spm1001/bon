@@ -252,9 +252,17 @@ Write a short prose fragment (one paragraph, not a form) to `.bon/contributions/
 
 **The test:** Would a Claude who never saw this project benefit from knowing this? If yes, contribute. If it's session-specific (what you did, what's next), it belongs in the handoff, not here.
 
-### Stage extraction for memory
+### Stage extraction for memory (requires garde-manger)
 
-**After writing the handoff, generate a session extraction from your live context.** This replaces the expensive `claude -p` subprocess the session-end hook would otherwise spawn.
+**This step requires the garde-manger plugin.** Check for it at runtime:
+
+```bash
+GARDE_SCRIPTS=$(find ~/.claude/plugins/cache -path "*/garde-manger/*/scripts" -type d 2>/dev/null | head -1)
+```
+
+If `$GARDE_SCRIPTS` is empty, **skip this entire section** — extraction is a garde-manger concern, not bon's. The handoff is the critical artifact; extraction is optional enrichment.
+
+**If garde-manger is installed**, generate a session extraction from your live context. This replaces the expensive `claude -p` subprocess the session-end hook would otherwise spawn.
 
 **Write the extraction JSON** using the Write tool to `/tmp/garde-extraction.json`:
 
@@ -284,11 +292,11 @@ Guidelines:
 **Then stage it:**
 
 ```bash
-"$SCRIPTS/stage-extraction.sh" < /tmp/garde-extraction.json \
+"$GARDE_SCRIPTS/stage-extraction.sh" < /tmp/garde-extraction.json \
     && rm /tmp/garde-extraction.json
 ```
 
-The script computes the correct UUID filename and places it where the hook expects. If the script is missing (fresh install before `install.sh` runs), the hook falls back to `garde process` — safe to continue.
+The script computes the correct UUID filename and places it where the session-end hook expects.
 
 ### Commit
 
@@ -307,21 +315,20 @@ Say: "Type `/exit` to close." Don't exit programmatically.
 
 ## Remember
 
-**Automatic — handled by session-end hook.** You don't invoke this.
+**Automatic — handled by garde-manger's session-end hook, if installed.** You don't invoke this.
 
-The hook (`~/.claude/hooks/session-end.sh`) takes one of two paths when the user runs `/exit`:
+If garde-manger is installed, its hook takes one of two paths on `/exit`:
 
 1. **Staged extraction exists** (the file you wrote above):
    - `garde index` on the session (fast, no LLM)
    - `garde store-extraction` with your pre-generated JSON
    - Staging file removed
-   - No subprocess spawned
 
-2. **No staged extraction** (crash, ctrl-c, no /close):
-   - Falls back to `garde process` — spawns `claude -p` to extract from the raw transcript
-   - Same quality, slower, costs a subprocess
+2. **No staged extraction** (crash, ctrl-c, no /close, or garde not installed):
+   - Falls back to `garde process` if available, otherwise no extraction
+   - The handoff is still written — that's the critical artifact
 
-Either way, handoffs are scanned afterward. Just tell the user to `/exit`.
+Just tell the user to `/exit`.
 
 ---
 
