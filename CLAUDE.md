@@ -150,7 +150,7 @@ save_items(items)                # Atomic write back
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
 | Update Claude integration | `bon/SKILL.md` |
-| Handoff format spec | `references/HANDOFF-CONTRACT.md` |
+| Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
 | Test bon-read.sh | `tests/test_bon_read.py` |
 
 ## Spec-Driven Development
