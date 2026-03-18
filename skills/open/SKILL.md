@@ -32,18 +32,21 @@ Use `/open` for:
 
 **Before running /open, verify infrastructure is healthy.** Silent failures here cause downstream confusion.
 
-| Check | How | If Broken |
-|-------|-----|-----------|
-| open-context.sh exists | `[ -x ~/.claude/scripts/open-context.sh ]` | Run `claude-doctor.sh` |
-| Script symlinks valid | `~/.claude/scripts/check-symlinks.sh` | Fix symlinks, see ERROR_PATTERNS.md |
-| bon available | `command -v bon` | Install: `uv tool install ~/Repos/bon` |
+### Finding scripts
 
-**Quick pre-flight:**
+Scripts live in **the bon plugin** — either in the plugin cache (`~/.claude/plugins/cache/batterie-de-savoir/bon/*/scripts/`) or symlinked to `~/.claude/scripts/`. The session-start hook finds them automatically via relative paths. For manual invocation:
+
 ```bash
-[ -x ~/.claude/scripts/open-context.sh ] && echo "OK" || echo "BROKEN: open-context.sh missing"
+# Find open-context.sh — check plugin cache first, then symlinks
+SCRIPT=$(find ~/.claude/plugins/cache -name "open-context.sh" -path "*/bon/*/scripts/*" 2>/dev/null | head -1)
+[ -z "$SCRIPT" ] && SCRIPT="$HOME/.claude/scripts/open-context.sh"
+[ -x "$SCRIPT" ] && echo "OK: $SCRIPT" || echo "BROKEN: open-context.sh not found"
 ```
 
-If pre-flight fails, **STOP and diagnose** before proceeding. See `~/Repos/trousse/references/ERROR_PATTERNS.md` for common issues.
+| Check | How | If Broken |
+|-------|-----|-----------|
+| open-context.sh exists | Script finder above | Reinstall bon plugin or run bon's install.sh |
+| bon available | `command -v bon` | `uv tool install "${CLAUDE_PLUGIN_ROOT}"` or `uv tool install ~/Repos/bon` |
 
 ---
 
@@ -107,9 +110,12 @@ The session-start hook outputs a synthesized briefing:
 
 ### Missing or Stale Context
 
-**If context files don't exist for current directory**, regenerate them:
+**If context files don't exist for current directory**, regenerate by finding and running open-context.sh:
 ```bash
-~/.claude/scripts/open-context.sh
+# Find the script (plugin cache or symlink)
+SCRIPT=$(find ~/.claude/plugins/cache -name "open-context.sh" -path "*/bon/*/scripts/*" 2>/dev/null | head -1)
+[ -z "$SCRIPT" ] && SCRIPT="$HOME/.claude/scripts/open-context.sh"
+[ -x "$SCRIPT" ] && "$SCRIPT"
 ```
 
 This happens when:
@@ -124,8 +130,8 @@ This happens when:
 **If the script fails (exit code 127 = file not found, or any other error):**
 
 1. **STOP.** Do not continue with partial context.
-2. **Tell the user:** "The open-context.sh script failed. This usually means a broken symlink."
-3. **Diagnose:** Run `~/.claude/scripts/check-symlinks.sh` to identify the issue.
+2. **Tell the user:** "The open-context.sh script wasn't found. Check that the bon plugin is installed."
+3. **Diagnose:** Run `find ~/.claude/plugins/cache -name "open-context.sh" 2>/dev/null` to locate it.
 
 ---
 

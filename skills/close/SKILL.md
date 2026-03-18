@@ -38,18 +38,20 @@ Remember      → index session (background, automatic)
 
 **Before running /close, verify infrastructure is healthy.** Broken scripts mean lost handoffs.
 
-| Check | How | If Broken |
-|-------|-----|-----------|
-| close-context.sh exists | `[ -x ~/.claude/scripts/close-context.sh ]` | Run `claude-doctor.sh` |
-| check-home.sh exists | `[ -x ~/.claude/scripts/check-home.sh ]` | Fix symlinks |
-| Handoffs dir writable | `[ -d ~/.claude/handoffs ]` | Create: `mkdir -p ~/.claude/handoffs` |
+### Finding scripts
 
-**Quick pre-flight:**
+Scripts live in **the bon plugin** — either in the plugin cache or symlinked to `~/.claude/scripts/`. Find them with:
+
 ```bash
-[ -x ~/.claude/scripts/close-context.sh ] && [ -x ~/.claude/scripts/check-home.sh ] && echo "OK" || echo "BROKEN"
+SCRIPTS=$(find ~/.claude/plugins/cache -path "*/bon/*/scripts" -type d 2>/dev/null | head -1)
+[ -z "$SCRIPTS" ] && SCRIPTS="$HOME/.claude/scripts"
+[ -x "$SCRIPTS/close-context.sh" ] && echo "OK" || echo "BROKEN: close-context.sh not found"
 ```
 
-If broken: **STOP, diagnose, then write handoff manually** rather than skipping closure entirely. See `~/Repos/trousse/references/ERROR_PATTERNS.md`.
+| Check | How | If Broken |
+|-------|-----|-----------|
+| close-context.sh exists | Script finder above | Reinstall bon plugin |
+| Handoffs dir writable | `[ -d ~/.claude/handoffs ]` | Create: `mkdir -p ~/.claude/handoffs` |
 
 ---
 
@@ -58,7 +60,7 @@ If broken: **STOP, diagnose, then write handoff manually** rather than skipping 
 You may have `cd`'d during work. Your system prompt contains `Working directory: /path/...` in the `<env>` block — this is immutable, where the session actually started.
 
 1. Extract that exact path from your system prompt
-2. Run: `~/.claude/scripts/check-home.sh "/that/path"`
+2. Run: `"$SCRIPTS/check-home.sh" "/that/path"` (where SCRIPTS was resolved in pre-flight above)
 3. If `CD_REQUIRED=true`, run `cd <HOME_DIR>` immediately
 
 **Do not skip. Do not trust pwd. Do not reason about whether you moved back. The script is authoritative.**
@@ -68,10 +70,10 @@ You may have `cd`'d during work. Your system prompt contains `Working directory:
 ## Gather
 
 ```bash
-~/.claude/scripts/close-context.sh
+"$SCRIPTS/close-context.sh"
 ```
 
-Script outputs: TIME, GIT, BON, LOCATION context, HANDOFF_DIR, SESSION_ID.
+Where `$SCRIPTS` was resolved in the prerequisites above. Script outputs: TIME, GIT, BON, LOCATION context, HANDOFF_DIR, SESSION_ID.
 
 Use TIME_OF_DAY for greetings. Use YEAR to anchor the handoff date. **Hold onto HANDOFF_DIR and SESSION_ID — you'll need both in Act.**
 
@@ -79,8 +81,8 @@ Use TIME_OF_DAY for greetings. Use YEAR to anchor the handoff date. **Hold onto 
 
 **If the script fails (exit code 127 = file not found, or any error):**
 
-1. **STOP.** Tell the user: "close-context.sh failed. Likely a broken symlink."
-2. **Diagnose:** Run `~/.claude/scripts/check-symlinks.sh`
+1. **STOP.** Tell the user: "close-context.sh not found."
+2. **Diagnose:** Run `find ~/.claude/plugins/cache -name "close-context.sh" 2>/dev/null` to locate it.
 3. **Fallback:** If you can't fix it, write handoff manually to `~/.claude/handoffs/<encoded-path>/` — don't skip closure entirely.
 
 **Why this matters:** Broken scripts (Jan 3-10 2026) meant /close ran without proper context gathering. Never continue silently.
@@ -175,7 +177,7 @@ bon new "title" --why "consequence if not done" --what "concrete actions" --done
 **Handoff location is non-negotiable.** The script computes the path; you use it exactly.
 
 ```bash
-~/.claude/scripts/close-context.sh | grep -E 'HANDOFF_DIR|SESSION_ID'
+"$SCRIPTS/close-context.sh" | grep -E 'HANDOFF_DIR|SESSION_ID'
 ```
 
 This outputs both — use them directly, never recompute.
@@ -283,7 +285,7 @@ Guidelines:
 **Then stage it:**
 
 ```bash
-~/.claude/scripts/stage-extraction.sh < /tmp/garde-extraction.json \
+"$SCRIPTS/stage-extraction.sh" < /tmp/garde-extraction.json \
     && rm /tmp/garde-extraction.json
 ```
 
