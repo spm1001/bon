@@ -195,15 +195,6 @@
     "close-context.sh": {
       "target": "bon/scripts/close-context.sh"
     },
-    "check-home.sh": {
-      "target": "trousse/scripts/check-home.sh"
-    },
-    "check-symlinks.sh": {
-      "target": "trousse/scripts/check-symlinks.sh"
-    },
-    "claude-doctor.sh": {
-      "target": "trousse/scripts/claude-doctor.sh"
-    },
     "bon-read.sh": {
       "target": "bon/scripts/bon-read.sh"
     },
@@ -211,16 +202,13 @@
       "target": "bon/scripts/auto-handoff.sh"
     },
     "repo-sync.sh": {
-      "target": "trousse/scripts/repo-sync.sh"
+      "target": "bon/scripts/repo-sync.sh"
     },
     "stage-extraction.sh": {
-      "target": "trousse/scripts/stage-extraction.sh"
-    },
-    "send-amp-extraction.sh": {
-      "target": "trousse/scripts/send-amp-extraction.sh"
+      "target": "garde-manger/scripts/stage-extraction.sh"
     },
     "update-all.template.sh": {
-      "target": "trousse/scripts/update-all.template.sh"
+      "target": "bon/scripts/update-all.template.sh"
     }
   },
   "tools": {
