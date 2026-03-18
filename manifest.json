@@ -1,16 +1,21 @@
 {
+  "repos_dir": "~/Repos",
+  "batterie_dir": "~/Repos/batterie",
   "repos": {
     "bon": {
       "github": "spm1001/bon",
-      "required": true
+      "required": true,
+      "group": "batterie"
     },
     "trousse": {
       "github": "spm1001/trousse",
-      "required": true
+      "required": true,
+      "group": "batterie"
     },
     "garde-manger": {
       "github": "spm1001/garde-manger",
-      "required": true
+      "required": true,
+      "group": "batterie"
     },
     "dotfiles": {
       "github": "spm1001/dotfiles",
@@ -19,11 +24,13 @@
     "skill-sources-anthropic": {
       "github": "spm1001/skills",
       "required": false,
-      "branch": "local-patches"
+      "branch": "local-patches",
+      "group": "batterie"
     },
     "todoist-gtd": {
       "github": "spm1001/todoist-gtd",
-      "required": false
+      "required": false,
+      "group": "batterie"
     },
     "skill-listen": {
       "github": "spm1001/skill-listen",
@@ -47,27 +54,33 @@
     },
     "jeton": {
       "github": "spm1001/jeton",
-      "required": false
+      "required": false,
+      "group": "batterie"
     },
     "mise-en-space": {
       "github": "spm1001/mise-en-space",
-      "required": false
+      "required": false,
+      "group": "batterie"
     },
     "passe": {
       "github": "spm1001/passe",
-      "required": true
+      "required": true,
+      "group": "batterie"
     },
     "consomme": {
       "github": "spm1001/consomme",
-      "required": false
+      "required": false,
+      "group": "batterie"
     },
     "gueridon": {
       "github": "spm1001/gueridon",
-      "required": false
+      "required": false,
+      "group": "batterie"
     },
     "aboyeur": {
       "github": "spm1001/aboyeur",
-      "required": false
+      "required": false,
+      "group": "batterie"
     }
   },
   "skills": {
