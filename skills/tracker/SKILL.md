@@ -4,9 +4,22 @@ description: Activate BEFORE running any bon CLI command. Enforces draw-down wor
 requires:
   - cli: bon
     check: "bon --version"
+    install: "uv tool install \"${CLAUDE_PLUGIN_ROOT}\""
+    path: "~/.local/bin"
 ---
 
 # Bon Work Tracking
+
+## CLI Installation
+
+Bon requires the `bon` CLI. If not in PATH, install from the plugin source:
+
+```bash
+uv tool install "${CLAUDE_PLUGIN_ROOT}"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+If `CLAUDE_PLUGIN_ROOT` isn't set (manual install), use: `uv tool install bon` or `uv tool install ~/Repos/bon`.
 
 Bon organizes work as **Outcomes** (desired results) and **Actions** (concrete next steps). No sprints, no story points, no priority levels — just ordering and a clear answer to "what can I work on now?"
 

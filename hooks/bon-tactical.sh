@@ -1,1 +1,0 @@
-/Users/modha/Repos/trousse/hooks/bon-tactical.sh
