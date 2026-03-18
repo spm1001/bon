@@ -1,0 +1,282 @@
+{
+  "repos": {
+    "bon": {
+      "github": "spm1001/bon",
+      "required": true
+    },
+    "trousse": {
+      "github": "spm1001/trousse",
+      "required": true
+    },
+    "garde-manger": {
+      "github": "spm1001/garde-manger",
+      "required": true
+    },
+    "dotfiles": {
+      "github": "spm1001/dotfiles",
+      "required": true
+    },
+    "skill-sources-anthropic": {
+      "github": "spm1001/skills",
+      "required": false,
+      "branch": "local-patches"
+    },
+    "todoist-gtd": {
+      "github": "spm1001/todoist-gtd",
+      "required": false
+    },
+    "skill-listen": {
+      "github": "spm1001/skill-listen",
+      "required": false
+    },
+    "skill-itv-styling": {
+      "github": "spm1001/skill-itv-styling",
+      "required": false
+    },
+    "itv-appscript-deploy": {
+      "github": "spm1001/itv-appscript-deploy",
+      "required": false
+    },
+    "skill-dbt": {
+      "github": "spm1001/skill-dbt",
+      "required": false
+    },
+    "skill-sandbox": {
+      "github": "spm1001/skill-sandbox",
+      "required": false
+    },
+    "jeton": {
+      "github": "spm1001/jeton",
+      "required": false
+    },
+    "mise-en-space": {
+      "github": "spm1001/mise-en-space",
+      "required": false
+    },
+    "passe": {
+      "github": "spm1001/passe",
+      "required": true
+    },
+    "consomme": {
+      "github": "spm1001/consomme",
+      "required": false
+    },
+    "gueridon": {
+      "github": "spm1001/gueridon",
+      "required": false
+    },
+    "aboyeur": {
+      "github": "spm1001/aboyeur",
+      "required": false
+    }
+  },
+  "skills": {
+    "bon": {
+      "target": "bon/skills/tracker"
+    },
+    "open": {
+      "target": "bon/skills/open"
+    },
+    "close": {
+      "target": "bon/skills/close"
+    },
+    "amp-close": {
+      "target": "trousse/skills/amp-close"
+    },
+    "diagram": {
+      "target": "trousse/skills/diagram"
+    },
+    "picture": {
+      "target": "trousse/skills/picture"
+    },
+    "filing": {
+      "target": "trousse/skills/filing"
+    },
+    "server-checkup": {
+      "target": "trousse/skills/server-checkup"
+    },
+    "passe": {
+      "target": "passe/skills/browser"
+    },
+    "screenshot": {
+      "target": "trousse/skills/screenshot"
+    },
+    "github-cleanup": {
+      "target": "trousse/skills/github-cleanup"
+    },
+    "sprite": {
+      "target": "trousse/skills/sprite"
+    },
+    "setup": {
+      "target": "trousse/skills/setup"
+    },
+    "skill-forge": {
+      "target": "trousse/skills/skill-forge"
+    },
+    "review": {
+      "target": "trousse/skills/review"
+    },
+    "ia-presenter": {
+      "target": "trousse/skills/ia-presenter"
+    },
+    "titans": {
+      "target": "trousse/skills/titans"
+    },
+    "todoist-gtd": {
+      "target": "todoist-gtd"
+    },
+    "garde": {
+      "target": "garde-manger/skills/memory"
+    },
+    "listen": {
+      "target": "skill-listen"
+    },
+    "itv-styling": {
+      "target": "skill-itv-styling"
+    },
+    "appscript": {
+      "target": "itv-appscript-deploy/skill"
+    },
+    "dbt": {
+      "target": "skill-dbt"
+    },
+    "sandbox": {
+      "target": "skill-sandbox"
+    },
+    "mise": {
+      "target": "mise-en-space/skills/workspace"
+    },
+    "consomme": {
+      "target": "consomme/skills/analysis"
+    },
+    "docx": {
+      "target": "skill-sources-anthropic/skills/docx"
+    },
+    "pdf": {
+      "target": "skill-sources-anthropic/skills/pdf"
+    },
+    "pptx": {
+      "target": "skill-sources-anthropic/skills/pptx"
+    },
+    "xlsx": {
+      "target": "skill-sources-anthropic/skills/xlsx"
+    },
+    "mcp-builder": {
+      "target": "skill-sources-anthropic/skills/mcp-builder"
+    },
+    "skill-creator": {
+      "target": "skill-sources-anthropic/skills/skill-creator"
+    },
+    "webapp-testing": {
+      "target": "skill-sources-anthropic/skills/webapp-testing"
+    },
+    "google-devdocs": {
+      "target": "trousse/skills/google-devdocs"
+    },
+    "audit": {
+      "target": "bon/skills/audit"
+    }
+  },
+  "hooks": {
+    "session-start.sh": {
+      "target": "bon/hooks/session-start.sh"
+    },
+    "session-end.sh": {
+      "target": "bon/hooks/session-end.sh"
+    },
+    "bon-tactical.sh": {
+      "target": "bon/hooks/bon-tactical.sh"
+    }
+  },
+  "scripts": {
+    "open-context.sh": {
+      "target": "bon/scripts/open-context.sh"
+    },
+    "close-context.sh": {
+      "target": "bon/scripts/close-context.sh"
+    },
+    "check-home.sh": {
+      "target": "trousse/scripts/check-home.sh"
+    },
+    "check-symlinks.sh": {
+      "target": "trousse/scripts/check-symlinks.sh"
+    },
+    "claude-doctor.sh": {
+      "target": "trousse/scripts/claude-doctor.sh"
+    },
+    "bon-read.sh": {
+      "target": "bon/scripts/bon-read.sh"
+    },
+    "auto-handoff.sh": {
+      "target": "bon/scripts/auto-handoff.sh"
+    },
+    "repo-sync.sh": {
+      "target": "trousse/scripts/repo-sync.sh"
+    },
+    "stage-extraction.sh": {
+      "target": "trousse/scripts/stage-extraction.sh"
+    },
+    "send-amp-extraction.sh": {
+      "target": "trousse/scripts/send-amp-extraction.sh"
+    },
+    "update-all.template.sh": {
+      "target": "trousse/scripts/update-all.template.sh"
+    }
+  },
+  "tools": {
+    "bon": {
+      "repo": "bon",
+      "required": true
+    },
+    "passe": {
+      "repo": "passe",
+      "required": true
+    },
+    "garde-manger": {
+      "repo": "garde-manger",
+      "required": false
+    },
+    "todoist-gtd": {
+      "repo": "todoist-gtd",
+      "required": false
+    },
+    "itv-appscript": {
+      "repo": "itv-appscript-deploy",
+      "required": false
+    }
+  },
+  "inline_skills": [],
+  "agents": {
+    "gemini": {
+      "config_dir": "~/.gemini",
+      "symlinks": {
+        "settings.json": "gemini/settings.json",
+        "GEMINI.md": "gemini/GEMINI.md"
+      },
+      "skills": {
+        "bon": {
+          "target": "bon/gemini/skills/bon"
+        },
+        "garde": {
+          "target": "garde-manger/skills/memory"
+        },
+        "mise": {
+          "target": "mise-en-space/skills/workspace"
+        },
+        "passe": {
+          "target": "passe/skills/browser"
+        },
+        "todoist-gtd": {
+          "target": "todoist-gtd"
+        }
+      }
+    },
+    "amp": {
+      "config_dir": "~/.config/amp",
+      "symlinks": {
+        "settings.json": "amp/settings.json"
+      },
+      "skills": {}
+    }
+  }
+}
