@@ -12,7 +12,7 @@ requires:
 
 ## After Installing This Plugin
 
-**Run `/restart` (not `/reload-plugins`) to activate the setup hook.** The SessionStart hook checks for the bon CLI and ensures PATH is correct — but it only fires after a full restart.
+**After installing, exit and relaunch Claude Code** (`/exit` then `claude`) to activate the setup hook. `/reload-plugins` loads skills but doesn't fire SessionStart hooks. The hook checks for the bon CLI and ensures PATH is correct.
 
 ## CLI Installation
 
