@@ -137,7 +137,7 @@ save_items(items)                # Atomic write back
 | Standalone actions forgotten | Check items where `parent` is None |
 | Interactive mode untested | Test with `input=` parameter |
 | Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
-| Changing schema fields | trousse reads items.jsonl directly with jq (see FIELD_REPORT_jq_consumers.md) |
+| Changing schema fields | bon-read.sh reads items.jsonl directly with jq (see FIELD_REPORT_jq_consumers.md) |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
 | Stale global install after code changes | `uv tool install` reuses cached wheels. After changing bon code: `uv cache clean bon && uv tool install ~/Repos/bon --force --reinstall` |
 
@@ -150,6 +150,8 @@ save_items(items)                # Atomic write back
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
 | Update Claude integration | `bon/SKILL.md` |
+| Handoff format spec | `references/HANDOFF-CONTRACT.md` |
+| Test bon-read.sh | `tests/test_bon_read.py` |
 
 ## Spec-Driven Development
 
