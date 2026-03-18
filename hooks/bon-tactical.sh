@@ -7,8 +7,8 @@ command -v python3 &>/dev/null || exit 0
 
 # Read hook stdin once (consumed on first read) and cd to session CWD
 HOOK_INPUT=$(cat)
-CWD=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('cwd',''))" <<< "$HOOK_INPUT" 2>/dev/null)
-[ -n "$CWD" ] && cd "$CWD" 2>/dev/null
+CWD=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('cwd',''))" <<< "$HOOK_INPUT" 2>/dev/null || true)
+[ -n "$CWD" ] && cd "$CWD" 2>/dev/null || true
 
 # Check .bon/ first, fall back to .arc/ during transition
 if [ -f .bon/items.jsonl ]; then
