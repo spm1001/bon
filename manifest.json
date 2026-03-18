@@ -24,7 +24,11 @@
     "skill-sources-anthropic": {
       "github": "spm1001/skills",
       "required": false,
-      "branch": "local-patches",
+      "branch": "local-patches"
+    },
+    "plongeur": {
+      "github": "spm1001/plongeur",
+      "required": false,
       "group": "batterie"
     },
     "todoist-gtd": {
