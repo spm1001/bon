@@ -10,6 +10,10 @@ requires:
 
 # Bon Work Tracking
 
+## After Installing This Plugin
+
+**Run `/restart` (not `/reload-plugins`) to activate the setup hook.** The SessionStart hook checks for the bon CLI and ensures PATH is correct — but it only fires after a full restart.
+
 ## CLI Installation
 
 Bon requires the `bon` CLI. If not in PATH, install from the plugin source:
