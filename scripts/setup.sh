@@ -121,6 +121,29 @@ while IFS=$'\t' read -r name target; do
     link "$CLAUDE_DIR/scripts/$name" "$target" "$name"
 done < <(resolve scripts)
 
+# ── Install CLI tools ────────────────────────────────────────
+echo ""
+echo "=== CLI Tools ==="
+if command -v uv &>/dev/null; then
+    while IFS=$'\t' read -r name repo_path; do
+        if [ "$VERIFY_ONLY" = true ]; then
+            if command -v "$name" &>/dev/null; then
+                echo "  ✓ $name ($(command -v "$name"))"
+            else
+                echo "  ✗ $name (not in PATH)"
+            fi
+        else
+            if uv tool install "$repo_path" --force --quiet 2>/dev/null; then
+                echo "  ✓ $name"
+            else
+                echo "  ⚠ $name: install failed"
+            fi
+        fi
+    done < <(resolve tools)
+else
+    echo "  ⚠ uv not found — skipping CLI tool installation"
+fi
+
 if [ "$VERIFY_ONLY" = true ]; then
     echo ""
     echo "Verify complete."

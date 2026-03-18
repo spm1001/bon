@@ -60,10 +60,9 @@ SCRIPTS=$(find ~/.claude/plugins/cache -path "*/bon/*/scripts" -type d 2>/dev/nu
 You may have `cd`'d during work. Your system prompt contains `Working directory: /path/...` in the `<env>` block — this is immutable, where the session actually started.
 
 1. Extract that exact path from your system prompt
-2. Run: `"$SCRIPTS/check-home.sh" "/that/path"` (where SCRIPTS was resolved in pre-flight above)
-3. If `CD_REQUIRED=true`, run `cd <HOME_DIR>` immediately
+2. Compare with `pwd -P` — if different, `cd` back immediately
 
-**Do not skip. Do not trust pwd. Do not reason about whether you moved back. The script is authoritative.**
+**Do not skip. Do not trust your memory of whether you moved back. Check.**
 
 ---
 
@@ -333,7 +332,7 @@ Either way, handoffs are scanned afterward. Just tell the user to `/exit`.
 | Compress Orient into bullets or options | Misses unexpected observations | Answer six questions in prose |
 | Ask "what do you want?" in Decide | Puts burden on user, invites deferral | Propose a concrete plan; user amends |
 | File bons with weak `--why` | Future Claude can't prioritise | State the consequence of skipping |
-| Skip pre-flight cd check | Handoff written to wrong project | Always run check-home.sh |
+| Skip pre-flight cd check | Handoff written to wrong project | Compare pwd with system prompt Working directory |
 | Write handoff locally (.handoff.md) | /open won't find it | Use HANDOFF_DIR from script |
 | Silently drop incomplete work | Work disappears | Every piece in Now, bon, or handoff Next |
 | Commit other repos | Unwanted "helpful" tidying | Only commit working directory |
