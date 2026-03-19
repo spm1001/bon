@@ -35,13 +35,13 @@ Cross-repo backlog review encoded as a repeatable 5-phase workflow. Replaces the
 Run the audit survey to get structured data on all open items:
 
 ```bash
-uv run --script ~/.claude/skills/audit/scripts/audit_survey.py
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 ```
 
 Or filter to specific repos:
 
 ```bash
-uv run --script ~/.claude/skills/audit/scripts/audit_survey.py --repos trousse passe gueridon
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse passe gueridon
 ```
 
 **Output:** JSON with full briefs, created_at timestamps, and age flags (`old` = 30d+, `very_old` = 60d+).
@@ -180,7 +180,7 @@ Do NOT push unless user explicitly asks.
 After all closures, re-run the survey and report the delta:
 
 ```bash
-uv run --script ~/.claude/skills/audit/scripts/audit_survey.py
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 ```
 
 > Audit complete. Closed {N} items.
