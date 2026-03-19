@@ -1,6 +1,7 @@
 ---
 name: audit
 description: Orchestrates periodic cross-repo backlog review using 5-phase survey-verify-summarize-act-snapshot workflow that prevents closing items without codebase verification. Scans open bon items across all repos, dispatches parallel subagents to verify briefs against actual code, classifies as done/stale/active/blocked, and presents triage summary for user approval before closing. MANDATORY for backlog review sessions. Invoke on '/audit', 'audit my bons', 'backlog review', 'what needs closing', 'what's stale', 'clean up bons', 'triage my backlog'. Requires bon skill loaded first. (user)
+allowed-tools: ["Bash(bon:*)", "Bash(uv:*)", Read, Glob, Grep, Agent, AskUserQuestion]
 ---
 
 # Audit

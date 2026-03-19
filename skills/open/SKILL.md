@@ -6,6 +6,7 @@ description: >
   at what's available, or after cd'ing to a different project.
   Triggers on /open, 'what were we working on', 'where did we leave off'.
   Pairs with /ground and /close. (user)
+allowed-tools: [Bash, Read, Glob, Grep, Skill]
 ---
 
 # /open
