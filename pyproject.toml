@@ -1,6 +1,6 @@
 [project]
 name = "bon"
-version = "0.6.2"
+dynamic = ["version"]
 description = "Lightweight work tracker for Claude-human collaboration"
 requires-python = ">=3.11"
 dependencies = []
@@ -11,6 +11,10 @@ bon = "bon.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = ".claude-plugin/plugin.json"
+pattern = "\"version\":\\s*\"(?P<version>[^\"]+)\""
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bon"]
