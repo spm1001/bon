@@ -32,7 +32,10 @@ with open("$ITEMS") as f:
     for line in f:
         line = line.strip()
         if line:
-            items.append(json.loads(line))
+            try:
+                items.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
 
 mode = "$MODE"
 
@@ -53,13 +56,15 @@ if mode == "list":
         [i for i in items if i.get("type") == "outcome" and i.get("status") == "open" and not i.get("parent")],
         key=by_order,
     )
-    for o in outcomes:
+    for i, o in enumerate(outcomes):
         mark = "\u2713" if o.get("status") == "done" else "\u25cb"
         print(f'{mark} {o["title"]} ({o["id"]})')
-        for idx, a in enumerate(children.get(o["id"], []), 1):
+        for a in children.get(o["id"], []):
             am = "\u2713" if a.get("status") == "done" else "\u25cb"
-            print(f'  {idx}. {am} {a["title"]} ({a["id"]})')
-        print()
+            num = a.get("order", 1)
+            print(f'  {num}. {am} {a["title"]} ({a["id"]})')
+        if i < len(outcomes) - 1:
+            print()
 
 elif mode == "ready":
     # Ready: open outcomes with only open, non-waiting actions
@@ -74,11 +79,12 @@ elif mode == "ready":
         [i for i in items if i.get("type") == "outcome" and i.get("status") == "open" and not i.get("parent")],
         key=by_order,
     )
-    for o in outcomes:
+    for i, o in enumerate(outcomes):
         print(f'\u25cb {o["title"]} ({o["id"]})')
         for idx, a in enumerate(children.get(o["id"], []), 1):
             print(f'  {idx}. \u25cb {a["title"]} ({a["id"]})')
-        print()
+        if i < len(outcomes) - 1:
+            print()
 
 elif mode == "current":
     # Active tactical steps

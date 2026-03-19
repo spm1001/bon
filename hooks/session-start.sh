@@ -24,6 +24,11 @@ fi
 # === CONTEXT OUTPUT (stdout → Claude) ===
 "$SCRIPTS_DIR/open-context.sh" 2>/dev/null || true
 
+# === BACKGROUND UPDATES (no stdout — runs silently) ===
+if [ -x "$SCRIPTS_DIR/update-all.sh" ]; then
+    nohup "$SCRIPTS_DIR/update-all.sh" >> "$HOME/.claude/scripts/update.log" 2>&1 &
+fi
+
 # Check for incomplete /close from previous session
 CHECKPOINT_FILE="$HOME/.claude/.close-checkpoint"
 if [ -f "$CHECKPOINT_FILE" ]; then

@@ -27,7 +27,7 @@ src/bon/
 
 tests/            # pytest suite, one file per command
 fixtures/         # JSONL snapshots for parametrized tests
-bon/SKILL.md      # Claude Code integration patterns
+skills/tracker/SKILL.md  # Claude Code integration patterns
 ```
 
 ## Data Model
@@ -137,7 +137,7 @@ save_items(items)                # Atomic write back
 | Standalone actions forgotten | Check items where `parent` is None |
 | Interactive mode untested | Test with `input=` parameter |
 | Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
-| Changing schema fields | trousse reads items.jsonl directly with jq (see FIELD_REPORT_jq_consumers.md) |
+| Changing schema fields | bon-read.sh reads items.jsonl directly with jq |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
 | Stale global install after code changes | `uv tool install` reuses cached wheels. After changing bon code: `uv cache clean bon && uv tool install ~/Repos/bon --force --reinstall` |
 
@@ -149,7 +149,9 @@ save_items(items)                # Atomic write back
 | See expected outputs | `fixtures/*.jsonl` |
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
-| Update Claude integration | `bon/SKILL.md` |
+| Update Claude integration | `skills/tracker/SKILL.md` |
+| Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
+| Test bon-read.sh | `tests/test_bon_read.py` |
 
 ## Spec-Driven Development
 
