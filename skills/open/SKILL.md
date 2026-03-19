@@ -35,12 +35,11 @@ Use `/open` for:
 
 ### Finding scripts
 
-Scripts live in **the bon plugin** — either in the plugin cache (`~/.claude/plugins/cache/batterie-de-savoir/bon/*/scripts/`) or symlinked to `~/.claude/scripts/`. The session-start hook finds them automatically via relative paths. For manual invocation:
+Scripts live in **the bon plugin cache**. The session-start hook finds them automatically via relative paths. For manual invocation:
 
 ```bash
-# Find open-context.sh — check plugin cache first, then symlinks
+# Find open-context.sh in the plugin cache
 SCRIPT=$(find ~/.claude/plugins/cache -name "open-context.sh" -path "*/bon/*/scripts/*" 2>/dev/null | head -1)
-[ -z "$SCRIPT" ] && SCRIPT="$HOME/.claude/scripts/open-context.sh"
 [ -x "$SCRIPT" ] && echo "OK: $SCRIPT" || echo "BROKEN: open-context.sh not found"
 ```
 
@@ -113,9 +112,7 @@ The session-start hook outputs a synthesized briefing:
 
 **If context files don't exist for current directory**, regenerate by finding and running open-context.sh:
 ```bash
-# Find the script (plugin cache or symlink)
 SCRIPT=$(find ~/.claude/plugins/cache -name "open-context.sh" -path "*/bon/*/scripts/*" 2>/dev/null | head -1)
-[ -z "$SCRIPT" ] && SCRIPT="$HOME/.claude/scripts/open-context.sh"
 [ -x "$SCRIPT" ] && "$SCRIPT"
 ```
 
