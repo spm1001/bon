@@ -1,11 +1,19 @@
 {
   "name": "bon",
-  "version": "0.5.0",
-  "description": "GTD-native work tracker for AI coding agents — outcomes, actions, tactical steps",
-  "author": { "name": "Sameer Modha", "url": "https://github.com/spm1001" },
+  "version": "0.6.0",
+  "description": "GTD-native work tracker for AI coding agents \u2014 outcomes, actions, tactical steps",
+  "author": {
+    "name": "Sameer Modha",
+    "url": "https://github.com/spm1001"
+  },
   "repository": "https://github.com/spm1001/bon",
   "license": "MIT",
-  "keywords": ["gtd", "tracking", "productivity", "work-management"],
+  "keywords": [
+    "gtd",
+    "tracking",
+    "productivity",
+    "work-management"
+  ],
   "hooks": {
     "SessionStart": [
       {
