@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPOS_DIR="${REPOS_DIR:-$HOME/Repos}"
-LOG_FILE="${LOG_FILE:-$HOME/.claude/scripts/update.log}"
+LOG_FILE="${LOG_FILE:-$HOME/.claude/logs/update.log}"
 NEWS_FILE="${NEWS_FILE:-$HOME/.claude/.update-news}"
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [repo-sync] $1" >> "$LOG_FILE"; }
