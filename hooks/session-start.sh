@@ -3,8 +3,7 @@
 # Session Start Hook
 # Outputs session context to stdout (Claude sees this automatically)
 #
-# Finds scripts relative to this hook's location (works in plugin cache
-# and symlinked installs). Falls back to ~/.claude/scripts/ for compat.
+# Finds scripts relative to this hook's location (works in plugin cache).
 
 set -euo pipefail
 
@@ -12,11 +11,8 @@ set -euo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_SCRIPTS="$(dirname "$HOOK_DIR")/scripts"
 
-# Prefer plugin-local scripts, fall back to ~/.claude/scripts/
 if [ -x "$PLUGIN_SCRIPTS/open-context.sh" ]; then
     SCRIPTS_DIR="$PLUGIN_SCRIPTS"
-elif [ -x "$HOME/.claude/scripts/open-context.sh" ]; then
-    SCRIPTS_DIR="$HOME/.claude/scripts"
 else
     exit 0  # No scripts available — silent
 fi
@@ -26,7 +22,8 @@ fi
 
 # === BACKGROUND UPDATES (no stdout — runs silently) ===
 if [ -x "$SCRIPTS_DIR/update-all.sh" ]; then
-    nohup "$SCRIPTS_DIR/update-all.sh" >> "$HOME/.claude/scripts/update.log" 2>&1 &
+    mkdir -p "$HOME/.claude/logs"
+    nohup "$SCRIPTS_DIR/update-all.sh" >> "$HOME/.claude/logs/update.log" 2>&1 &
 fi
 
 # Check for incomplete /close from previous session

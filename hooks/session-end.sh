@@ -16,8 +16,6 @@ PLUGIN_SCRIPTS="$(dirname "$HOOK_DIR")/scripts"
 
 if [ -x "$PLUGIN_SCRIPTS/auto-handoff.sh" ]; then
     SCRIPTS_DIR="$PLUGIN_SCRIPTS"
-elif [ -x "$HOME/.claude/scripts/auto-handoff.sh" ]; then
-    SCRIPTS_DIR="$HOME/.claude/scripts"
 else
     exit 0
 fi

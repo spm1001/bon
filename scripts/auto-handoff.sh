@@ -46,7 +46,9 @@ fi
 
 # Bon open/ready items
 BON_NEXT=""
-BON_READ="$HOME/.claude/scripts/bon-read.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BON_READ="$SCRIPT_DIR/bon-read.sh"
+[ -x "$BON_READ" ] || BON_READ="$HOME/.claude/scripts/bon-read.sh"
 # Check .bon first, fallback to .arc
 BON_ITEMS=""
 if [ -f "$CWD/.bon/items.jsonl" ]; then

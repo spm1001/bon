@@ -5,16 +5,18 @@
 # - QUICK: Every session start (<10s) — repo sync, symlink health
 # - HEAVY: Once per day max — CLI updates, Claude Code update
 #
-# Personal additions: source ~/.claude/scripts/update-local.sh
+# Personal additions: source update-local.sh from same directory.
 # Triggered by session-start.sh (background, no stdout).
-# Logs to ~/.claude/scripts/update.log
+# Logs to ~/.claude/logs/update.log
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="$HOME/.claude/scripts/update.log"
-LOCK_FILE="$HOME/.claude/scripts/update.lock"
-HEAVY_TIMESTAMP="$HOME/.claude/scripts/.last-heavy-update"
+LOG_DIR="$HOME/.claude/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/update.log"
+LOCK_FILE="$LOG_DIR/update.lock"
+HEAVY_TIMESTAMP="$LOG_DIR/.last-heavy-update"
 HEAVY_INTERVAL=$((24 * 60 * 60))
 NEWS_FILE="$HOME/.claude/.update-news"
 
@@ -138,7 +140,7 @@ fi
 # LOCAL ADDITIONS
 #######################################
 
-LOCAL_UPDATE="$HOME/.claude/scripts/update-local.sh"
+LOCAL_UPDATE="$SCRIPT_DIR/update-local.sh"
 if [ -x "$LOCAL_UPDATE" ]; then
     log_section "LOCAL UPDATES"
     source "$LOCAL_UPDATE"

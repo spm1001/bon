@@ -107,7 +107,9 @@ fi
 
 # --- Bon context ---
 BON_FILE="$CONTEXT_DIR/bon.txt"
-BON_READ="$HOME/.claude/scripts/bon-read.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BON_READ="$SCRIPT_DIR/bon-read.sh"
+[ -x "$BON_READ" ] || BON_READ="$HOME/.claude/scripts/bon-read.sh"
 BON_LIST_OUTPUT=""
 BON_READY_OUTPUT=""
 BON_CURRENT_OUTPUT=""
