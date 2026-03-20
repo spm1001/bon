@@ -8,7 +8,12 @@ from conftest import run_arc
 
 
 def _bon_is_uv_tool() -> bool:
-    """Return True if bon is installed as a uv tool (not just present in dev venv)."""
+    """Return True if bon is installed as a uv tool (not just present in dev venv).
+
+    shutil.which("bon") is insufficient — it finds .venv/bin/bon when the dev venv
+    is activated, even though bon isn't a uv tool. `bon update` calls
+    `uv tool upgrade bon`, which requires a uv tool install — not just a venv binary.
+    """
     try:
         r = subprocess.run(["uv", "tool", "list"], capture_output=True, text=True, timeout=5)
         return "bon" in r.stdout
