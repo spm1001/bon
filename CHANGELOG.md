@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0] - 2026-03-20
+
+Maturity realignment across the batterie.
+
+### Changed
+- Version reflects honest maturity level (0.6.2 → 0.7.0) — bon is the most battle-tested tool in the suite, closest to 1.0
+- `plugin.json` confirmed as single source of truth; pyproject.toml reads version dynamically via hatchling
+
 ## [0.4.0] - 2026-03-18
 
 Batterie-wide consistency pass: docs consolidation, CI, versioning.
