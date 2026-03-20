@@ -19,7 +19,7 @@ def test_update_no_arc_dir_needed(tmp_path):
     assert "Not a bon project" not in result.stderr
 
 
-@pytest.mark.skipif(not shutil.which("uv"), reason="uv not available")
+@pytest.mark.skipif(not shutil.which("bon"), reason="bon not installed as uv tool")
 def test_update_runs():
     """arc update re-installs from source."""
     result = run_arc("update")
