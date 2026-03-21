@@ -8,11 +8,10 @@ from pathlib import Path
 
 from bon.ids import get_siblings
 
-
 # Known updated_by verbs, used by cmd_doctor for validation
 KNOWN_VERBS = frozenset({
     "edited", "waited", "unwaited", "worked", "stepped",
-    "cleared", "archived", "converted", "reopened",
+    "cleared", "archived", "converted", "reopened", "reclaimed",
 })
 
 
@@ -37,6 +36,7 @@ def warn(message: str) -> None:
 
 
 _cached_data_dir: Path | None = None
+_cached_backend: str | None = None
 
 
 def _data_dir() -> Path:
@@ -67,8 +67,35 @@ def _reset_data_dir() -> None:
     _cached_data_dir = None
 
 
+def _get_backend() -> str:
+    """Return the storage backend: 'jsonl' (default) or 'dolt'.
+
+    Reads .bon/backend once per process and caches. Absent file = jsonl.
+    """
+    global _cached_backend
+    if _cached_backend is not None:
+        return _cached_backend
+    backend_file = _data_dir() / "backend"
+    if backend_file.exists():
+        _cached_backend = backend_file.read_text().strip().lower()
+    else:
+        _cached_backend = "jsonl"
+    return _cached_backend
+
+
+def _reset_backend() -> None:
+    """Reset cached backend. For tests only."""
+    global _cached_backend
+    _cached_backend = None
+
+
 def items_path() -> Path:
-    """Return the path to items.jsonl."""
+    """Return the path to items.jsonl.
+
+    Raises BonError in Dolt mode (no local file exists).
+    """
+    if _get_backend() == "dolt":
+        raise BonError("items_path() not available in Dolt mode — items are in the database")
     return _data_dir() / "items.jsonl"
 
 
@@ -79,12 +106,16 @@ def _most_recent_timestamp(item: dict) -> str:
 
 
 def load_items() -> list[dict]:
-    """Load all items from JSONL with validation.
+    """Load all items from JSONL (or Dolt) with validation.
 
     Deduplicates by ID, preferring the version with the most recent timestamp
     (done_at > archived_at > updated_at > created_at). This handles union merge artifacts where git keeps
     both old and new versions of an edited line.
     """
+    if _get_backend() == "dolt":
+        from bon.dolt import dolt_load_items
+        return dolt_load_items()
+
     path = _data_dir() / "items.jsonl"
     if not path.exists():
         return []
@@ -166,6 +197,10 @@ def save_items(items: list[dict]) -> None:
     Deterministic order means two branches that touch different items
     produce minimal diffs, enabling clean git merges.
     """
+    if _get_backend() == "dolt":
+        from bon.dolt import dolt_save_items
+        return dolt_save_items(items)
+
     seen: dict[str, dict] = {}
     duplicates: set[str] = set()
     for item in items:
@@ -192,7 +227,10 @@ def save_items(items: list[dict]) -> None:
 
 
 def load_prefix() -> str:
-    """Load prefix, default to 'bon'."""
+    """Load prefix from local .bon/prefix file, default to 'bon'.
+
+    Even in Dolt mode, prefix is local — it scopes which items to load.
+    """
     path = _data_dir() / "prefix"
     if path.exists():
         return path.read_text()
@@ -347,6 +385,20 @@ def apply_reparent(items: list[dict], edited: dict, old_parent: str | None, new_
         edited["order"] = 1
 
 
+def get_session_identity() -> str:
+    """Return the session identity for tactical steps.
+
+    In JSONL mode: os.path.realpath(os.getcwd())
+    In Dolt mode: hostname:realpath — prevents false conflicts when two
+    machines have the same absolute path.
+    """
+    path = os.path.realpath(os.getcwd())
+    if _get_backend() == "dolt":
+        import socket
+        return f"{socket.gethostname()}:{path}"
+    return path
+
+
 def _tactical_is_active(item: dict) -> bool:
     """Check if an item has active (incomplete) tactical steps."""
     if item.get("status") != "open":
@@ -399,8 +451,27 @@ def find_no_complete_tactical(items: list[dict], session: str | None = None) -> 
     return None
 
 
+def find_orphaned_tactical(items: list[dict], session: str) -> dict | None:
+    """Find an item with active tactical steps whose session path no longer exists.
+
+    Returns the first orphaned item found, or None. Only checks items
+    whose session differs from the given session (current CWD).
+    """
+    for item in items:
+        if not _tactical_is_active(item):
+            continue
+        item_session = item.get("tactical", {}).get("session")
+        if item_session and item_session != session and not os.path.isdir(item_session):
+            return item
+    return None
+
+
 def load_archive() -> list[dict]:
-    """Load archived items from archive.jsonl."""
+    """Load archived items from archive.jsonl (or Dolt archive table)."""
+    if _get_backend() == "dolt":
+        from bon.dolt import dolt_load_archive
+        return dolt_load_archive()
+
     path = _data_dir() / "archive.jsonl"
     if not path.exists():
         return []
@@ -420,11 +491,15 @@ def load_archive() -> list[dict]:
 
 
 def append_archive(items: list[dict]) -> None:
-    """Append items to archive.jsonl atomically.
+    """Append items to archive.jsonl (or Dolt archive table) atomically.
 
     Deduplicates by ID (keeping most recent via _most_recent_timestamp),
     same as save_items. Writes atomically with tmp+rename.
     """
+    if _get_backend() == "dolt":
+        from bon.dolt import dolt_append_archive
+        return dolt_append_archive(items)
+
     existing = load_archive()
 
     seen: dict[str, dict] = {}
@@ -446,10 +521,14 @@ def append_archive(items: list[dict]) -> None:
 
 
 def remove_from_archive(item_id: str, prefix: str | None = None) -> dict | None:
-    """Remove an item from archive.jsonl by ID. Returns the item, or None if not found.
+    """Remove an item from archive (JSONL or Dolt). Returns the item, or None if not found.
 
     Rewrites archive atomically (same pattern as save_items).
     """
+    if _get_backend() == "dolt":
+        from bon.dolt import dolt_remove_from_archive
+        return dolt_remove_from_archive(item_id, prefix)
+
     archived = load_archive()
     item = find_by_id(archived, item_id, prefix)
     if not item:

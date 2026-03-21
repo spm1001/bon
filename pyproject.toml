@@ -5,6 +5,9 @@ description = "Lightweight work tracker for Claude-human collaboration"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+dolt = ["pymysql>=1.1"]
+
 [project.scripts]
 bon = "bon.cli:main"
 

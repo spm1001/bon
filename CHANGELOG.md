@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.8.0] - 2026-03-21
+
+### Added
+- Optional Dolt backend — MySQL-compatible storage with git semantics for multi-machine workflows
+- `bon migrate --to {jsonl|dolt}` command to switch between backends
+- `bon init --backend {jsonl|dolt}` flag
+- `src/bon/dolt.py` — all Dolt code, lazily imported (zero overhead for JSONL users)
+- `pymysql` as optional dependency (`pip install bon[dolt]`)
+- `get_session_identity()` — hostname-prefixed sessions in Dolt mode
+- Dolt-aware `bon doctor` health checks
+- `bon-read.sh` backend detection (falls back to CLI in Dolt mode)
+- 28 new tests (mocked unit tests, integration tests, migration tests)
+
+### Changed
+- `storage.py` dispatches six functions based on `.bon/backend` file
+- Session identity uses `get_session_identity()` throughout (backward compatible)
+- SPEC.md updated with Storage Backends section
+
+### Removed
+- `AGENTS.md` — redundant with CLAUDE.md
+- `docs/understanding.md` — superseded by `.bon/understanding.md`
+
 ## [0.7.0] - 2026-03-20
 
 Maturity realignment across the batterie.

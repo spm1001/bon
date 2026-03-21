@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL-based, no daemon, Git-tracked. 17 commands, ~1900 LOC core, 274 tests.
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 19 commands, ~2300 LOC core (+470 optional Dolt module), 384 tests.
 
 ## Quick Commands
 
@@ -20,7 +20,8 @@ uv run bon --help                # CLI help
 ```
 src/bon/
 ├── cli.py        # All commands, argparse setup, main entry point
-├── storage.py    # JSONL I/O, validation, prefix management, dedup
+├── storage.py    # JSONL I/O, validation, prefix management, dedup, backend dispatch
+├── dolt.py       # Optional Dolt backend (lazily imported, requires pymysql)
 ├── ids.py        # ID generation (pronounceable 3-syllable)
 ├── display.py    # Output formatting (hierarchical, JSON, JSONL)
 └── queries.py    # Filtering (ready, waiting)
@@ -32,7 +33,7 @@ skills/tracker/SKILL.md  # Claude Code integration patterns
 
 ## Data Model
 
-Items live in `.bon/items.jsonl`. Two types:
+Items live in `.bon/items.jsonl` (or a Dolt database when using the optional backend). Two types:
 
 - **Outcome**: Desired result (has children)
 - **Action**: Concrete step (has parent, waiting_for)
@@ -140,6 +141,25 @@ save_items(items)                # Atomic write back
 | Changing schema fields | bon-read.sh reads items.jsonl directly with jq |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
 | Stale global install after code changes | `uv tool install` reuses cached wheels. After changing bon code: `uv cache clean bon && uv tool install ~/Repos/bon --force --reinstall` |
+| Calling `items_path()` in Dolt mode | Raises `BonError`. Check `_get_backend()` first, or use `load_items()`/`save_items()` which dispatch automatically. |
+| Dolt backend without pymysql | `BonError` with install instructions. Install: `pip install bon[dolt]` |
+| Session identity differs per backend | Use `get_session_identity()` not `os.path.realpath(os.getcwd())`. Dolt mode prefixes with hostname. |
+| `_get_backend()` caching | Follows same pattern as `_data_dir()`. One file read per process. Reset with `_reset_backend()` in tests. |
+
+## Storage Backends
+
+Bon supports two backends: **JSONL** (default) and **Dolt** (optional).
+
+- JSONL: `.bon/items.jsonl`, git-tracked, zero dependencies
+- Dolt: MySQL-compatible DB with git semantics, requires `pymysql` (`pip install bon[dolt]`)
+
+Backend is set per-project in `.bon/backend` (absent = jsonl). All Dolt code lives in `src/bon/dolt.py`, lazily imported. Dispatch happens at the function boundary in `storage.py` — cli.py doesn't change.
+
+```bash
+bon init --prefix myproj --backend dolt   # New project with Dolt
+bon migrate --to dolt                      # Existing project to Dolt
+bon migrate --to jsonl                     # Back to JSONL
+```
 
 ## Key Files
 
@@ -149,12 +169,13 @@ save_items(items)                # Atomic write back
 | See expected outputs | `fixtures/*.jsonl` |
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
+| Dolt backend logic | `dolt.py` |
 | Update Claude integration | `skills/tracker/SKILL.md` |
 | Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
 | Test bon-read.sh | `tests/test_bon_read.py` |
 
 ## Spec-Driven Development
 
-`SPEC.md` is authoritative (~55k). When behavior is unclear, check the spec. Tests are often derived from spec examples.
+`SPEC.md` is a reference (~55k) but has drifted from implementation in places. Verify against the code for edge cases. Tests are often derived from spec examples.
 
 

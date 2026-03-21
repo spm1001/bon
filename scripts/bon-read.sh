@@ -13,6 +13,22 @@
 
 set -euo pipefail
 
+# Dolt backend: fall back to bon CLI (slower but correct)
+if [ -f ".bon/backend" ] && grep -q dolt ".bon/backend"; then
+    MODE="${1:-}"
+    if [ "$MODE" = "list" ]; then
+        bon list 2>/dev/null
+    elif [ "$MODE" = "ready" ]; then
+        bon list --ready 2>/dev/null
+    elif [ "$MODE" = "current" ]; then
+        bon show --current 2>/dev/null
+    else
+        echo "Usage: bon-read.sh {list|ready|current}" >&2
+        exit 1
+    fi
+    exit $?
+fi
+
 # Check .bon/ first, fall back to .arc/ (transition)
 if [ -f ".bon/items.jsonl" ]; then
     ITEMS=".bon/items.jsonl"

@@ -183,9 +183,13 @@ Present concisely: "Previous session did X. Next suggested: Y. Z bon items ready
 
 ## 4. Decide
 
+**Before the user picks, rank ready items by context proximity.** Look at what's already loaded — files read, handoff content, understanding document, recent work — and assess which bon items align most closely. State your reasoning: "bon-xyz is closest to what I have loaded because..." This saves the user from mentally cross-referencing the list against their session state.
+
+When context is thin (fresh session, no files read beyond startup), skip the ranking — just present the list honestly.
+
 User picks direction. Options typically:
 - Continue with handoff "Next"
-- Pick from ready work (bon items)
+- Pick from ready work (bon items, ranked by context proximity)
 - @Claude inbox items
 - Something else
 

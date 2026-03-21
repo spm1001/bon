@@ -10,9 +10,10 @@ from pathlib import Path
 from bon.display import format_hierarchical, format_json, format_jsonl, format_tactical
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from bon.storage import (
-    BonError,
     KNOWN_VERBS,
+    BonError,
     ValidationError,
+    _get_backend,
     append_archive,
     apply_reorder,
     apply_reparent,
@@ -20,9 +21,11 @@ from bon.storage import (
     error,
     find_active_tactical,
     find_any_active_tactical,
-    find_no_complete_tactical,
     find_by_id,
+    find_no_complete_tactical,
+    find_orphaned_tactical,
     get_creator,
+    get_session_identity,
     items_path,
     load_archive,
     load_items,
@@ -66,19 +69,28 @@ def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
 def cmd_init(args):
     """Initialize .bon/ directory."""
     prefix = args.prefix
+    backend = getattr(args, "backend", "jsonl")
 
     # Validate prefix: alphanumeric only, no spaces or hyphens
     if not prefix.isalnum():
         error(f"Prefix must be alphanumeric (no spaces or hyphens), got '{prefix}'")
+
+    if backend not in ("jsonl", "dolt"):
+        error(f"Unknown backend '{backend}'. Use 'jsonl' or 'dolt'.")
 
     bon_dir = Path(".bon")
     if bon_dir.exists():
         error(".bon/ already exists.")
 
     bon_dir.mkdir()
-    (bon_dir / "items.jsonl").touch()
     (bon_dir / "prefix").write_text(prefix)  # No trailing newline
-    print(f"Initialized .bon/ with prefix '{prefix}'")
+
+    if backend == "dolt":
+        (bon_dir / "backend").write_text("dolt")
+        print(f"Initialized .bon/ with prefix '{prefix}' (backend: dolt)")
+    else:
+        (bon_dir / "items.jsonl").touch()
+        print(f"Initialized .bon/ with prefix '{prefix}'")
 
 
 def prompt_brief() -> dict:
@@ -258,12 +270,17 @@ def cmd_show(args):
 
     # --current: show active tactical action (for hook injection)
     if args.current:
-        session = os.path.realpath(os.getcwd())
+        session = get_session_identity()
         active = find_active_tactical(items, session=session)
         if not active:
             active = find_no_complete_tactical(items, session=session)
         if not active:
-            return  # Silent exit 0, no output
+            orphan = find_orphaned_tactical(items, session)
+            if orphan:
+                print(f"Orphaned tactical: {orphan['id']} ({orphan['title']})")
+                print(f"Old session no longer exists: {orphan['tactical']['session']}")
+                print(f"Run `bon work {orphan['id']}` to re-claim")
+            return  # Exit 0 either way
         print(f"Working: {active['title']} ({active['id']})")
         print(format_tactical(active["tactical"], action_status=active["status"]))
         return
@@ -866,7 +883,7 @@ def cmd_work(args):
     check_initialized()
     items = load_items()
     prefix = load_prefix()
-    session = os.path.realpath(os.getcwd())
+    session = get_session_identity()
 
     # Split args.args into id (first) and steps (rest).
     # REMAINDER captures everything after flags, but --force may appear
@@ -885,7 +902,13 @@ def cmd_work(args):
         if not active:
             active = find_no_complete_tactical(items, session=session)
         if not active:
-            print("No active tactical steps. Run `bon work <id>` to start.")
+            orphan = find_orphaned_tactical(items, session)
+            if orphan:
+                print(f"Orphaned tactical: {orphan['id']} ({orphan['title']})")
+                print(format_tactical(orphan["tactical"], action_status=orphan["status"]))
+                print(f"\nOld session no longer exists. Run `bon work {orphan['id']}` to re-claim.")
+            else:
+                print("No active tactical steps. Run `bon work <id>` to start.")
             return
         print(f"Working on: {active['title']} ({active['id']})")
         print()
@@ -932,11 +955,15 @@ def cmd_work(args):
 
     # Cross-session conflict: same action claimed by a different CWD
     all_active = find_any_active_tactical(items)
+    orphaned_reclaim = False
     for other in all_active:
         if other["id"] == item["id"]:
             other_session = other.get("tactical", {}).get("session")
             if other_session and other_session != session:
-                error(f"{item['id']} has active steps from another worktree ({other_session})")
+                if os.path.isdir(other_session):
+                    error(f"{item['id']} has active steps from another worktree ({other_session})")
+                else:
+                    orphaned_reclaim = True
 
     # Serial enforcement scoped to THIS session
     active = find_active_tactical(items, session=session)
@@ -945,6 +972,17 @@ def cmd_work(args):
 
     # Check for existing progress
     existing = item.get("tactical")
+    if orphaned_reclaim and existing and not args.force:
+        # Re-claim orphaned tactical: preserve steps and progress, update session
+        old_session = existing.get("session", "unknown")
+        item["tactical"]["session"] = session
+        item["updated_at"] = now_iso()
+        item["updated_by"] = "reclaimed"
+        save_items(items)
+        print(f"Re-claimed from {old_session} (directory no longer exists)")
+        print()
+        print(format_tactical(item["tactical"]))
+        return
     if existing and existing.get("current", 0) > 0 and not args.force:
         error(f"Steps in progress (step {existing['current'] + 1}). Run `bon work {work_id} --force` to restart")
 
@@ -976,10 +1014,18 @@ def cmd_step(args):
     """Advance to next tactical step, auto-complete on final."""
     check_initialized()
     items = load_items()
-    session = os.path.realpath(os.getcwd())
+    session = get_session_identity()
 
     active = find_active_tactical(items, session=session)
     if not active:
+        # Check for orphaned tactical before generic suggestions
+        orphan = find_orphaned_tactical(items, session)
+        if orphan:
+            error(
+                f"No steps in this session, but {orphan['id']} ({orphan['title']}) has orphaned steps "
+                f"from a directory that no longer exists.\n"
+                f"Run `bon work {orphan['id']}` to re-claim"
+            )
         # Find most recently worked/stepped action as a suggestion
         worked = [
             i for i in items
@@ -1035,6 +1081,64 @@ def cmd_step(args):
         print(f"\nNext: {steps[tactical['current']]}")
 
 
+def cmd_migrate(args):
+    """Migrate between storage backends (jsonl ↔ dolt)."""
+    check_initialized()
+    target = args.to
+
+    if target not in ("jsonl", "dolt"):
+        error(f"Unknown backend '{target}'. Use 'jsonl' or 'dolt'.")
+
+    current = _get_backend()
+    if current == target:
+        print(f"Already using {target} backend.")
+        return
+
+    bon_dir = Path(".bon")
+
+    if target == "dolt":
+        # Migrate JSONL → Dolt: load from files, write to Dolt
+        items = load_items()  # Still JSONL at this point
+        archive = load_archive()
+
+        # Switch backend
+        (bon_dir / "backend").write_text("dolt")
+        from bon.storage import _reset_backend
+        _reset_backend()
+
+        # Write to Dolt
+        if items:
+            save_items(items)
+        if archive:
+            append_archive(archive)
+
+        print(f"Migrated {len(items)} items and {len(archive)} archived items to Dolt.")
+
+    elif target == "jsonl":
+        # Migrate Dolt → JSONL: load from Dolt, write to files
+        items = load_items()  # Still Dolt at this point
+        archive = load_archive()
+
+        # Switch backend
+        if (bon_dir / "backend").exists():
+            (bon_dir / "backend").unlink()
+        from bon.storage import _reset_backend
+        _reset_backend()
+
+        # Ensure items.jsonl exists
+        items_file = bon_dir / "items.jsonl"
+        if not items_file.exists():
+            items_file.touch()
+
+        # Write to JSONL
+        if items:
+            save_items(items)
+        if archive:
+            append_archive(archive)
+
+        print(f"Migrated {len(items)} items and {len(archive)} archived items to JSONL.")
+
+
 try:
     from importlib.metadata import version as _meta_version
     __version__ = _meta_version("bon")
@@ -1063,6 +1167,30 @@ def cmd_update(args):
 def cmd_doctor(args):
     """Check items.jsonl for health issues."""
     check_initialized()
+
+    if _get_backend() == "dolt":
+        # In Dolt mode, validate loaded items (no file-level checks)
+        items = load_items()
+        archived = load_archive()
+        issues = []
+        all_ids = {i["id"] for i in items}
+        for item in items:
+            brief = item.get("brief")
+            if not brief or not isinstance(brief, dict):
+                issues.append(f"{item['id']}: missing brief")
+            elif any(k not in brief for k in ("why", "what", "done")):
+                issues.append(f"{item['id']}: incomplete brief")
+            parent_id = item.get("parent")
+            if parent_id and parent_id not in all_ids:
+                issues.append(f"{item['id']}: parent '{parent_id}' does not exist")
+        if issues:
+            for issue in issues:
+                print(f"  {issue}")
+            print(f"\n{len(issues)} issue(s) found.")
+        else:
+            print(f"Dolt backend: {len(items)} items, {len(archived)} archived. All clear.")
+        return
+
     path = items_path()
     issues = []
 
@@ -1207,6 +1335,8 @@ def main():
     # init
     init_parser = subparsers.add_parser("init", help="Initialize .bon/")
     init_parser.add_argument("--prefix", default="bon", help="ID prefix (default: bon)")
+    init_parser.add_argument("--backend", default="jsonl", choices=["jsonl", "dolt"],
+                             help="Storage backend (default: jsonl)")
     init_parser.set_defaults(func=cmd_init)
 
     # new
@@ -1312,6 +1442,12 @@ def main():
     # doctor
     doctor_parser = subparsers.add_parser("doctor", help="Check items.jsonl for health issues")
     doctor_parser.set_defaults(func=cmd_doctor)
+
+    # migrate
+    migrate_parser = subparsers.add_parser("migrate", help="Migrate between backends")
+    migrate_parser.add_argument("--to", required=True, choices=["jsonl", "dolt"],
+                                help="Target backend")
+    migrate_parser.set_defaults(func=cmd_migrate)
 
     # update
     update_parser = subparsers.add_parser("update", help="Re-install bon from source")

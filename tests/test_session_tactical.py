@@ -125,11 +125,22 @@ class TestSessionScopedLookup:
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["multi_session_tactical"], indirect=True)
     def test_show_current_unknown_session_empty(self, arc_dir_with_fixture, tmp_path):
-        """arc show --current from unrelated CWD returns nothing."""
+        """arc show --current from unrelated CWD returns nothing when other sessions exist."""
         base = arc_dir_with_fixture
 
-        # Don't rewrite sessions — they're /worktree/a and /worktree/b
-        # Run from base which matches neither
+        # Rewrite sessions to real paths so they're not treated as orphaned
+        session_a = tmp_path / "worktree_a"
+        session_a.mkdir()
+        session_b = tmp_path / "worktree_b"
+        session_b.mkdir()
+        items = _load_items(base)
+        for item in items:
+            if item.get("tactical", {}).get("session") == "/worktree/a":
+                item["tactical"]["session"] = str(session_a)
+            elif item.get("tactical", {}).get("session") == "/worktree/b":
+                item["tactical"]["session"] = str(session_b)
+        _save_items(base, items)
+
         session_c = tmp_path / "worktree_c"
         session_c.mkdir()
         (session_c / ".bon").symlink_to(base / ".bon")
@@ -137,6 +148,21 @@ class TestSessionScopedLookup:
         result = run_arc("show", "--current", cwd=session_c)
         assert result.returncode == 0
         assert result.stdout.strip() == ""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["multi_session_tactical"], indirect=True)
+    def test_show_current_surfaces_orphaned_tactical(self, arc_dir_with_fixture, tmp_path):
+        """arc show --current hints about orphaned tacticals from non-existent sessions."""
+        base = arc_dir_with_fixture
+
+        # Sessions are /worktree/a and /worktree/b — neither exists on disk
+        session_c = tmp_path / "worktree_c"
+        session_c.mkdir()
+        (session_c / ".bon").symlink_to(base / ".bon")
+
+        result = run_arc("show", "--current", cwd=session_c)
+        assert result.returncode == 0
+        assert "Orphaned tactical" in result.stdout
+        assert "bon work" in result.stdout
 
 
 class TestCrossSessionConflict:
@@ -147,10 +173,12 @@ class TestCrossSessionConflict:
         """arc work on action with active steps from another CWD → error."""
         base = arc_dir_with_fixture
 
-        # Patch session to a known path
+        # Patch session to a path that exists (so it's not treated as orphaned)
+        other_worktree = tmp_path / "other-worktree"
+        other_worktree.mkdir()
         items = _load_items(base)
         child = next(i for i in items if i["id"] == "arc-child")
-        child["tactical"]["session"] = "/other/worktree"
+        child["tactical"]["session"] = str(other_worktree)
         _save_items(base, items)
 
         # Try to work on it from base (different CWD)
@@ -314,6 +342,37 @@ class TestSessionStamping:
         items = _load_items(arc_dir_with_fixture)
         ccc = next(i for i in items if i["id"] == "arc-ccc")
         assert ccc["tactical"]["session"] == str(arc_dir_with_fixture)
+
+
+class TestOrphanedTacticalHints:
+    """Orphaned tacticals (session path gone) surface hints in step, status, show --current."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["multi_session_tactical"], indirect=True)
+    def test_step_hints_orphaned(self, arc_dir_with_fixture, tmp_path):
+        """bon step from new CWD mentions orphaned tactical and how to re-claim."""
+        base = arc_dir_with_fixture
+        # Sessions /worktree/a and /worktree/b don't exist on disk
+        session_c = tmp_path / "worktree_c"
+        session_c.mkdir()
+        (session_c / ".bon").symlink_to(base / ".bon")
+
+        result = run_arc("step", cwd=session_c)
+        assert result.returncode == 1
+        assert "orphaned steps" in result.stderr
+        assert "bon work" in result.stderr
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["multi_session_tactical"], indirect=True)
+    def test_status_hints_orphaned(self, arc_dir_with_fixture, tmp_path):
+        """bon work --status from new CWD shows orphaned tactical with re-claim hint."""
+        base = arc_dir_with_fixture
+        session_c = tmp_path / "worktree_c"
+        session_c.mkdir()
+        (session_c / ".bon").symlink_to(base / ".bon")
+
+        result = run_arc("work", "--status", cwd=session_c)
+        assert result.returncode == 0
+        assert "Orphaned tactical" in result.stdout
+        assert "bon work" in result.stdout
 
 
 # --- helpers ---

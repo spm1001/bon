@@ -317,6 +317,12 @@ Ready work:
 Which would you like to work on?
 ```
 
+### Rank by Loaded Context
+
+After listing ready items, assess which align with what you already have in context — files read, modules understood, recent edits, handoff content. State your reasoning briefly: "bon-xyz is closest to what I have loaded — I've been reading the request handler code this session. bon-abc would mean starting cold on a different area."
+
+Advisory, not mechanical. The user picks — your job is to make the cross-referencing visible so they don't have to do it in their head. When context is thin (fresh session, no files read yet), skip the ranking. Don't fabricate proximity reasoning.
+
 ### After User Picks
 
 **STOP. Do the draw-down before writing any code.** Follow the Draw-Down Pattern above: `bon show` → `bon work` → `bon step`. Show the user the steps before starting.

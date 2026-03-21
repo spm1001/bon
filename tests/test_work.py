@@ -354,3 +354,107 @@ class TestWorkUpdatedAt:
         child = next(json.loads(line) for line in lines if json.loads(line)["id"] == "arc-child")
         assert "updated_at" in child
         assert ISO_RE.match(child["updated_at"])
+
+
+def _write_item_with_session(tmp_path, session_path, current=1):
+    """Helper: create a bon dir with an action whose tactical points to session_path."""
+    bon_dir = tmp_path / ".bon"
+    bon_dir.mkdir()
+    (bon_dir / "prefix").write_text("arc")
+    item = {
+        "id": "arc-child",
+        "type": "action",
+        "title": "Test action with steps",
+        "brief": {"why": "Testing", "what": "1. Step one 2. Step two 3. Step three", "done": "Done"},
+        "status": "open",
+        "parent": None,
+        "order": 1,
+        "created_at": "2026-01-01T00:00:00Z",
+        "created_by": "test",
+        "waiting_for": None,
+        "tactical": {
+            "steps": ["Step one", "Step two", "Step three"],
+            "current": current,
+            "session": session_path,
+        },
+    }
+    (bon_dir / "items.jsonl").write_text(json.dumps(item) + "\n")
+
+
+class TestWorkOrphanedSession:
+    """Test re-claiming tactical steps after directory rename."""
+
+    def test_reclaim_orphaned_preserves_progress(self, tmp_path, monkeypatch):
+        """bon work re-claims tactical from non-existent session, preserving step progress."""
+        _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=1)
+        monkeypatch.chdir(tmp_path)
+
+        result = run_arc("work", "arc-child", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert "Re-claimed" in result.stdout
+        assert "directory no longer exists" in result.stdout
+        # Step progress preserved — still at step 2
+        assert "✓ 1. Step one" in result.stdout
+        assert "→ 2. Step two [current]" in result.stdout
+        assert "3. Step three" in result.stdout
+
+    def test_reclaim_updates_session_in_storage(self, tmp_path, monkeypatch):
+        """Re-claim updates tactical.session to new CWD on disk."""
+        _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=1)
+        monkeypatch.chdir(tmp_path)
+
+        run_arc("work", "arc-child", cwd=tmp_path)
+
+        lines = (tmp_path / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        item = json.loads(lines[0])
+        import os
+        assert item["tactical"]["session"] == os.path.realpath(str(tmp_path))
+        assert item["tactical"]["current"] == 1  # preserved
+
+    def test_existing_session_still_errors(self, tmp_path, monkeypatch):
+        """When other session path exists on disk, cross-session conflict still errors."""
+        other_worktree = tmp_path / "other-worktree"
+        other_worktree.mkdir()
+        _write_item_with_session(tmp_path, str(other_worktree), current=1)
+        monkeypatch.chdir(tmp_path)
+
+        result = run_arc("work", "arc-child", cwd=tmp_path)
+
+        assert result.returncode == 1
+        assert "active steps from another worktree" in result.stderr
+
+    def test_reclaim_at_step_zero(self, tmp_path, monkeypatch):
+        """Re-claim works even when orphaned tactical is at step 0."""
+        _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=0)
+        monkeypatch.chdir(tmp_path)
+
+        result = run_arc("work", "arc-child", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert "Re-claimed" in result.stdout
+        assert "→ 1. Step one [current]" in result.stdout
+
+    def test_reclaim_sets_updated_by_reclaimed(self, tmp_path, monkeypatch):
+        """Re-claim sets updated_by to 'reclaimed' for audit trail."""
+        _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=1)
+        monkeypatch.chdir(tmp_path)
+
+        run_arc("work", "arc-child", cwd=tmp_path)
+
+        lines = (tmp_path / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        item = json.loads(lines[0])
+        assert item["updated_by"] == "reclaimed"
+
+    def test_force_on_orphaned_restarts(self, tmp_path, monkeypatch):
+        """--force on orphaned tactical restarts from scratch (doesn't preserve)."""
+        _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=2)
+        monkeypatch.chdir(tmp_path)
+
+        result = run_arc("work", "arc-child", "--force", "Fresh A", "Fresh B", cwd=tmp_path)
+
+        assert result.returncode == 0
+        # Restarted, not re-claimed
+        assert "Re-claimed" not in result.stdout
+        assert "→ 1. Fresh A [current]" in result.stdout
+        assert "2. Fresh B" in result.stdout

@@ -63,7 +63,7 @@ bon done bon-ghijkl
 
 | Command | Description |
 |---------|-------------|
-| `init [--prefix P]` | Initialize `.bon/` directory |
+| `init [--prefix P] [--backend {jsonl\|dolt}]` | Initialize `.bon/` directory |
 | `new TITLE [--outcome PARENT] --why W --what X --done D` | Create outcome or action |
 | `list [--ready\|--waiting\|--all]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
@@ -78,7 +78,7 @@ bon done bon-ghijkl
 | `archive [IDs...] [--all]` | Move done items to archive.jsonl |
 | `log [-n N]` | Show recent activity (creations, completions, archives) |
 | `reopen ID` | Reopen a completed or archived item |
-| `migrate-repo [--dry-run]` | Migrate `.arc/` → `.bon/` in current repo |
+| `migrate --to {jsonl\|dolt}` | Switch storage backend |
 | `update` | Re-install bon from source |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |
@@ -156,9 +156,28 @@ bon work --clear
 - `bon wait` clears tactical steps (long blocks warrant re-planning)
 - Final `bon step` auto-completes the action
 
+## Storage Backends
+
+By default, bon stores work in `.bon/items.jsonl` — local, git-tracked, zero dependencies. An optional **Dolt** backend stores items in a MySQL-compatible database with git semantics (branch, merge, diff at the cell level). Useful for multi-machine workflows where you want live state without git sync.
+
+```bash
+# Default (JSONL)
+bon init --prefix myproj
+
+# With Dolt backend
+pip install bon[dolt]                          # adds pymysql
+bon init --prefix myproj --backend dolt
+
+# Switch an existing project
+bon migrate --to dolt
+bon migrate --to jsonl                         # and back
+```
+
+Dolt connection is configured via env vars (`BON_DOLT_HOST`, `BON_DOLT_PORT`, `BON_DOLT_DATABASE`, `BON_DOLT_USER`, `BON_DOLT_PASSWORD`) or `~/.config/bon/dolt.toml`. All Dolt code is lazily imported — JSONL users never load pymysql.
+
 ## Data Model
 
-Bon stores work in `.bon/items.jsonl` as two item types:
+Bon stores work in `.bon/items.jsonl` (or a Dolt database) as two item types:
 
 **Outcomes** — Desired results that matter. Have child actions.
 ```json

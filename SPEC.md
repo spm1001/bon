@@ -18,7 +18,7 @@ Bon is a lightweight work tracker designed for Claude-human collaboration.
 
 1. **LLM-ergonomic first, human-ergonomic second** — JSON APIs, predictable commands
 2. **GTD-aligned vocabulary** — Outcomes not Epics, Waiting not Blocked
-3. **No daemon, no dual-database** — JSONL is the source of truth
+3. **No daemon, simple storage** — JSONL by default; optional Dolt backend for multi-machine use
 4. **Works on Google Drive** — No SQLite, no file locking requirements
 5. **Hierarchical by default** — Claudes naturally flatten; bon enforces structure
 6. **Natural syntax = correct syntax** — Output works with grep, jq without gymnastics
@@ -67,11 +67,13 @@ Alternatives under consideration: `pebble`, `mark`, `pin`. No decision yet.
 
 ```
 .bon/
-├── items.jsonl    # All items (outcomes, actions)
-└── prefix         # Just the prefix string, e.g. "bon"
+├── items.jsonl    # All items (JSONL backend only)
+├── archive.jsonl  # Archived items (JSONL backend only)
+├── prefix         # Just the prefix string, e.g. "bon"
+└── backend        # Optional: "dolt" (absent = jsonl)
 ```
 
-No SQLite. No daemon. No config.yaml. Git tracks history.
+No daemon. No config.yaml. JSONL mode uses git for history; Dolt mode uses Dolt commits.
 
 ### The `prefix` File
 
@@ -192,6 +194,8 @@ Actions can have tactical steps for tracking progress through work. The `tactica
 **Session scoping:** The `session` field records the working directory (CWD) that created the tactical. This enables multiple worktrees sharing the same `.bon/` to have independent active tacticals. When `session` is absent (legacy data), the tactical is unscoped and claimable by any CWD.
 
 **Invariant:** At most one action *per session (CWD)* may have `tactical` with `current < len(steps)` at any time. Different CWDs (worktrees) can each have their own active tactical. Two CWDs cannot claim the same action — the second gets an error.
+
+**Orphaned tacticals:** If a directory is renamed after `bon work` stamps the session, the stored path no longer exists on disk. This makes the tactical "orphaned" — no CWD matches it. `bon work <id>` from a new CWD detects this (`os.path.isdir` returns false for the stored session) and re-claims the tactical: updates the session to the new CWD while preserving steps and current position. The `updated_by` verb is `"reclaimed"`. With `--force`, the tactical is restarted from scratch instead. Commands that look up the active tactical (`bon step`, `bon work --status`, `bon show --current`) surface a hint when an orphaned tactical exists: they tell the user which item is orphaned and to run `bon work <id>` to re-claim it.
 
 ### The `brief` Field
 
@@ -704,20 +708,36 @@ def work(item_id: str = None, steps: list[str] = None,
         error(f"Action '{item_id}' is already complete")
 
     # Cross-session conflict: same action claimed by a different CWD
+    # If the other session's path no longer exists on disk, the tactical is
+    # "orphaned" (e.g. the directory was renamed). Orphaned tacticals can be
+    # re-claimed — see below.
     all_active = find_any_active_tactical(items)
+    orphaned_reclaim = False
     for other in all_active:
         if other["id"] == item["id"]:
             other_session = other.get("tactical", {}).get("session")
             if other_session and other_session != session:
-                error(f"{item['id']} has active steps from another worktree ({other_session})")
+                if os.path.isdir(other_session):
+                    error(f"{item['id']} has active steps from another worktree ({other_session})")
+                else:
+                    orphaned_reclaim = True
 
     # Serial enforcement scoped to THIS session
     active = find_active_tactical(items, session=session)
     if active and active["id"] != item["id"]:
         error(f"{active['id']} has active steps. Complete it, wait it, or run `bon work --clear`")
 
-    # Check for existing progress
+    # Re-claim orphaned tactical: preserve steps and progress, update session
     existing = item.get("tactical")
+    if orphaned_reclaim and existing and not force:
+        item["tactical"]["session"] = session
+        item["updated_by"] = "reclaimed"
+        save_items(items)
+        print(f"Re-claimed from {existing['session']} (directory no longer exists)")
+        print(format_tactical(item["tactical"]))
+        return
+
+    # Check for existing progress
     if existing and existing.get("current", 0) > 0 and not force:
         error(f"Steps in progress (step {existing['current'] + 1}). Run `bon work {item_id} --force` to restart")
 
@@ -777,6 +797,11 @@ def step():
     session = os.getcwd()
     active = find_active_tactical(items, session=session)
     if not active:
+        # Check for orphaned tactical before generic error
+        orphan = find_orphaned_tactical(items, session)
+        if orphan:
+            error(f"No steps in this session, but {orphan['id']} has orphaned steps. "
+                  f"Run `bon work {orphan['id']}` to re-claim")
         error("No steps in progress. Run `bon work <id>` first")
 
     tactical = active["tactical"]
@@ -1663,6 +1688,46 @@ def now_iso() -> str:
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 ```
+
+---
+
+## Storage Backends
+
+Bon supports two storage backends. The backend is determined by the `.bon/backend` file — absent or "jsonl" means JSONL, "dolt" means Dolt. All Dolt code lives in `src/bon/dolt.py`, lazily imported only when the backend is "dolt".
+
+### JSONL (Default)
+
+Items in `.bon/items.jsonl`, archived items in `.bon/archive.jsonl`. Git tracks history. Atomic writes via tmp+rename. Deterministic sort order by ID. Union merge via `.gitattributes`. Zero dependencies.
+
+### Dolt (Optional)
+
+Items in a shared Dolt database (MySQL-compatible with git semantics). Requires `pymysql` (`pip install bon[dolt]`). Connection configured via env vars (`BON_DOLT_HOST`, `BON_DOLT_PORT`, `BON_DOLT_DATABASE`, `BON_DOLT_USER`, `BON_DOLT_PASSWORD`) or `~/.config/bon/dolt.toml`.
+
+**Scoping:** All projects share one database. Items scoped by prefix — `load_items()` filters with `WHERE id LIKE '{prefix}-%'`. The prefix is still read from the local `.bon/prefix` file.
+
+**Writes:** Truncate-and-reinsert within a transaction, scoped to the project's prefix. Each write produces a Dolt commit with the bon command as the message.
+
+**Session identity:** `hostname:realpath` instead of plain `realpath`, preventing false conflicts when two machines have the same absolute path.
+
+**Commands:**
+- `bon init --backend dolt` — initialize with Dolt backend
+- `bon migrate --to dolt` — move items from JSONL to Dolt
+- `bon migrate --to jsonl` — move items from Dolt to JSONL
+
+### Dispatch Mechanism
+
+Six functions in `storage.py` dispatch based on `_get_backend()`:
+
+| Function | JSONL | Dolt |
+|----------|-------|------|
+| `load_items()` | Read `.bon/items.jsonl` | `SELECT * FROM items WHERE id LIKE ...` |
+| `save_items()` | Atomic write to `.bon/items.jsonl` | DELETE + INSERT + DOLT_COMMIT |
+| `load_archive()` | Read `.bon/archive.jsonl` | `SELECT * FROM archive WHERE id LIKE ...` |
+| `append_archive()` | Append to `.bon/archive.jsonl` | INSERT into archive table |
+| `remove_from_archive()` | Rewrite `.bon/archive.jsonl` | DELETE from archive table |
+| `items_path()` | Returns path | Raises `BonError` |
+
+`cli.py` calls the same storage functions regardless of backend.
 
 ---
 
