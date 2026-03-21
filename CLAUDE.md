@@ -155,6 +155,8 @@ Bon supports two backends: **JSONL** (default) and **Dolt** (optional).
 
 Backend is set per-project in `.bon/backend` (absent = jsonl). All Dolt code lives in `src/bon/dolt.py`, lazily imported. Dispatch happens at the function boundary in `storage.py` — cli.py doesn't change.
 
+**Dolt write strategy is truncate-and-reinsert** (DELETE prefix rows + INSERT all, in one transaction). This deliberately mirrors JSONL semantics (rewrite the whole file). Do not "optimize" to per-item UPSERT/DELETE — that changes the concurrency model and breaks the parallel between backends.
+
 ```bash
 bon init --prefix myproj --backend dolt   # New project with Dolt
 bon migrate --to dolt                      # Existing project to Dolt

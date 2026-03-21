@@ -1558,9 +1558,11 @@ class ValidationError(Exception):
 
 
 def error(message: str):
-    """Print error message and exit."""
-    print(f"Error: {message}", file=sys.stderr)
-    sys.exit(1)
+    """Raise BonError with the given message.
+
+    Caught in main() — not print-and-exit.
+    """
+    raise BonError(message)
 
 
 def validate_item(item: dict, strict: bool = False):
