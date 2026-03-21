@@ -127,6 +127,16 @@ if should_run_heavy; then
         done
     fi
 
+    # 3. Google Cloud SDK
+    if [ -d "$HOME/google-cloud-sdk" ]; then
+        log "Updating gcloud..."
+        if "$HOME/google-cloud-sdk/bin/gcloud" components update --quiet >> "$LOG_FILE" 2>&1; then
+            log "✓ gcloud updated"
+        else
+            log "⚠ gcloud update failed or already latest"
+        fi
+    fi
+
     mark_heavy_complete
 
     if [ "$HEAVY_FAILED" = true ]; then
