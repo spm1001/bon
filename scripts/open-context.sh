@@ -114,33 +114,65 @@ BON_LIST_OUTPUT=""
 BON_READY_OUTPUT=""
 BON_CURRENT_OUTPUT=""
 
-if [ -f ".bon/items.jsonl" ] || [ -f ".arc/items.jsonl" ]; then
+BON_BACKEND="none"
+if [ -d ".bon" ] || [ -d ".arc" ]; then
+    if [ -f ".bon/backend" ] && [ "$(cat .bon/backend 2>/dev/null)" = "dolt" ]; then
+        BON_BACKEND="dolt"
+    elif [ -f ".bon/items.jsonl" ] || [ -f ".arc/items.jsonl" ]; then
+        BON_BACKEND="jsonl"
+    fi
+fi
+
+if [ "$BON_BACKEND" = "jsonl" ]; then
     if [ -x "$BON_READ" ]; then
         BON_LIST_OUTPUT=$("$BON_READ" list 2>/dev/null || true)
         BON_READY_OUTPUT=$("$BON_READ" ready 2>/dev/null || true)
         BON_CURRENT_OUTPUT=$("$BON_READ" current 2>/dev/null || true)
     elif command -v bon &>/dev/null; then
-        # Fallback to bon CLI if bon-read.sh not installed
         BON_LIST_OUTPUT=$(bon list 2>/dev/null || true)
         BON_READY_OUTPUT=$(bon list --ready 2>/dev/null || true)
         BON_CURRENT_OUTPUT=$(bon show --current 2>/dev/null || true)
     fi
-
-    if [ -n "$BON_LIST_OUTPUT" ]; then
-        # Write full hierarchy to disk
-        {
-            echo "# Bon Context (generated $(date '+%Y-%m-%d %H:%M'))"
-            echo "# Generated for: $CWD"
-            echo ""
-            echo "## Ready Work"
-            echo "$BON_READY_OUTPUT"
-            echo ""
-            echo "## Full Hierarchy"
-            echo "$BON_LIST_OUTPUT"
-        } > "$BON_FILE"
+elif [ "$BON_BACKEND" = "dolt" ]; then
+    if command -v bon &>/dev/null; then
+        BON_LIST_OUTPUT=$(bon list 2>&1 || true)
+        BON_READY_OUTPUT=$(bon list --ready 2>&1 || true)
+        BON_CURRENT_OUTPUT=$(bon show --current 2>/dev/null || true)
+        # Surface connection failures in the briefing
+        if echo "$BON_LIST_OUTPUT" | grep -q "Cannot connect"; then
+            BON_DOLT_ERROR="$BON_LIST_OUTPUT"
+            BON_LIST_OUTPUT=""
+            BON_READY_OUTPUT=""
+        fi
     else
-        rm -f "$BON_FILE"
+        BON_DOLT_ERROR="Backend is dolt but bon CLI not in PATH"
     fi
+fi
+
+if [ -n "$BON_LIST_OUTPUT" ]; then
+    # Write full hierarchy to disk
+    {
+        echo "# Bon Context (generated $(date '+%Y-%m-%d %H:%M'))"
+        echo "# Generated for: $CWD"
+        echo "# Backend: $BON_BACKEND"
+        echo ""
+        echo "## Ready Work"
+        echo "$BON_READY_OUTPUT"
+        echo ""
+        echo "## Full Hierarchy"
+        echo "$BON_LIST_OUTPUT"
+    } > "$BON_FILE"
+elif [ -n "${BON_DOLT_ERROR:-}" ]; then
+    {
+        echo "# Bon Context (generated $(date '+%Y-%m-%d %H:%M'))"
+        echo "# Generated for: $CWD"
+        echo "# Backend: dolt (CONNECTION FAILED)"
+        echo ""
+        echo "## Error"
+        echo "$BON_DOLT_ERROR"
+        echo ""
+        echo "Recovery: systemctl --user start dolt-bon.service"
+    } > "$BON_FILE"
 else
     rm -f "$BON_FILE"
 fi
@@ -163,15 +195,19 @@ echo "Good $TIME_OF_DAY. It's $(date '+%-d %b %Y, %H:%M')."
 echo ""
 
 # --- Bon: outcomes + zoom ---
-if [ -f ".bon/items.jsonl" ] || [ -f ".arc/items.jsonl" ]; then
+if [ "$BON_BACKEND" != "none" ]; then
     # Detect which directory exists (.bon preferred)
-    if [ -f ".bon/items.jsonl" ]; then
+    if [ -d ".bon" ]; then
         BON_DIR=".bon"
     else
         BON_DIR=".arc"
     fi
 
-    if [ -n "$BON_READY_OUTPUT" ]; then
+    if [ -n "${BON_DOLT_ERROR:-}" ]; then
+        echo "Bon: backend is dolt but server is unreachable"
+        echo "  Run: systemctl --user start dolt-bon.service"
+        echo ""
+    elif [ -n "$BON_READY_OUTPUT" ]; then
         echo "Outcomes we're working towards:"
         echo "$BON_READY_OUTPUT" | while IFS= read -r line; do
             [ -n "$line" ] && echo "  $line"
@@ -180,28 +216,38 @@ if [ -f ".bon/items.jsonl" ] || [ -f ".arc/items.jsonl" ]; then
     fi
 
     # Zoom: show the outcome with active tactical steps (or note nothing active)
-    if [ -z "$BON_CURRENT_OUTPUT" ]; then
+    if [ -n "${BON_DOLT_ERROR:-}" ]; then
+        true  # Already reported above, skip zoom
+    elif [ -z "$BON_CURRENT_OUTPUT" ]; then
         echo "Nothing in progress — pick an action to start."
         echo ""
     else
-        # Get parent outcome from items.jsonl
+        # Get parent outcome — from items.jsonl (JSONL) or bon CLI (Dolt)
         CURRENT_ACTION_ID=$(echo "$BON_CURRENT_OUTPUT" | head -1 | grep -oE '\([a-zA-Z0-9-]+\)' | tr -d '()' || true)
         if [ -n "$CURRENT_ACTION_ID" ]; then
-            PARENT_ID=$(python3 -c "
+            if [ "$BON_BACKEND" = "jsonl" ] && [ -f "$BON_DIR/items.jsonl" ]; then
+                PARENT_ID=$(python3 -c "
 import json, sys
 for line in open('$BON_DIR/items.jsonl'):
     item = json.loads(line)
     if item.get('id') == '$CURRENT_ACTION_ID':
         print(item.get('parent', '')); break
 " 2>/dev/null || true)
+            else
+                PARENT_ID=$(bon show "$CURRENT_ACTION_ID" --json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('parent',''))" 2>/dev/null || true)
+            fi
             if [ -n "$PARENT_ID" ]; then
-                PARENT_TITLE=$(python3 -c "
+                if [ "$BON_BACKEND" = "jsonl" ] && [ -f "$BON_DIR/items.jsonl" ]; then
+                    PARENT_TITLE=$(python3 -c "
 import json
 for line in open('$BON_DIR/items.jsonl'):
     item = json.loads(line)
     if item.get('id') == '$PARENT_ID':
         print(item.get('title', '')); break
 " 2>/dev/null || true)
+                else
+                    PARENT_TITLE=$(bon show "$PARENT_ID" --json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('title',''))" 2>/dev/null || true)
+                fi
                 if [ -n "$PARENT_TITLE" ]; then
                     echo "Last worked on: $PARENT_TITLE"
                     # Show actions from list output

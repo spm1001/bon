@@ -175,6 +175,54 @@ bon migrate --to jsonl                         # and back
 
 Dolt connection is configured via env vars (`BON_DOLT_HOST`, `BON_DOLT_PORT`, `BON_DOLT_DATABASE`, `BON_DOLT_USER`, `BON_DOLT_PASSWORD`) or `~/.config/bon/dolt.toml`. All Dolt code is lazily imported — JSONL users never load pymysql.
 
+### Running the Dolt Server
+
+Bon expects a running Dolt SQL server. The quickest way is a systemd user service:
+
+```bash
+# 1. Create and initialize the database directory
+mkdir -p ~/dolt-data/bon && cd ~/dolt-data/bon && dolt init
+
+# 2. Set Dolt identity (required once)
+dolt config --global --add user.email "you@example.com"
+dolt config --global --add user.name "Your Name"
+
+# 3. Install the systemd service
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/dolt-bon.service << 'EOF'
+[Unit]
+Description=Dolt SQL server for bon work tracker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dolt-data
+ExecStart=/usr/local/bin/dolt sql-server --host 127.0.0.1 --port 3306 --data-dir %h/dolt-data
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+
+# 4. Enable and start
+systemctl --user daemon-reload
+systemctl --user enable --now dolt-bon.service
+
+# 5. Verify
+systemctl --user status dolt-bon.service
+```
+
+Dolt auto-creates a `root@localhost` superuser on first start. Tables (`items`, `archive`, `config`) are auto-created by bon on first connection.
+
+**Config file** (`~/.config/bon/dolt.toml`):
+```toml
+host     = "127.0.0.1"
+port     = 3306
+database = "bon"
+user     = "root"
+```
+
 ## Data Model
 
 Bon stores work in `.bon/items.jsonl` (or a Dolt database) as two item types:

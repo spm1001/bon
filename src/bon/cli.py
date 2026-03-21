@@ -1112,6 +1112,14 @@ def cmd_migrate(args):
         if archive:
             append_archive(archive)
 
+        # Rename stale JSONL so hooks/scripts don't read outdated data
+        items_file = bon_dir / "items.jsonl"
+        if items_file.exists():
+            items_file.rename(bon_dir / "items.jsonl.pre-dolt")
+        archive_file = bon_dir / "archive.jsonl"
+        if archive_file.exists():
+            archive_file.rename(bon_dir / "archive.jsonl.pre-dolt")
+
         print(f"Migrated {len(items)} items and {len(archive)} archived items to Dolt.")
 
     elif target == "jsonl":

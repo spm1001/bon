@@ -71,4 +71,4 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **Briefs are a forcing function.** `{why, what, done}` forces clear thinking. Numbered items in `what` become extractable tactical steps, making the brief executable.
 
-**Dispatch, not hierarchy.** The Dolt backend was added without class hierarchies or strategy patterns. Six `if _get_backend() == "dolt"` branches at function boundaries. Simple, readable, easy to remove if the experiment fails.
+**Dispatch, not hierarchy.** The Dolt backend was added without class hierarchies or strategy patterns. Six `if _get_backend() == "dolt"` branches at function boundaries. Simple, readable, easy to remove if the experiment fails. The truncate-and-reinsert write strategy (DELETE all prefix rows, INSERT all, DOLT_COMMIT) deliberately mirrors JSONL's "rewrite the whole file" semantics — keeping both backends' concurrency guarantees identical at the cost of per-item efficiency that doesn't matter at bon's scale.
