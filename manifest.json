@@ -231,7 +231,8 @@
   "tools": {
     "bon": {
       "repo": "bon",
-      "required": true
+      "required": true,
+      "extras": "dolt"
     },
     "passe": {
       "repo": "passe",

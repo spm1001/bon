@@ -70,7 +70,11 @@ elif query == "tools":
     for name, info in m.get("tools", {}).items():
         repo_name = info["repo"]
         base = repo_base(repo_name)
-        print(f"{name}\t{os.path.join(base, repo_name)}")
+        path = os.path.join(base, repo_name)
+        extras = info.get("extras", "")
+        if extras:
+            path = f"{path}[{extras}]"
+        print(f"{name}\t{path}")
 PYEOF
 }
 

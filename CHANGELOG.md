@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.1] - 2026-03-21
+
+### Added
+- Dolt server systemd service docs in README (setup, config, user service file)
+- Session-start hook detects `.bon/backend` — Dolt projects use CLI instead of stale file reads
+- Connection failures surface in briefing with recovery command (`systemctl --user start dolt-bon.service`)
+- `manifest.json` supports `extras` field for CLI tool install (e.g. `"extras": "dolt"`)
+- `ensure-bon.sh` install hint includes `[dolt]` extras
+
+### Changed
+- `bon migrate --to dolt` renames `items.jsonl` → `items.jsonl.pre-dolt` (prevents stale reads by hooks)
+- `setup.sh` and `update-all.sh` pass extras to `uv tool install` when declared in manifest
+
+### Security
+- Dolt server docs use scoped `bon` user instead of `root` (localhost-only, db-scoped grants)
+
 ## [0.8.0] - 2026-03-21
 
 ### Added

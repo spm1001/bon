@@ -13,9 +13,9 @@ fi
 # bon not found — check if we can install it from the plugin
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 if [ -n "$PLUGIN_ROOT" ] && [ -f "$PLUGIN_ROOT/pyproject.toml" ]; then
-    INSTALL_HINT="uv tool install \"$PLUGIN_ROOT\""
+    INSTALL_HINT="uv tool install \"$PLUGIN_ROOT[dolt]\""
 else
-    INSTALL_HINT="uv tool install bon"
+    INSTALL_HINT="uv tool install 'bon[dolt]'"
 fi
 
 cat <<EOF

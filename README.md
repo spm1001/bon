@@ -213,14 +213,24 @@ systemctl --user enable --now dolt-bon.service
 systemctl --user status dolt-bon.service
 ```
 
-Dolt auto-creates a `root@localhost` superuser on first start. Tables (`items`, `archive`, `config`) are auto-created by bon on first connection.
+Dolt auto-creates a `root@localhost` superuser on first start. Create a scoped user and drop root:
+
+```bash
+cd ~/dolt-data/bon
+dolt sql -q "CREATE USER 'bon'@'127.0.0.1' IDENTIFIED BY '';"
+dolt sql -q "GRANT ALL ON bon.* TO 'bon'@'127.0.0.1';"
+dolt sql -q "DROP USER 'root'@'localhost';"
+dolt add -A && dolt commit -m "security: scoped bon user, drop root"
+```
+
+Tables (`items`, `archive`, `config`) are auto-created by bon on first connection.
 
 **Config file** (`~/.config/bon/dolt.toml`):
 ```toml
 host     = "127.0.0.1"
 port     = 3306
 database = "bon"
-user     = "root"
+user     = "bon"
 ```
 
 ## Data Model

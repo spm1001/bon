@@ -115,10 +115,19 @@ if should_run_heavy; then
 
     # 2. Reinstall batterie CLI tools (picks up code changes)
     if command -v uv &>/dev/null; then
-        for tool_dir in "$HOME/Repos/batterie/bon" "$HOME/Repos/batterie/passe" "$HOME/Repos/batterie/garde-manger"; do
+        for tool_dir in "$HOME/Repos/batterie/bon[dolt]" "$HOME/Repos/batterie/passe" "$HOME/Repos/batterie/garde-manger"; do
+            # Extract extras from path (e.g. "path[dolt]" -> extras="dolt", dir="path")
+            if [[ "$tool_dir" =~ \[([^]]+)\]$ ]]; then
+                extras="${BASH_REMATCH[1]}"
+                tool_dir="${tool_dir%%\[*\]}"
+            else
+                extras=""
+            fi
             if [ -d "$tool_dir" ]; then
                 name=$(basename "$tool_dir")
-                if uv tool install "$tool_dir" --force --quiet 2>/dev/null; then
+                install_path="$tool_dir"
+                [ -n "$extras" ] && install_path="${tool_dir}[${extras}]"
+                if uv tool install "$install_path" --force --quiet 2>/dev/null; then
                     log "✓ $name CLI updated"
                 else
                     log "⚠ $name CLI update failed"
