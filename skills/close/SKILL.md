@@ -266,6 +266,10 @@ If `$GARDE_SCRIPTS` is empty, **skip this entire section** — extraction is a g
 
 **Write the extraction JSON** using the Write tool to `/tmp/garde-extraction.json`:
 
+> **Cross-repo contract.** This schema is shared with garde-manger's `ingest-session` command
+> (documented in garde-manger's CLAUDE.md under "Staged Extraction Contract").
+> If you change fields here, update garde-manger too — and vice versa.
+
 ```json
 {
     "summary": "2-3 sentences — what happened and why it matters",
