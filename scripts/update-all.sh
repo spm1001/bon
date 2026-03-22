@@ -60,17 +60,9 @@ if [ -x "$REPO_SYNC" ]; then
     fi
 fi
 
-# 2. Symlink health check via setup --verify
-SETUP="$SCRIPT_DIR/setup.sh"
-if [ -x "$SETUP" ]; then
-    broken=$("$SETUP" --verify 2>/dev/null | grep -c "✗" || echo 0)
-    if [ "$broken" -gt 0 ]; then
-        log "❌ $broken broken symlinks — run setup.sh to fix"
-        echo "❌ $broken BROKEN SYMLINKS — run ~/Repos/batterie/bon/scripts/setup.sh" >> "$NEWS_FILE"
-    else
-        log "✓ All symlinks healthy"
-    fi
-fi
+# 2. Symlink health check — RETIRED
+# Skills/hooks/scripts are now delivered via the plugin system (batterie-de-savoir).
+# setup.sh and its manifest are legacy. Checking them just generates noise.
 
 # 3. New skills detection (from skill-sources-anthropic)
 SKILLS_DIR="$HOME/.claude/skills"
