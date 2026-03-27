@@ -2,7 +2,7 @@
 name = "bon"
 dynamic = ["version"]
 description = "Lightweight work tracker for Claude-human collaboration"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
