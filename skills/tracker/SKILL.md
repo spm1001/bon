@@ -6,13 +6,21 @@ allowed-tools: "Bash(bon:*)", Read, Glob
 
 # Bon Work Tracking
 
-## After Installing This Plugin
-
-**After installing, exit and relaunch Claude Code** (`/exit` then `claude`) to activate the setup hook. `/reload-plugins` loads skills but doesn't fire SessionStart hooks. The hook checks for the bon CLI and ensures PATH is correct.
-
 ## CLI Installation
 
-Bon requires the `bon` CLI. If not in PATH, install from the plugin source:
+Bon requires the `bon` CLI. Detect your environment and install accordingly:
+
+### Cowork / Desktop (`CLAUDE_CODE_IS_COWORK=1`)
+
+```bash
+pip install --break-system-packages git+https://github.com/spm1001/bon.git
+```
+
+This installs to `/usr/local/bin` — no PATH fix needed. Must be done each session (ephemeral environment). The skill should run this automatically before first `bon` command if `which bon` fails.
+
+### Claude Code (CLI)
+
+After installing the plugin, exit and relaunch (`/exit` then `claude`) to activate the setup hook. The hook checks for the bon CLI and ensures PATH is correct.
 
 ```bash
 uv tool install "${CLAUDE_PLUGIN_ROOT}"
