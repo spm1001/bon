@@ -133,9 +133,9 @@ From Gather + Orient, identify all incomplete work and draft a concrete plan. **
 - Update CLAUDE.md (local or global) when a clear pattern emerged
 - Quick fixes where the how is obvious
 
-**Bon** — each becomes a tracked item for a future session. Before filing any bon, answer: *"If this never gets done, what breaks?"* If the answer is "not much", it belongs in the handoff Next section, not a bon. This is the gate.
+**Bon** — each becomes a tracked item for a future session. For each, state what breaks or degrades if skipped — this helps the user prioritise, but the user decides what's worth tracking.
 
-**Handoff only** — direction, context, and risks that don't rise to bon level.
+**Handoff only** — pure context: direction, background, and colour that helps the next session orient. Not a bin for "things I noticed but don't want to track" — if it needs doing, it's a bon.
 
 ### Present the plan
 
@@ -145,7 +145,7 @@ From Gather + Orient, identify all incomplete work and draft a concrete plan. **
 >
 > **Bons to file:** [each with one line on what breaks if skipped]
 >
-> **Handoff only:** [things worth noting but not tracking]
+> **Handoff only:** [context for next session — not a dumping ground for deferred work]
 >
 > Tell me if anything should move."
 
@@ -184,6 +184,7 @@ This outputs both — use them directly, never recompute.
 | Rule | Why |
 |------|-----|
 | Write to `{HANDOFF_DIR}/{session-id}.md` | Central location, /open finds it |
+| Use Bash heredoc, not Write/Edit tool | Write/Edit trigger protected-directory prompt for `~/.claude/` |
 | Never write locally (`.handoff.md` in project) | /open won't find it — information becomes invisible |
 | Never compute path yourself | Encoding differences cause folder fragmentation |
 
@@ -346,6 +347,7 @@ Just tell the user to `/exit`.
 | Skip pre-flight cd check | Handoff written to wrong project | Compare pwd with system prompt Working directory |
 | Write handoff locally (.handoff.md) | /open won't find it | Use HANDOFF_DIR from script |
 | Silently drop incomplete work | Work disappears | Every piece in Now, bon, or handoff Next |
+| Gatekeep with "not bon-worthy" | User's call, not yours | State consequence, propose bin, let user decide |
 | Commit other repos | Unwanted "helpful" tidying | Only commit working directory |
 | Recompute SESSION_ID or HANDOFF_DIR | Encoding drift, folder fragmentation | Read from close-context.sh output |
 
