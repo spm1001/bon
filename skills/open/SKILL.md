@@ -1,12 +1,7 @@
 ---
 name: open
-description: >
-  Re-orient to session context on demand. Loads companion skills (bon, todoist-gtd)
-  based on what's present. Use when you missed the startup context, want a fresh look
-  at what's available, or after cd'ing to a different project.
-  Triggers on /open, 'what were we working on', 'where did we leave off'.
-  Pairs with /ground and /close. (user)
-allowed-tools: [Bash, Read, Glob, Grep, Skill]
+description: "Re-orient to session context on demand. Loads companion skills (bon, todoist-gtd) based on what's present. Use when you missed the startup context, want a fresh look at what's available, or after cd'ing to a different project. Triggers on /open, 'what were we working on', 'where did we leave off'. Pairs with /ground and /close."
+allowed-tools: Bash, Read, Glob, Grep, Skill
 ---
 
 # /open

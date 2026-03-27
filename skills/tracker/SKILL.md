@@ -1,12 +1,7 @@
 ---
 name: bon
-description: Activate BEFORE running any bon CLI command. Enforces draw-down workflow (bon show → bon work → bon step) that prevents drift and tracks tactical progress. NEVER run 'bon list' via Bash (output collapses); instead Read bon.txt and output hierarchy as text. Triggers on 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists. (user)
-allowed-tools: ["Bash(bon:*)", Read, Glob]
-requires:
-  - cli: bon
-    check: "bon --version"
-    install: "uv tool install \"${CLAUDE_PLUGIN_ROOT}\""
-    path: "~/.local/bin"
+description: "Activate BEFORE running any bon CLI command. Enforces draw-down workflow (bon show → bon work → bon step) that prevents drift and tracks tactical progress. NEVER run 'bon list' via Bash (output collapses); instead Read bon.txt and output hierarchy as text. Triggers on 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists."
+allowed-tools: "Bash(bon:*)", Read, Glob
 ---
 
 # Bon Work Tracking
