@@ -113,7 +113,19 @@ is_container() {
 
 # Encoded path always starts with '-' — never use as bare arg; always prefix with absolute path
 ENCODED_PATH=$(echo "$CWD" | sed 's/[^a-zA-Z0-9-]/-/g')
-HANDOFF_DIR="$HOME/.claude/handoffs/$ENCODED_PATH"
+
+# Walk up to find .bon/handoffs/ (primary), fallback to legacy location
+HANDOFF_DIR=""
+WALK="$CWD"
+while [ "$WALK" != "/" ]; do
+    if [ -d "$WALK/.bon" ]; then
+        HANDOFF_DIR="$WALK/.bon/handoffs"
+        break
+    fi
+    WALK=$(dirname "$WALK")
+done
+# Fallback: legacy location (non-bon projects or .bon not found)
+[ -z "$HANDOFF_DIR" ] && HANDOFF_DIR="$HOME/.claude/handoffs/$ENCODED_PATH"
 
 # Always output HANDOFF_DIR and SESSION_ID - even containers need handoffs
 echo "HANDOFF_DIR=$HANDOFF_DIR"

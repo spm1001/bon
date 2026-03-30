@@ -1,6 +1,6 @@
 ---
 name: close
-description: "Orchestrates end-of-session capture via 5-phase GODAR framework — prevents work loss between sessions by surfacing learnings, triaging incomplete work into Now/Bon/Handoff, writing cross-session handoff, and staging memory extraction while context is rich. MANDATORY before /exit. Invoke FIRST on 'wrap up', 'lets finish', 'close out', '/close'. Pairs with /open."
+description: "Orchestrates end-of-session capture via 5-phase GODAR framework — prevents work loss between sessions by surfacing learnings, triaging incomplete work into Now/Bon/Handoff, writing cross-session handoff, and staging memory extraction while context is rich. MANDATORY before /exit. Invoke FIRST on 'wrap up', 'lets finish', 'close out', '/close'."
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill
 ---
 
@@ -51,7 +51,7 @@ SCRIPTS=$(find ~/.claude/plugins/cache -path "*/bon/*/scripts" -not -path "*/ski
 | Check | How | If Broken |
 |-------|-----|-----------|
 | close-context.sh exists | Script finder above | Reinstall bon plugin |
-| Handoffs dir writable | `[ -d ~/.claude/handoffs ]` | Create: `mkdir -p ~/.claude/handoffs` |
+| .bon/ exists | `[ -d .bon ]` or walk up from CWD | `bon init --prefix name` or use legacy path |
 
 ---
 
@@ -82,7 +82,7 @@ Use TIME_OF_DAY for greetings. Use YEAR to anchor the handoff date. **Hold onto 
 
 1. **STOP.** Tell the user: "close-context.sh not found."
 2. **Diagnose:** Run `find ~/.claude/plugins/cache -name "close-context.sh" 2>/dev/null` to locate it.
-3. **Fallback:** If you can't fix it, write handoff manually to `~/.claude/handoffs/<encoded-path>/` — don't skip closure entirely.
+3. **Fallback:** If you can't fix it, write handoff manually to `.bon/handoffs/` (or `~/.claude/handoffs/<encoded-path>/` if no .bon/) — don't skip closure entirely.
 
 **Why this matters:** Broken scripts (Jan 3-10 2026) meant /close ran without proper context gathering. Never continue silently.
 
@@ -91,7 +91,7 @@ From script output, assess:
 - **Work progress** — what's done, what's incomplete?
 - **Tracker** — Bon: open items to complete or defer
 - **Git** — uncommitted files? unpushed commits?
-- **Drift** — what did /open say we'd do vs what we actually did?
+- **Drift** — what did the session briefing say we'd do vs what we actually did?
 
 Surface stale artifacts: screenshots, temp files, old sketches, superseded plans.
 
@@ -184,12 +184,12 @@ This outputs both — use them directly, never recompute.
 
 | Rule | Why |
 |------|-----|
-| Write to `{HANDOFF_DIR}/{session-id}.md` | Central location, /open finds it |
-| Use Bash heredoc, not Write/Edit tool | Write/Edit trigger protected-directory prompt for `~/.claude/` |
-| Never write locally (`.handoff.md` in project) | /open won't find it — information becomes invisible |
-| Never compute path yourself | Encoding differences cause folder fragmentation |
+| Write to `{HANDOFF_DIR}/{session-id}.md` | Git-tracked in .bon/handoffs/, session-start finds it |
+| Use Write tool (handoff is in .bon/, not ~/.claude/) | .bon/ is a normal project directory — no permission issues |
+| Never write locally (`.handoff.md` in project root) | Session-start won't find it — information becomes invisible |
+| Never compute path yourself | The script walks up to find .bon/ correctly |
 
-**Why this matters (Jan 2026 incident):** A Claude wrote to `.handoff-kube-migration.md` locally. The next session's /open loaded a stale handoff instead — the work existed but was invisible to the protocol.
+**Cross-project handoffs:** If the user says "continue in [other project]", write the handoff to the TARGET project's `.bon/handoffs/` directory instead of the current one. The handoff's presence in the target is the signal — no `continue_in` field needed. Check the target `.bon/` exists first; if not, tell the user to `bon init` there.
 
 **Fallback:** If SESSION_ID is empty (script failed), use timestamp: `2026-01-04-2215.md`
 
@@ -250,7 +250,7 @@ Knowledge work doesn't have commits. This is the equivalent. Next Claude can `ge
 
 **If `.bon/` exists and you learned something durable this session**, write a contribution. Not every session produces one — only when you discovered something a future Claude should know: a landmine, a decision with real alternatives, an architectural insight, a taste judgment.
 
-Write a short prose fragment (one paragraph, not a form) to `.bon/contributions/YYYY-MM-DDTHHMMSS.md`. The next session's /open will synthesize it into `.bon/understanding.md`.
+Write a short prose fragment (one paragraph, not a form) to `.bon/contributions/YYYY-MM-DDTHHMMSS.md`. The next session will synthesize it into `.bon/understanding.md`.
 
 **The test:** Would a Claude who never saw this project benefit from knowing this? If yes, contribute. If it's session-specific (what you did, what's next), it belongs in the handoff, not here.
 
@@ -346,7 +346,7 @@ Just tell the user to `/exit`.
 | Ask "what do you want?" in Decide | Puts burden on user, invites deferral | Propose a concrete plan; user amends |
 | File bons with weak `--why` | Future Claude can't prioritise | State the consequence of skipping |
 | Skip pre-flight cd check | Handoff written to wrong project | Compare pwd with system prompt Working directory |
-| Write handoff locally (.handoff.md) | /open won't find it | Use HANDOFF_DIR from script |
+| Write handoff locally (.handoff.md) | Session-start won't find it | Use HANDOFF_DIR from script |
 | Silently drop incomplete work | Work disappears | Every piece in Now, bon, or handoff Next |
 | Gatekeep with "not bon-worthy" | User's call, not yours | State consequence, propose bin, let user decide |
 | Commit other repos | Unwanted "helpful" tidying | Only commit working directory |
@@ -356,9 +356,9 @@ Just tell the user to `/exit`.
 
 ## GODAR Reference
 
-| Phase | /open | /close |
+| Phase | Session start | /close |
 |-------|-------|--------|
-| **G**ather | Handoff, tracker, script | Tracker, git, drift; HANDOFF_DIR + SESSION_ID |
+| **G**ather | Hook briefing (understanding, handoff, outcomes) | Tracker, git, drift; HANDOFF_DIR + SESSION_ID |
 | **O**rient | "Where we left off" | Six questions in prose → user responds |
 | **D**ecide | User picks direction | Claude proposes Now/Bon/Handoff plan → user amends |
 | **A**ct | Draw-down from Bon | Execute, write handoff, stage extraction, commit |
