@@ -74,3 +74,11 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 **Briefs are a forcing function.** `{why, what, done}` forces clear thinking. Numbered items in `what` become extractable tactical steps, making the brief executable.
 
 **Dispatch, not hierarchy.** The Dolt backend was added without class hierarchies or strategy patterns. Six `if _get_backend() == "dolt"` branches at function boundaries. Simple, readable, easy to remove if the experiment fails. The truncate-and-reinsert write strategy (DELETE all prefix rows, INSERT all, DOLT_COMMIT) deliberately mirrors JSONL's "rewrite the whole file" semantics — keeping both backends' concurrency guarantees identical at the cost of per-item efficiency that doesn't matter at bon's scale.
+
+## The skills layer
+
+Bon ships Claude Code skills (`/open`, `/close`, `/tracker`) that orchestrate session lifecycle. These skills are prompt documents, not code — they guide Claude's behavior through instructions, not enforcement.
+
+**Skill gates shape Claude behavior at critical moments.** The /close skill's Decide phase gates what goes into bon vs handoff prose. A previous gate ("if this never gets done, what breaks?") biased Claudes toward deferring actionable work into handoff text. In a real 12-hour mind-sweep, this produced 6 outcomes with zero actions — the entire breakdown step was skipped. The fix: bon is the default for anything specific enough to write `--why`/`--what`/`--done`. "Handoff only" is restricted to genuinely non-actionable context (open questions, taste judgments, architectural tensions). The lesson: gate questions in skills are load-bearing. A permissive gate at close time compounds — work that should be tracked disappears into prose that no future Claude will parse.
+
+**Scripts live in `scripts/`, skills in `skills/*/`.** Both ship in the plugin cache. Path resolution must exclude `skills/*/scripts/` when searching for top-level scripts — `find -path "*/bon/*/scripts"` matches both because `*` spans `/` in `-path`.
