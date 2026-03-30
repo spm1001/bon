@@ -218,14 +218,8 @@
     "auto-handoff.sh": {
       "target": "bon/scripts/auto-handoff.sh"
     },
-    "repo-sync.sh": {
-      "target": "bon/scripts/repo-sync.sh"
-    },
     "stage-extraction.sh": {
       "target": "garde-manger/scripts/stage-extraction.sh"
-    },
-    "update-all.template.sh": {
-      "target": "bon/scripts/update-all.template.sh"
     }
   },
   "tools": {

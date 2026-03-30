@@ -1,13 +1,11 @@
 #!/bin/bash
-# Session context gathering
-# Stdout: compact briefing for human and Claude to orient from
-# Disk: full detail (bon.txt) for Claude to read on demand
+# Session context gathering — enriched briefing
+# Stdout: full orientation (understanding + handoff + structured summary)
+# Disk: full bon hierarchy (bon.txt) for on-demand reading
 
 set -euo pipefail
 
 # === CROSS-PLATFORM HELPERS ===
-# GNU stat (Linux) vs BSD stat (macOS) have incompatible flags.
-# Detect once, define a function, use everywhere.
 if stat -c '%Y' /dev/null &>/dev/null; then
     file_mtime() { stat -c '%Y' "$1"; }
 else
@@ -17,7 +15,6 @@ fi
 # === PATHS ===
 BASE_CONTEXT_DIR="$HOME/.claude/.session-context"
 CWD=$(pwd -P)
-# Encoded path always starts with '-' — never use as bare arg; always prefix with absolute path
 ENCODED_PATH=$(echo "$CWD" | sed 's/[^a-zA-Z0-9-]/-/g')
 CONTEXT_DIR="$BASE_CONTEXT_DIR/$ENCODED_PATH"
 mkdir -p "$CONTEXT_DIR"
@@ -25,12 +22,8 @@ mkdir -p "$CONTEXT_DIR"
 # === SELF-VALIDATION ===
 validate_dependencies() {
     local missing=""
-    if ! command -v python3 &>/dev/null; then
-        missing="$missing python3"
-    fi
-    if ! command -v stat &>/dev/null; then
-        missing="$missing stat"
-    fi
+    command -v python3 &>/dev/null || missing="$missing python3"
+    command -v stat &>/dev/null || missing="$missing stat"
     if [ -n "$missing" ]; then
         echo "ERROR: missing dependencies:$missing"
         exit 1
@@ -41,22 +34,16 @@ validate_dependencies
 # === HELPERS ===
 time_ago() {
     local seconds=$1
-    local timestamp=$2
-    local absolute=$(date -r "$timestamp" '+%Y-%m-%d %H:%M' 2>/dev/null || date -d "@$timestamp" '+%Y-%m-%d %H:%M' 2>/dev/null)
-    local relative
     if [ "$seconds" -lt 3600 ]; then
         local mins=$((seconds / 60))
-        [ "$mins" -le 1 ] && relative="just now" || relative="${mins}m ago"
+        [ "$mins" -le 1 ] && echo "just now" || echo "${mins}m ago"
     elif [ "$seconds" -lt 86400 ]; then
-        local hours=$((seconds / 3600))
-        relative="${hours}h ago"
+        echo "$((seconds / 3600))h ago"
     elif [ "$seconds" -lt 172800 ]; then
-        relative="yesterday"
+        echo "yesterday"
     else
-        local days=$((seconds / 86400))
-        relative="${days}d ago"
+        echo "$((seconds / 86400))d ago"
     fi
-    echo "$relative"
 }
 
 # === LOCAL HANDOFF WARNING ===
@@ -68,13 +55,12 @@ fi
 
 # === GATHER TO DISK (silent) ===
 
-# --- Handoff index ---
+# --- Handoff resolution ---
 ARCHIVE_DIR="$HOME/.claude/handoffs"
 NOW=$(date +%s)
 PROJECT_FOLDER="$ARCHIVE_DIR/$ENCODED_PATH"
 
-# Cross-machine fallback: if native path not found, try alternate home prefixes
-# Handles Mac→Linux migration (/Users/modha → /home/modha) and vice versa
+# Cross-machine fallback: Mac↔Linux home prefix
 if [ ! -d "$PROJECT_FOLDER" ]; then
     ALT_ENCODED=""
     case "$ENCODED_PATH" in
@@ -91,14 +77,12 @@ LATEST_PURPOSE=""
 LATEST_STR=""
 
 if [ -d "$PROJECT_FOLDER" ]; then
-    # Latest handoff only — older ones are archive for mem, not startup
     LATEST_FILE=$(ls -t "$PROJECT_FOLDER"/*.md 2>/dev/null | head -1 || true)
-
     if [ -n "$LATEST_FILE" ]; then
         LATEST_TIME=$(file_mtime "$LATEST_FILE")
         LATEST_AGO=$((NOW - LATEST_TIME))
-        LATEST_STR=$(time_ago $LATEST_AGO $LATEST_TIME)
-        LATEST_PURPOSE=$(grep "^purpose:" "$LATEST_FILE" 2>/dev/null | head -1 | cut -d: -f2- | xargs || true)
+        LATEST_STR=$(time_ago $LATEST_AGO)
+        LATEST_PURPOSE=$(grep "^purpose:" "$LATEST_FILE" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
         if [ -z "$LATEST_PURPOSE" ]; then
             LATEST_PURPOSE=$(grep -A1 "^## Done" "$LATEST_FILE" 2>/dev/null | tail -1 | sed 's/^- //' | cut -c1-60 || true)
         fi
@@ -138,7 +122,6 @@ elif [ "$BON_BACKEND" = "dolt" ]; then
         BON_LIST_OUTPUT=$(bon list 2>&1 || true)
         BON_READY_OUTPUT=$(bon list --ready 2>&1 || true)
         BON_CURRENT_OUTPUT=$(bon show --current 2>/dev/null || true)
-        # Surface connection failures in the briefing
         if echo "$BON_LIST_OUTPUT" | grep -q "Cannot connect"; then
             BON_DOLT_ERROR="$BON_LIST_OUTPUT"
             BON_LIST_OUTPUT=""
@@ -149,8 +132,8 @@ elif [ "$BON_BACKEND" = "dolt" ]; then
     fi
 fi
 
+# Write full hierarchy to disk (detail on demand)
 if [ -n "$BON_LIST_OUTPUT" ]; then
-    # Write full hierarchy to disk
     {
         echo "# Bon Context (generated $(date '+%Y-%m-%d %H:%M'))"
         echo "# Generated for: $CWD"
@@ -180,160 +163,80 @@ fi
 # === STDOUT BRIEFING ===
 echo "=== SESSION ==="
 
-# --- Greeting ---
+# --- 1. Greeting ---
 CURRENT_HOUR=$(date +%H)
-if [ "$CURRENT_HOUR" -lt 12 ]; then
-    TIME_OF_DAY="morning"
-elif [ "$CURRENT_HOUR" -lt 17 ]; then
-    TIME_OF_DAY="afternoon"
-elif [ "$CURRENT_HOUR" -lt 21 ]; then
-    TIME_OF_DAY="evening"
-else
-    TIME_OF_DAY="night"
+if [ "$CURRENT_HOUR" -lt 12 ]; then TIME_OF_DAY="morning"
+elif [ "$CURRENT_HOUR" -lt 17 ]; then TIME_OF_DAY="afternoon"
+elif [ "$CURRENT_HOUR" -lt 21 ]; then TIME_OF_DAY="evening"
+else TIME_OF_DAY="night"
 fi
 echo "Good $TIME_OF_DAY. It's $(date '+%-d %b %Y, %H:%M')."
 echo ""
 
-# --- Bon: outcomes + zoom ---
-if [ "$BON_BACKEND" != "none" ]; then
-    # Detect which directory exists (.bon preferred)
-    if [ -d ".bon" ]; then
-        BON_DIR=".bon"
-    else
-        BON_DIR=".arc"
-    fi
+# --- 2. understanding.md in full ---
+if [ -f ".bon/understanding.md" ]; then
+    cat ".bon/understanding.md"
+    echo ""
+elif [ -f "understanding.md" ]; then
+    cat "understanding.md"
+    echo ""
+fi
 
+# --- 3. Latest handoff in full ---
+if [ -n "$LATEST_FILE" ]; then
+    echo "Last session ($LATEST_STR): $LATEST_PURPOSE"
+    echo ""
+    cat "$LATEST_FILE"
+    echo ""
+fi
+
+# --- 4. Outcomes only ---
+if [ "$BON_BACKEND" != "none" ]; then
     if [ -n "${BON_DOLT_ERROR:-}" ]; then
         echo "Bon: backend is dolt but server is unreachable"
         echo "  Run: systemctl --user start dolt-bon.service"
         echo ""
-    elif [ -n "$BON_READY_OUTPUT" ]; then
+    elif [ -n "$BON_LIST_OUTPUT" ]; then
         echo "Outcomes we're working towards:"
-        echo "$BON_READY_OUTPUT" | while IFS= read -r line; do
-            [ -n "$line" ] && echo "  $line"
+        echo "$BON_LIST_OUTPUT" | grep -E '^○' | while IFS= read -r line; do
+            echo "  $line"
         done
         echo ""
     fi
+fi
 
-    # Zoom: show the outcome with active tactical steps (or note nothing active)
-    if [ -n "${BON_DOLT_ERROR:-}" ]; then
-        true  # Already reported above, skip zoom
-    elif [ -z "$BON_CURRENT_OUTPUT" ]; then
+# --- 5. Active work / nothing in progress ---
+if [ -n "${BON_DOLT_ERROR:-}" ]; then
+    true  # Already reported above
+elif [ "$BON_BACKEND" != "none" ]; then
+    if [ -z "$BON_CURRENT_OUTPUT" ]; then
         echo "Nothing in progress — pick an action to start."
         echo ""
-    else
-        # Get parent outcome — from items.jsonl (JSONL) or bon CLI (Dolt)
-        CURRENT_ACTION_ID=$(echo "$BON_CURRENT_OUTPUT" | head -1 | grep -oE '\([a-zA-Z0-9-]+\)' | tr -d '()' || true)
-        if [ -n "$CURRENT_ACTION_ID" ]; then
-            if [ "$BON_BACKEND" = "jsonl" ] && [ -f "$BON_DIR/items.jsonl" ]; then
-                PARENT_ID=$(python3 -c "
-import json, sys
-for line in open('$BON_DIR/items.jsonl'):
-    item = json.loads(line)
-    if item.get('id') == '$CURRENT_ACTION_ID':
-        print(item.get('parent', '')); break
-" 2>/dev/null || true)
-            else
-                PARENT_ID=$(bon show "$CURRENT_ACTION_ID" --json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('parent',''))" 2>/dev/null || true)
-            fi
-            if [ -n "$PARENT_ID" ]; then
-                if [ "$BON_BACKEND" = "jsonl" ] && [ -f "$BON_DIR/items.jsonl" ]; then
-                    PARENT_TITLE=$(python3 -c "
-import json
-for line in open('$BON_DIR/items.jsonl'):
-    item = json.loads(line)
-    if item.get('id') == '$PARENT_ID':
-        print(item.get('title', '')); break
-" 2>/dev/null || true)
-                else
-                    PARENT_TITLE=$(bon show "$PARENT_ID" --json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('title',''))" 2>/dev/null || true)
-                fi
-                if [ -n "$PARENT_TITLE" ]; then
-                    echo "Last worked on: $PARENT_TITLE"
-                    # Show actions from list output
-                    PRINTING=false
-                    while IFS= read -r line; do
-                        if echo "$line" | grep -qF "$PARENT_ID"; then
-                            PRINTING=true
-                            continue
-                        fi
-                        if [ "$PRINTING" = true ]; then
-                            if echo "$line" | grep -qE '^\s+[0-9]+\.'; then
-                                TRIMMED=$(echo "$line" | sed 's/^[[:space:]]*//')
-                                echo "  $TRIMMED"
-                            else
-                                break
-                            fi
-                        fi
-                    done <<< "$BON_LIST_OUTPUT"
-                    echo ""
-                fi
-            fi
-        fi
     fi
-elif [ -d ".bon" ] || [ -d ".arc" ]; then
-    echo "Bon: directory exists but items not readable"
-    echo ""
 fi
 
-# --- Handoff summary ---
+# --- 6. Suggested (from handoff Next section) ---
 if [ -n "$LATEST_FILE" ]; then
-    echo "Last session ($LATEST_STR): $LATEST_PURPOSE"
-
-    # Extract key sections from the handoff (strip blank lines before head to avoid empty-line-first bug)
-    DONE_LINES=$(sed -n '/^## Done/,/^## /{/^## Done/d;/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' | head -3 | sed 's/^- //' || true)
-    NEXT_LINES=$(sed -n '/^## Next/,/^## /{/^## Next/d;/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' | head -3 | sed 's/^- //' || true)
-    GOTCHA_LINES=$(sed -n '/^## Gotchas/,/^## /{/^## Gotchas/d;/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' | head -2 | sed 's/^- //' || true)
-
-    # Fallback: if no sections extracted, show first content lines
-    if [ -z "$DONE_LINES" ] && [ -z "$NEXT_LINES" ] && [ -z "$GOTCHA_LINES" ]; then
-        FALLBACK=$(sed -n '1,/^$/d; /^[^#]/p' "$LATEST_FILE" 2>/dev/null | head -3 || true)
-        if [ -n "$FALLBACK" ]; then
-            echo "  $FALLBACK"
-        fi
-    fi
-
-    if [ -n "$DONE_LINES" ]; then
-        echo "  Did:"
-        echo "$DONE_LINES" | while IFS= read -r line; do
-            [ -n "$line" ] && echo "    $line"
-        done
-    fi
+    NEXT_LINES=$(sed -n '/^## Next/,/^## /{/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
     if [ -n "$NEXT_LINES" ]; then
-        echo "  Next:"
+        echo "Suggested:"
         echo "$NEXT_LINES" | while IFS= read -r line; do
-            [ -n "$line" ] && echo "    $line"
+            # Preserve leading whitespace from handoff but ensure minimum indent
+            echo "  $line"
         done
+        echo ""
     fi
-    if [ -n "$GOTCHA_LINES" ]; then
-        echo "  Watch out:"
-        echo "$GOTCHA_LINES" | while IFS= read -r line; do
-            [ -n "$line" ] && echo "    $line"
-        done
-    fi
-    echo ""
 fi
 
-# --- Repo sync status (no network — uses cached remote tracking) ---
-_BEHIND=0
-_AHEAD=0
-for dir in "$HOME/Repos"/*/; do
-    [ -d "$dir/.git" ] || continue
-    b=$(timeout 2s git -C "$dir" rev-list HEAD..@{u} --count 2>/dev/null || echo 0)
-    a=$(timeout 2s git -C "$dir" rev-list @{u}..HEAD --count 2>/dev/null || echo 0)
-    [ "$b" -gt 0 ] && _BEHIND=$((_BEHIND + 1))
-    [ "$a" -gt 0 ] && _AHEAD=$((_AHEAD + 1))
-done
-if [ "$_BEHIND" -gt 0 ] || [ "$_AHEAD" -gt 0 ]; then
-    _SYNC_MSG="Repos:"
-    [ "$_BEHIND" -gt 0 ] && _SYNC_MSG="$_SYNC_MSG ${_BEHIND} pulling in background"
-    [ "$_AHEAD" -gt 0 ] && _SYNC_MSG="$_SYNC_MSG | ${_AHEAD} need push"
-    echo "$_SYNC_MSG"
-    echo ""
-fi
-
-# --- News (only mention if present) ---
-NEWS_FILE="$HOME/.claude/.update-news"
-if [ -f "$NEWS_FILE" ]; then
-    echo "News available: $NEWS_FILE"
+# --- 7. Contributions pending ---
+if [ -d ".bon/contributions" ]; then
+    CONTRIB_FILES=$(ls -1 .bon/contributions/*.md 2>/dev/null || true)
+    if [ -n "$CONTRIB_FILES" ]; then
+        CONTRIB_COUNT=$(echo "$CONTRIB_FILES" | wc -l | tr -d ' ')
+        echo "Contributions pending ($CONTRIB_COUNT):"
+        echo "$CONTRIB_FILES" | while IFS= read -r f; do
+            echo "  $(basename "$f")"
+        done
+        echo ""
+    fi
 fi
