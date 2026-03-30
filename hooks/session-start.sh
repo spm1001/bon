@@ -7,18 +7,20 @@
 
 set -euo pipefail
 
-# Find scripts dir: sibling to hooks/ in the same repo/plugin
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_SCRIPTS="$(dirname "$HOOK_DIR")/scripts"
+# Read hook stdin (JSON with session metadata)
+INPUT=$(cat)
+SOURCE=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null || echo "")
 
-if [ -x "$PLUGIN_SCRIPTS/open-context.sh" ]; then
-    SCRIPTS_DIR="$PLUGIN_SCRIPTS"
-else
-    exit 0  # No scripts available — silent
+# On resume, skip the full briefing — it's already in context
+if [ "$SOURCE" != "resume" ]; then
+    # Find scripts dir: sibling to hooks/ in the same repo/plugin
+    HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PLUGIN_SCRIPTS="$(dirname "$HOOK_DIR")/scripts"
+
+    if [ -x "$PLUGIN_SCRIPTS/open-context.sh" ]; then
+        "$PLUGIN_SCRIPTS/open-context.sh" 2>/dev/null || true
+    fi
 fi
-
-# === CONTEXT OUTPUT (stdout → Claude) ===
-"$SCRIPTS_DIR/open-context.sh" 2>/dev/null || true
 
 # Check for incomplete /close from previous session
 CHECKPOINT_FILE="$HOME/.claude/.close-checkpoint"
