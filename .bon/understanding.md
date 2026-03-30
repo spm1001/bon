@@ -35,6 +35,8 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 `bon migrate --to dolt` and `bon migrate --to jsonl` move items between backends. `bon init --backend dolt` creates a new Dolt-backed project.
 
+**Dolt in production** requires more than dolt.py. The server runs as a systemd user service (`dolt-bon.service`), needs `loginctl enable-linger` for headless machines, and a non-root database user scoped to the bon database only (`bon@'%'`). Dolt 1.83.6 removed `--user`/`--password` flags from `sql-server` — users are managed via SQL after auto-created root@localhost on first start. The `dolt sql` local CLI bypasses server auth entirely (runs in-process against the data directory). For multi-machine access, the server binds to 0.0.0.0 and each client machine needs `~/.config/bon/dolt.toml` pointing to the server's Tailscale IP. The pymysql dependency must be included in all install paths: `uv tool install` with `[dolt]` extras, `setup.sh`, `update-all.sh`, and the `ensure-bon.sh` advisory hint.
+
 ## The invariants
 
 **Unblock on done.** When any item is marked done, all items whose `waiting_for` points to it get unblocked automatically. This cascade lives in both `cmd_done` and `cmd_step` (auto-complete on final step). It's the only cross-item mutation. Breaking it breaks the dependency model.

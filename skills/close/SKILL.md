@@ -128,9 +128,10 @@ From Gather + Orient, identify all incomplete work and draft a concrete plan. **
 ### Bucket everything
 
 **Now** — executes before /exit, benefits from current context:
-- Incomplete work finishable in under 2 minutes
+- Incomplete work finishable in under 5 minutes
 - Close a tracker item with resolution notes
 - Update CLAUDE.md (local or global) when a clear pattern emerged
+- File bons for items you won't do now (the filing itself IS "Now" work)
 - Quick fixes where the how is obvious
 
 **Bon** — each becomes a tracked item for a future session. For each, state what breaks or degrades if skipped — this helps the user prioritise, but the user decides what's worth tracking.
