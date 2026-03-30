@@ -25,11 +25,12 @@ HOOK_INPUT=$(cat)
 
 HOOK_SESSION_ID=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('session_id',''))" <<< "$HOOK_INPUT" 2>/dev/null || true)
 HOOK_CWD=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('cwd',''))" <<< "$HOOK_INPUT" 2>/dev/null || true)
+HOOK_TRANSCRIPT=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('transcript_path',''))" <<< "$HOOK_INPUT" 2>/dev/null || true)
 [ -z "$HOOK_CWD" ] && HOOK_CWD="$(pwd -P)"
 
 # Auto-handoff safety net
 if [ -n "$HOOK_SESSION_ID" ] && [ -x "$SCRIPTS_DIR/auto-handoff.sh" ]; then
-    "$SCRIPTS_DIR/auto-handoff.sh" "$HOOK_CWD" "$HOOK_SESSION_ID" 2>/dev/null || true
+    "$SCRIPTS_DIR/auto-handoff.sh" "$HOOK_CWD" "$HOOK_SESSION_ID" "$HOOK_TRANSCRIPT" 2>/dev/null || true
 fi
 
 exit 0

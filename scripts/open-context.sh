@@ -49,43 +49,76 @@ time_ago() {
 # === LOCAL HANDOFF WARNING ===
 LOCAL_HANDOFFS=$(find . -maxdepth 1 -name '.handoff*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$LOCAL_HANDOFFS" -gt 0 ]; then
-    echo "Warning: $LOCAL_HANDOFFS orphaned local .handoff* files (should move to ~/.claude/handoffs/)"
+    echo "Warning: $LOCAL_HANDOFFS orphaned local .handoff* files (should move to .bon/handoffs/)"
     echo ""
 fi
 
 # === GATHER TO DISK (silent) ===
 
 # --- Handoff resolution ---
-ARCHIVE_DIR="$HOME/.claude/handoffs"
+# Primary: .bon/handoffs/ (git-tracked, no permission prompts)
+# Fallback: ~/.claude/handoffs/ (legacy location)
 NOW=$(date +%s)
-PROJECT_FOLDER="$ARCHIVE_DIR/$ENCODED_PATH"
+
+# Walk up to find .bon/handoffs/
+BON_HANDOFF_DIR=""
+WALK="$CWD"
+while [ "$WALK" != "/" ]; do
+    if [ -d "$WALK/.bon/handoffs" ]; then
+        BON_HANDOFF_DIR="$WALK/.bon/handoffs"
+        break
+    fi
+    WALK=$(dirname "$WALK")
+done
+
+LEGACY_DIR="$HOME/.claude/handoffs"
+LEGACY_FOLDER="$LEGACY_DIR/$ENCODED_PATH"
 
 # Cross-machine fallback: Mac↔Linux home prefix
-if [ ! -d "$PROJECT_FOLDER" ]; then
+if [ ! -d "$LEGACY_FOLDER" ]; then
     ALT_ENCODED=""
     case "$ENCODED_PATH" in
         -home-modha-*)  ALT_ENCODED=$(echo "$ENCODED_PATH" | sed 's/^-home-modha-/-Users-modha-/') ;;
         -Users-modha-*) ALT_ENCODED=$(echo "$ENCODED_PATH" | sed 's/^-Users-modha-/-home-modha-/') ;;
     esac
-    if [ -n "$ALT_ENCODED" ] && [ -d "$ARCHIVE_DIR/$ALT_ENCODED" ]; then
-        PROJECT_FOLDER="$ARCHIVE_DIR/$ALT_ENCODED"
+    if [ -n "$ALT_ENCODED" ] && [ -d "$LEGACY_DIR/$ALT_ENCODED" ]; then
+        LEGACY_FOLDER="$LEGACY_DIR/$ALT_ENCODED"
     fi
 fi
 
+# Find the most recent handoff across both locations
 LATEST_FILE=""
 LATEST_PURPOSE=""
 LATEST_STR=""
 
-if [ -d "$PROJECT_FOLDER" ]; then
-    LATEST_FILE=$(ls -t "$PROJECT_FOLDER"/*.md 2>/dev/null | head -1 || true)
-    if [ -n "$LATEST_FILE" ]; then
-        LATEST_TIME=$(file_mtime "$LATEST_FILE")
-        LATEST_AGO=$((NOW - LATEST_TIME))
-        LATEST_STR=$(time_ago $LATEST_AGO)
-        LATEST_PURPOSE=$(grep "^purpose:" "$LATEST_FILE" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-        if [ -z "$LATEST_PURPOSE" ]; then
-            LATEST_PURPOSE=$(grep -A1 "^## Done" "$LATEST_FILE" 2>/dev/null | tail -1 | sed 's/^- //' | cut -c1-60 || true)
-        fi
+find_latest_in() {
+    local dir="$1"
+    [ -d "$dir" ] && ls -t "$dir"/*.md 2>/dev/null | head -1 || true
+}
+
+CANDIDATE_BON=$(find_latest_in "$BON_HANDOFF_DIR")
+CANDIDATE_LEGACY=$(find_latest_in "$LEGACY_FOLDER")
+
+if [ -n "$CANDIDATE_BON" ] && [ -n "$CANDIDATE_LEGACY" ]; then
+    # Both exist — pick the most recent by mtime
+    if [ "$(file_mtime "$CANDIDATE_BON")" -ge "$(file_mtime "$CANDIDATE_LEGACY")" ]; then
+        LATEST_FILE="$CANDIDATE_BON"
+    else
+        LATEST_FILE="$CANDIDATE_LEGACY"
+    fi
+elif [ -n "$CANDIDATE_BON" ]; then
+    LATEST_FILE="$CANDIDATE_BON"
+elif [ -n "$CANDIDATE_LEGACY" ]; then
+    LATEST_FILE="$CANDIDATE_LEGACY"
+fi
+
+if [ -n "$LATEST_FILE" ]; then
+    LATEST_TIME=$(file_mtime "$LATEST_FILE")
+    LATEST_AGO=$((NOW - LATEST_TIME))
+    LATEST_STR=$(time_ago $LATEST_AGO)
+    LATEST_PURPOSE=$(grep "^purpose:" "$LATEST_FILE" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
+    if [ -z "$LATEST_PURPOSE" ]; then
+        LATEST_PURPOSE=$(grep -A1 "^## Done" "$LATEST_FILE" 2>/dev/null | tail -1 | sed 's/^- //' | cut -c1-60 || true)
     fi
 fi
 

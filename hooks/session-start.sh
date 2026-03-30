@@ -12,6 +12,23 @@ INPUT=$(cat)
 SOURCE=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null || echo "")
 
 # On resume, skip the full briefing — it's already in context
+# Also delete any auto-handoff for this session (session isn't over, just reloading)
+if [ "$SOURCE" = "resume" ]; then
+    SESSION_ID=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('session_id',''))" 2>/dev/null || echo "")
+    if [ -n "$SESSION_ID" ]; then
+        SHORT_ID="${SESSION_ID:0:8}"
+        # Walk up to find .bon/
+        SEARCH=$(pwd -P)
+        while [ "$SEARCH" != "/" ]; do
+            if [ -d "$SEARCH/.bon/handoffs" ]; then
+                rm -f "$SEARCH/.bon/handoffs/${SHORT_ID}.md" 2>/dev/null
+                break
+            fi
+            SEARCH=$(dirname "$SEARCH")
+        done
+    fi
+fi
+
 if [ "$SOURCE" != "resume" ]; then
     # Find scripts dir: sibling to hooks/ in the same repo/plugin
     HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
