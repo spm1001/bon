@@ -63,6 +63,8 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **`cmd_work` argument parsing is fragile.** Uses `argparse.REMAINDER` with hand-rolled filtering of `--force` from positionals. Don't use it as a template.
 
+**Auto-handoff quoting is fragile.** `auto-handoff.sh` embeds shell variables into a `nohup bash -c '...'` string via sed single-quote escaping. Single quotes in git commit messages or bon item titles break the inner script. The mechanical fallback only runs when the LLM path isn't *attempted* (no transcript or no ccconv), not when it's attempted and *fails*. Silent failure — no output, no error.
+
 **The `.arc/` ghost.** Test infrastructure still uses the old name — `arc_dir` fixture, `run_arc()` helper, `arc-` prefixed fixtures. Not broken, but disorienting.
 
 ## The taste
@@ -77,7 +79,7 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 ## The skills layer
 
-Bon ships Claude Code skills (`/open`, `/close`, `/tracker`) that orchestrate session lifecycle. These skills are prompt documents, not code — they guide Claude's behavior through instructions, not enforcement.
+Bon ships two Claude Code skills plus a session-start hook. `/bon` (formerly `/tracker` and `/open`, merged) handles session orientation and draw-down discipline — it loads at session start when `.bon/` exists. `/close` handles end-of-session capture. `open-context.sh` is the hook that provides mechanical context (understanding, handoff, outcomes) before the LLM-mediated `/bon` ritual kicks in.
 
 **Skill gates shape Claude behavior at critical moments.** The /close skill's Decide phase gates what goes into bon vs handoff prose. A previous gate ("if this never gets done, what breaks?") biased Claudes toward deferring actionable work into handoff text. In a real 12-hour mind-sweep, this produced 6 outcomes with zero actions — the entire breakdown step was skipped. The fix: bon is the default for anything specific enough to write `--why`/`--what`/`--done`. "Handoff only" is restricted to genuinely non-actionable context (open questions, taste judgments, architectural tensions). The lesson: gate questions in skills are load-bearing. A permissive gate at close time compounds — work that should be tracked disappears into prose that no future Claude will parse.
 
@@ -85,4 +87,4 @@ Bon ships Claude Code skills (`/open`, `/close`, `/tracker`) that orchestrate se
 
 **`~/.claude/rules/*.md` auto-loads into every session.** Confirmed by test (magic-word shard). This means plugins can own instruction shards without `@include` wiring in the global CLAUDE.md. The pattern: a plugin's SessionStart hook symlinks its `instructions.md` into `~/.claude/rules/<plugin>.md`. Plugin updates change the cache path; next session's hook re-symlinks to the new version. The `~/.claude/` write restriction only applies to Claude's tool use (Write/Edit), not to subprocess hooks — so hook scripts can create symlinks without permission prompts. This is the mechanism behind Workstream 5 of the enrichment plan.
 
-**The briefing's "Suggested" section is a baton pass, not a board view.** It pulls from the previous handoff's Next items — the outgoing Claude's curated picks — not from `bon list --ready`. The full ready list is available on demand, but the startup stream carries only what the last Claude recommended. Bon IDs appear naturally when the outgoing Claude referenced them in handoff Next, giving the incoming Claude a direct `bon work` handle. This is Claude-to-Claude communication; human readability is secondary.
+**The briefing's "Suggested" section is a baton pass, not a board view.** It pulls from the previous handoff's Next items — the outgoing Claude's curated picks — not from `bon list --ready`. The full ready list is available on demand, but the startup stream carries only what the last Claude recommended. Bon IDs appear naturally when the outgoing Claude referenced them in handoff Next, giving the incoming Claude a direct `bon work` handle. This is Claude-to-Claude communication; human readability is secondary. When Suggested is in context from the hook, don't re-run `bon list` to pick direction — it's redundant and burns tokens. `bon list` is for the full picture: hierarchy, status, mid-session transitions, or auditing completeness.

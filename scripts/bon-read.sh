@@ -74,8 +74,14 @@ if mode == "list":
     )
     for i, o in enumerate(outcomes):
         mark = "\u2713" if o.get("status") == "done" else "\u25cb"
-        print(f'{mark} {o["title"]} ({o["id"]})')
-        for a in children.get(o["id"], []):
+        kids = children.get(o["id"], [])
+        if kids:
+            done_n = sum(1 for a in kids if a.get("status") == "done")
+            progress = f" [{done_n}\u2713/{len(kids)}]"
+        else:
+            progress = ""
+        print(f'{mark} {o["title"]} ({o["id"]}){progress}')
+        for a in kids:
             am = "\u2713" if a.get("status") == "done" else "\u25cb"
             num = a.get("order", 1)
             print(f'  {num}. {am} {a["title"]} ({a["id"]})')

@@ -28,7 +28,7 @@ src/bon/
 
 tests/            # pytest suite, one file per command
 fixtures/         # JSONL snapshots for parametrized tests
-skills/tracker/SKILL.md  # Claude Code integration patterns
+skills/bon/SKILL.md      # Claude Code integration (session ritual + draw-down discipline)
 ```
 
 ## Data Model
@@ -172,7 +172,7 @@ bon migrate --to jsonl                     # Back to JSONL
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
 | Dolt backend logic | `dolt.py` |
-| Update Claude integration | `skills/tracker/SKILL.md` |
+| Update Claude integration | `skills/bon/SKILL.md` |
 | Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
 | Test bon-read.sh | `tests/test_bon_read.py` |
 
