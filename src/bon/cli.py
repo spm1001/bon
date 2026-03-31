@@ -176,7 +176,11 @@ def cmd_new(args):
     """Create a new outcome or action."""
     check_initialized()
 
-    if getattr(args, 'json_input', False):
+    # JSON is the default input when stdin is piped and no title given.
+    # Flags are the shorthand for quick stubs with a title on the command line.
+    use_json = getattr(args, 'json_input', False) or (not args.title and not sys.stdin.isatty())
+
+    if use_json:
         # JSON from stdin — structured input, no shell escaping needed
         try:
             data = json.loads(sys.stdin.read())
@@ -198,7 +202,7 @@ def cmd_new(args):
         )
     else:
         if not args.title:
-            error("Title is required (or use --json to read from stdin)")
+            error("Title is required (or pipe JSON to stdin)")
 
         title = args.title
         parent = args.parent

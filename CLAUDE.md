@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 19 commands, ~2300 LOC core (+470 optional Dolt module), 384 tests.
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 19 commands, ~2300 LOC core (+470 optional Dolt module), 418 tests.
 
 ## Quick Commands
 
@@ -124,6 +124,22 @@ prefix = load_prefix()           # Get ID prefix
 item = find_by_id(items, id, prefix)  # Lookup (handles prefix tolerance)
 error("Message")                 # Print to stderr, exit 1
 save_items(items)                # Atomic write back
+```
+
+### `bon new` Input Modes
+
+`bon new` accepts items via three paths, auto-detected:
+
+1. **JSON stdin (default for piped input)**: No title arg + stdin is piped → reads JSON from stdin. No `--json` flag needed.
+2. **Flags**: Title as positional arg + `--why`/`--what`/`--done` flags. For quick stubs.
+3. **Interactive**: TTY + no flags → prompts for brief fields.
+4. **Explicit `--json`**: Forces JSON stdin regardless of other args. Backward-compatible.
+
+```bash
+cat <<'EOF' | bon new -q          # JSON stdin (auto-detected)
+{"title":"...","brief":{"why":"...","what":"...","done":"..."}}
+EOF
+bon new "Quick fix" --why w --what x --done d -q   # Flags (stubs only)
 ```
 
 ## Gotchas

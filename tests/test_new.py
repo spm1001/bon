@@ -389,13 +389,65 @@ class TestNewJsonStdin:
         assert "Invalid JSON on stdin" in result.stderr
 
     def test_no_title_without_json_flag_errors(self, arc_dir, monkeypatch):
-        """Omitting title without --json produces helpful error."""
+        """Omitting title without piped stdin produces helpful error."""
         monkeypatch.chdir(arc_dir)
 
         result = run_arc("new", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
 
         assert result.returncode == 1
-        assert "--json" in result.stderr
+        assert "stdin" in result.stderr
+
+    def test_implicit_json_from_piped_stdin(self, arc_dir, monkeypatch):
+        """Piping JSON without --json flag auto-detects JSON input."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "Implicit JSON",
+            "brief": {"why": "testing", "what": "a thing", "done": "it works"}
+        })
+        # No --json flag — just pipe stdin
+        result = run_arc("new", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        assert "Created:" in result.stdout
+
+        item = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
+        assert item["title"] == "Implicit JSON"
+        assert item["brief"]["why"] == "testing"
+
+    def test_implicit_json_with_parent(self, arc_dir, monkeypatch):
+        """Piped JSON with parent field creates action without --json flag."""
+        monkeypatch.chdir(arc_dir)
+
+        run_arc("new", "Parent", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
+        outcome_id = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())["id"]
+
+        data = json.dumps({
+            "title": "Implicit child",
+            "parent": outcome_id,
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        lines = (arc_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = [json.loads(line) for line in lines]
+        action = next(i for i in items if i["type"] == "action")
+        assert action["parent"] == outcome_id
+
+    def test_implicit_json_with_quiet(self, arc_dir, monkeypatch):
+        """Piped JSON with -q outputs just the ID."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "Quiet implicit",
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", "-q", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        assert result.stdout.strip().startswith("arc-")
+        assert "Created:" not in result.stdout
 
 
 class TestNewNotInitialized:

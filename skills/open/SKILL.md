@@ -1,7 +1,12 @@
 ---
 name: open
 description: "Activate at session start when .bon/ exists AND before any bon CLI command. Handles session orientation (process contributions, present hierarchy, pick direction) and enforces draw-down workflow (bon show → bon work → bon step). Triggers on: session start with .bon/, /open, /bon, 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists."
-allowed-tools: "Bash(bon:*)", Read, Glob, Edit, Write
+allowed-tools:
+  - "Bash(bon:*)"
+  - Read
+  - Glob
+  - Edit
+  - Write
 ---
 
 # Bon
@@ -111,13 +116,37 @@ A hook injects the current tactical step into every prompt. When you see a `<use
 
 **When filing work for a future Claude:**
 
-1. **All three required flags** — `--why`/`--what`/`--done` must stand alone
-2. **Add `--how` for complex work** — approach, constraints, things to avoid
-3. **Include concrete details** — file paths, API endpoints, error messages
-4. **Number steps in `--what`** — these become extractable tactical steps
-5. **Define `--done` clearly** — verifiable criteria, not vague "it works"
+1. **Add `--how` for complex work** — approach, constraints, things to avoid
+2. **Include concrete details** — file paths, API endpoints, error messages
+3. **Number steps in `--what`** — these become extractable tactical steps
+4. **Define `--done` clearly** — verifiable criteria, not vague "it works"
 
 **The test:** Could a Claude with zero context execute this from the brief alone?
+
+### Use `bon new --json` by default
+
+**When creating outcomes or actions with `--how`, or with more than 3 numbered steps
+in `--what`, use `bon new --json` — not flags.** Flags with backslash continuations
+look like they work but produce quoting errors on special characters (quotes, backticks,
+parentheses in technical content). JSON stdin eliminates this entire class of failure.
+
+**The rule:** Pipe JSON to `bon new` for all real work. Flags are only for quick
+throwaway stubs: `bon new "Fix typo" --why w --what x --done d -q`
+
+```bash
+cat <<'EOF' | bon new -q
+{
+  "title": "API stays responsive under peak load",
+  "parent": "bon-zovili",
+  "brief": {
+    "why": "Load tests show 5s P99 at 200 RPS — users are dropping off",
+    "how": "Redis distributed locks, not file locks. Don't modify auth middleware.",
+    "what": "1. Add rate limiter middleware 2. Configure per-endpoint limits 3. Load test at 500 RPS",
+    "done": "P99 < 500ms at 500 RPS sustained for 10 minutes"
+  }
+}
+EOF
+```
 
 ### When to Track vs Just Do
 
@@ -167,9 +196,10 @@ bon list                     # Hierarchical view
 bon list --ready             # Actions with no blocker
 bon show ID                  # Full details including brief
 bon show --current           # Active tactical steps
-bon new "title" --why W --what X --done D           # Create outcome
-bon new "title" --outcome P --why W --what X --done D  # Create action
-bon new "title" --why W --how H --what X --done D   # With approach
+cat <<'EOF' | bon new -q                             # Pipe JSON to stdin (default)
+{"title":"...","parent":"...","brief":{"why":"...","how":"...","what":"...","done":"..."}}
+EOF
+bon new "Quick fix" --why W --what X --done D -q     # Flags: only for one-line stubs
 bon done ID                  # Complete (unblocks waiters)
 bon done ID --note "reason"  # Complete with context
 bon wait ID REASON           # Mark waiting (clears tactical!)
@@ -188,7 +218,7 @@ bon convert ID --outcome P   # Outcome → action under P
 bon status                   # Overview counts
 ```
 
-All commands support `--json`. `bon new` supports `-q` (quiet, prints ID only).
+All commands support `--json` for output. `bon new` reads JSON from piped stdin by default — no flag needed. `bon new` supports `-q` (quiet, prints ID only).
 
 ---
 
@@ -232,7 +262,11 @@ All commands support `--json`. `bon new` supports `-q` (quiet, prints ID only).
 
 ### Shell Escaping
 
-When piping `bon --json` through inline python, use a heredoc:
+**For creating items:** Pipe JSON to `bon new` with a heredoc. Do not use flags with
+backslash line continuations — they look clean but break on quotes, backticks, and
+parentheses in technical content. Flags are only for quick stubs.
+
+**For reading items:** When piping `bon --json` output through inline python, use a heredoc:
 
 ```bash
 bon list --json | python3 << 'PYEOF'
@@ -247,3 +281,6 @@ PYEOF
 ### Creating Multiple Items
 
 Create sequentially, not in parallel tool calls. If one fails, Claude Code cancels all sibling calls.
+
+Pipe JSON to `bon new` for each item — clean heredocs with no escaping concerns.
+Never use flags for batch creation:

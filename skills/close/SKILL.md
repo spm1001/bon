@@ -1,7 +1,15 @@
 ---
 name: close
 description: "Orchestrates end-of-session capture via 5-phase GODAR framework — prevents work loss between sessions by surfacing learnings, triaging incomplete work into Now/Bon/Handoff, writing cross-session handoff, and staging memory extraction while context is rich. MANDATORY before /exit. Invoke FIRST on 'wrap up', 'lets finish', 'close out', '/close'."
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, Skill
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - AskUserQuestion
+  - Skill
 ---
 
 # /close

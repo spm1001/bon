@@ -5,3 +5,4 @@ build/
 .venv/
 .pytest_cache/
 .env
+open-skill-workspace/
