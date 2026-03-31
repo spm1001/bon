@@ -228,7 +228,8 @@ fi
 RESULT=$(echo "$PROMPT" | HOME="$EPHEMERAL_HOME" claude -p --bare --model opus 2>/dev/null || true)
 rm -rf "$EPHEMERAL_HOME"
 
-if [ -n "$RESULT" ]; then
+FIRST_LINE=$(echo "$RESULT" | grep -v '^$' | head -1 || true)
+if [ -n "$RESULT" ] && echo "$FIRST_LINE" | grep -q '^#'; then
     echo "$RESULT" > "$HANDOFF_FILE"
 else
     # LLM failed — write mechanical fallback instead of silent nothing

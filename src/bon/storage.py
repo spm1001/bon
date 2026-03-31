@@ -105,6 +105,20 @@ def _most_recent_timestamp(item: dict) -> str:
             or item.get("updated_at") or item.get("created_at") or "")
 
 
+def _normalise_waiting_for(items: list[dict]) -> list[dict]:
+    """Normalise waiting_for from legacy string to list format.
+
+    After this, waiting_for is always list[str] or None.
+    """
+    for item in items:
+        wf = item.get("waiting_for")
+        if isinstance(wf, str):
+            item["waiting_for"] = [wf]
+        elif wf is not None and not isinstance(wf, list):
+            item["waiting_for"] = None
+    return items
+
+
 def load_items() -> list[dict]:
     """Load all items from JSONL (or Dolt) with validation.
 
@@ -114,7 +128,7 @@ def load_items() -> list[dict]:
     """
     if _get_backend() == "dolt":
         from bon.dolt import dolt_load_items
-        return dolt_load_items()
+        return _normalise_waiting_for(dolt_load_items())
 
     path = _data_dir() / "items.jsonl"
     if not path.exists():
@@ -155,7 +169,7 @@ def load_items() -> list[dict]:
             file=sys.stderr,
         )
 
-    return list(seen.values())
+    return _normalise_waiting_for(list(seen.values()))
 
 
 def validate_item(item: dict, strict: bool = False) -> None:

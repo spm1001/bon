@@ -263,7 +263,7 @@ class TestStepNoComplete:
         lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
         waiter = next(i for i in items if i["id"] == waiter_id)
-        assert waiter["waiting_for"] == "arc-child"
+        assert waiter["waiting_for"] == ["arc-child"]
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
     def test_no_complete_on_non_final_step_is_ignored(self, arc_dir_with_fixture, monkeypatch):

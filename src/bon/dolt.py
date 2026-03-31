@@ -190,6 +190,7 @@ _SCHEMA_SQL = [
         parent      VARCHAR(64),
         `order`     INT DEFAULT 999,
         waiting_for VARCHAR(500),
+        wait_note   TEXT,
         tactical    JSON,
         created_at  VARCHAR(30),
         created_by  VARCHAR(100),
@@ -207,6 +208,7 @@ _SCHEMA_SQL = [
         parent      VARCHAR(64),
         `order`     INT DEFAULT 999,
         waiting_for VARCHAR(500),
+        wait_note   TEXT,
         tactical    JSON,
         created_at  VARCHAR(30),
         created_by  VARCHAR(100),
@@ -224,10 +226,15 @@ _SCHEMA_SQL = [
 
 
 def _ensure_schema(conn):
-    """Create tables if they don't exist (idempotent)."""
+    """Create tables if they don't exist, and migrate existing ones (idempotent)."""
     with conn.cursor() as cur:
         for sql in _SCHEMA_SQL:
             cur.execute(sql)
+        # Schema migrations for existing databases
+        for table in ("items", "archive"):
+            cur.execute(f"SHOW COLUMNS FROM {table} LIKE 'wait_note'")
+            if not cur.fetchone():
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN wait_note TEXT AFTER waiting_for")
     conn.commit()
 
 
@@ -236,7 +243,7 @@ def _ensure_schema(conn):
 # Columns shared between items and archive tables
 _ITEM_COLUMNS = [
     "id", "type", "title", "status", "brief", "parent", "order",
-    "waiting_for", "tactical", "created_at", "created_by",
+    "waiting_for", "wait_note", "tactical", "created_at", "created_by",
     "updated_at", "updated_by", "done_at", "done_note",
 ]
 
@@ -254,6 +261,8 @@ def _item_to_row(item: dict, columns: list[str] | None = None) -> dict:
     for col in cols:
         val = item.get(col)
         if col in ("brief", "tactical") and val is not None:
+            val = json.dumps(val, ensure_ascii=False)
+        elif col == "waiting_for" and isinstance(val, list):
             val = json.dumps(val, ensure_ascii=False)
         row[col] = val
     return row
@@ -278,6 +287,12 @@ def _row_to_item(row: dict) -> dict:
                     item[key] = val
             # Omit None brief/tactical to match JSONL behavior
             # (JSONL items may not have these keys at all)
+        elif key == "waiting_for" and val is not None and isinstance(val, str):
+            # Deserialise JSON list or wrap legacy single string
+            if val.startswith("["):
+                item[key] = json.loads(val)
+            else:
+                item[key] = [val]
         else:
             item[key] = val
     return item

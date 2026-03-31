@@ -354,7 +354,12 @@ def cmd_show(args):
         print(f"   Note: {item['done_note']}")
 
     if item.get("waiting_for"):
-        print(f"   Waiting for: {item['waiting_for']}")
+        blockers = item["waiting_for"]
+        wf_str = ", ".join(blockers) if isinstance(blockers, list) else str(blockers)
+        wf_line = f"   Waiting for: {wf_str}"
+        if item.get("wait_note"):
+            wf_line += f" ({item['wait_note']})"
+        print(wf_line)
 
     # Brief
     brief = item.get("brief", {})
@@ -385,7 +390,8 @@ def cmd_show(args):
             print("\n   Actions:")
             for idx, action in enumerate(actions, 1):
                 a_icon = "✓" if action["status"] == "done" else "○"
-                waiting = f" ⏳ {action['waiting_for']}" if action.get("waiting_for") else ""
+                wf = action.get("waiting_for")
+                waiting = f" ⏳ {', '.join(wf)}" if wf else ""
                 print(f"   {idx}. {a_icon} {action['title']} ({action['id']}){waiting}")
 
 
@@ -414,12 +420,16 @@ def cmd_done(args):
     # Clear tactical steps (action is done, steps are moot)
     item.pop("tactical", None)
 
-    # CRITICAL: Unblock waiters - clear waiting_for on items waiting for this one
+    # CRITICAL: Unblock waiters - remove this ID from all waiting_for lists
     unblocked = []
     for other in items:
-        if other.get("waiting_for") == item["id"]:
-            other["waiting_for"] = None
-            unblocked.append(other["id"])
+        blockers = other.get("waiting_for") or []
+        if item["id"] in blockers:
+            blockers.remove(item["id"])
+            other["waiting_for"] = blockers if blockers else None
+            if not other["waiting_for"]:
+                other.pop("wait_note", None)
+                unblocked.append(other["id"])
 
     save_items(items)
     if getattr(args, 'quiet', False):
@@ -450,7 +460,14 @@ def cmd_wait(args):
     if re.match(r'^[a-z]+-[a-z]+$', reason) and not find_by_id(items, reason, prefix):
         warn(f"'{reason}' not found in active items — waiting_for may never resolve automatically")
 
-    item["waiting_for"] = reason
+    # Append to blockers list (idempotent)
+    blockers = item.get("waiting_for") or []
+    if reason not in blockers:
+        blockers.append(reason)
+    item["waiting_for"] = blockers
+    note = getattr(args, "note", None)
+    if note:
+        item["wait_note"] = note
     item["updated_at"] = now_iso()
     item["updated_by"] = "waited"
     save_items(items)
@@ -461,7 +478,7 @@ def cmd_wait(args):
 
 
 def cmd_unwait(args):
-    """Clear waiting status."""
+    """Clear waiting status (all blockers, or a specific one)."""
     check_initialized()
 
     items = load_items()
@@ -471,12 +488,28 @@ def cmd_unwait(args):
     if not item:
         error(f"Item '{args.id}' not found")
 
-    item["waiting_for"] = None
+    blocker = getattr(args, "blocker", None)
+    if blocker:
+        # Remove specific blocker
+        blockers = item.get("waiting_for") or []
+        if blocker in blockers:
+            blockers.remove(blocker)
+        item["waiting_for"] = blockers if blockers else None
+        if not item["waiting_for"]:
+            item.pop("wait_note", None)
+    else:
+        # Clear all blockers
+        item["waiting_for"] = None
+        item.pop("wait_note", None)
+
     item["updated_at"] = now_iso()
     item["updated_by"] = "unwaited"
     save_items(items)
     if getattr(args, 'quiet', False):
         print(item['id'])
+    elif item.get("waiting_for"):
+        remaining = ", ".join(item["waiting_for"])
+        print(f"{item['id']} removed {blocker}, still waiting for: {remaining}")
     else:
         print(f"{item['id']} no longer waiting")
 
@@ -685,6 +718,7 @@ def cmd_convert(args):
         item["type"] = "action"
         item["parent"] = new_parent
         item["waiting_for"] = None
+        item.pop("wait_note", None)
         apply_reparent(items, item, old_parent, new_parent)
 
     else:  # action → outcome
@@ -1117,8 +1151,12 @@ def cmd_step(args):
             active["done_at"] = now_iso()
             # Unblock waiters
             for other in items:
-                if other.get("waiting_for") == active["id"]:
-                    other["waiting_for"] = None
+                blockers = other.get("waiting_for") or []
+                if active["id"] in blockers:
+                    blockers.remove(active["id"])
+                    other["waiting_for"] = blockers if blockers else None
+                    if not other["waiting_for"]:
+                        other.pop("wait_note", None)
             save_items(items)
             print(format_tactical(tactical))
             print(f"\nAction {active['id']} complete.")
@@ -1352,8 +1390,11 @@ def cmd_doctor(args):
 
         # waiting_for references (only check ID-shaped values)
         wf = item.get("waiting_for")
-        if wf and ("-" in wf) and wf not in all_ids:
-            issues.append(f"{item['id']}: waiting_for '{wf}' does not exist")
+        if wf:
+            blockers = wf if isinstance(wf, list) else [wf]
+            for blocker in blockers:
+                if "-" in blocker and blocker not in all_ids:
+                    issues.append(f"{item['id']}: waiting_for '{blocker}' does not exist")
 
     # Check order gaps/duplicates among siblings
     from collections import defaultdict
@@ -1432,12 +1473,14 @@ def main():
     wait_parser = subparsers.add_parser("wait", help="Mark item as waiting")
     wait_parser.add_argument("id", help="Item ID")
     wait_parser.add_argument("reason", help="What it's waiting for (ID or text)")
+    wait_parser.add_argument("--note", help="Why it's waiting (context for future sessions)")
     add_output_flags(wait_parser, quiet=True)
     wait_parser.set_defaults(func=cmd_wait)
 
     # unwait
     unwait_parser = subparsers.add_parser("unwait", help="Clear waiting status")
     unwait_parser.add_argument("id", help="Item ID")
+    unwait_parser.add_argument("blocker", nargs="?", help="Specific blocker to remove (omit to clear all)")
     add_output_flags(unwait_parser, quiet=True)
     unwait_parser.set_defaults(func=cmd_unwait)
 

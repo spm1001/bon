@@ -150,7 +150,9 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
                 waiting_suffix = ""
             elif action.get("waiting_for"):
                 status_icon = "○"
-                waiting_suffix = f" ⏳ {action['waiting_for']}"
+                wf = action["waiting_for"]
+                wf_str = ", ".join(wf) if isinstance(wf, list) else str(wf)
+                waiting_suffix = f" ⏳ {wf_str}"
             else:
                 status_icon = "○"
                 waiting_suffix = ""
@@ -197,7 +199,8 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
         lines.append("Standalone:")
         for action in sorted(standalone, key=lambda x: x.get("order", DEFAULT_ORDER)):
             status_icon = "✓" if action["status"] == "done" else "○"
-            waiting_suffix = f" ⏳ {action['waiting_for']}" if action.get("waiting_for") else ""
+            wf = action.get("waiting_for")
+            waiting_suffix = f" ⏳ {', '.join(wf)}" if wf else ""
             lines.append(f"  {status_icon} {action['title']} ({action['id']}){waiting_suffix}")
 
     # Handle empty case

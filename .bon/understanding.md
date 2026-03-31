@@ -79,7 +79,7 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **Legibility over abstraction.** No base classes, no registries. Each command is a self-contained function with the same boilerplate at the top. The repetition is deliberate.
 
-**LLM-ergonomic first.** `--quiet` for agents to capture just the ID. `--json` for piping. `--parent` aliased to `--outcome` because Claude's training priors are stronger on `--parent`. `check_outcome_language()` coaches agents away from activity framing.
+**LLM-ergonomic first.** `--quiet` for agents to capture just the ID. `--json` for piping. `--parent` aliased to `--outcome` because Claude's training priors are stronger on `--parent`. `check_outcome_language()` coaches agents away from activity framing. **Skill prose cannot override Claude's procedural priors** — four iterations of increasingly forceful skill guidance failed to make test Claudes pipe JSON to `bon new` instead of using flags. The fix was making JSON-from-stdin the CLI default (change the tool, not the instructions). This principle applies broadly: when the "right" invocation differs from what Claude learned in training, change the CLI's default behavior rather than fighting the prior with documentation.
 
 **Briefs are a forcing function.** `{why, how, what, done}` forces clear thinking. `how` is optional — captures approach/strategy/constraints when the work is complex enough to need it. Numbered items in `what` become extractable tactical steps, making the brief executable. `bon work` surfaces `how` as "Approach:" context above the step list. A bon brief with all four fields replaces a plan file — the plan IS the bon hierarchy.
 
