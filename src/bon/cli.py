@@ -176,8 +176,41 @@ def cmd_new(args):
     """Create a new outcome or action."""
     check_initialized()
 
+    if getattr(args, 'json_input', False):
+        # JSON from stdin — structured input, no shell escaping needed
+        try:
+            data = json.loads(sys.stdin.read())
+        except json.JSONDecodeError as e:
+            error(f"Invalid JSON on stdin: {e}")
+
+        title = data.get("title", "")
+        if not title:
+            error("JSON must include 'title'")
+
+        parent = data.get("parent", args.parent)
+
+        brief_data = data.get("brief", {})
+        brief = require_brief_flags(
+            brief_data.get("why"),
+            brief_data.get("what"),
+            brief_data.get("done"),
+            brief_data.get("how"),
+        )
+    else:
+        if not args.title:
+            error("Title is required (or use --json to read from stdin)")
+
+        title = args.title
+        parent = args.parent
+
+        # Get brief: interactive prompts or flags
+        if sys.stdin.isatty() and not (args.why and args.what and args.done):
+            brief = prompt_brief()
+        else:
+            brief = require_brief_flags(args.why, args.what, args.done, getattr(args, 'how', None))
+
     # Normalize title: single line, trimmed
-    title = " ".join(args.title.split())
+    title = " ".join(title.split())
     if not title:
         error("Title cannot be empty")
 
@@ -186,13 +219,6 @@ def cmd_new(args):
     existing_ids = {i["id"] for i in items}
     # Include archived IDs to prevent collisions with archived items
     existing_ids.update(i["id"] for i in load_archive())
-    parent = args.parent
-
-    # Get brief: interactive prompts or flags
-    if sys.stdin.isatty() and not (args.why and args.what and args.done):
-        brief = prompt_brief()
-    else:
-        brief = require_brief_flags(args.why, args.what, args.done, getattr(args, 'how', None))
 
     # Lint outcome titles for activity language
     if not parent:
@@ -1366,7 +1392,8 @@ def main():
 
     # new
     new_parser = subparsers.add_parser("new", help="Create outcome or action")
-    new_parser.add_argument("title", help="Title for the item")
+    new_parser.add_argument("title", nargs="?", default=None, help="Title for the item")
+    new_parser.add_argument("--json", action="store_true", dest="json_input", help="Read item as JSON from stdin")
     new_parser.add_argument("--outcome", "--for", "--parent", dest="parent", help="Parent outcome ID (creates action)")
     new_parser.add_argument("--why", help="Brief: why are we doing this?")
     new_parser.add_argument("--how", help="Brief: how will we approach it? (optional)")

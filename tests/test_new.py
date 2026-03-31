@@ -260,6 +260,144 @@ class TestOutcomeLanguageLint:
         assert item["type"] == "outcome"
 
 
+class TestNewJsonStdin:
+    """JSON stdin input for bon new --json."""
+
+    def test_json_creates_outcome(self, arc_dir, monkeypatch):
+        """bon new --json creates outcome from stdin JSON."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "JSON outcome",
+            "brief": {"why": "testing", "what": "a thing", "done": "it works"}
+        })
+        result = run_arc("new", "--json", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        assert "Created:" in result.stdout
+
+        item = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
+        assert item["type"] == "outcome"
+        assert item["title"] == "JSON outcome"
+        assert item["brief"]["why"] == "testing"
+
+    def test_json_creates_action_with_parent(self, arc_dir, monkeypatch):
+        """bon new --json with parent creates action."""
+        monkeypatch.chdir(arc_dir)
+
+        # Create outcome first
+        run_arc("new", "Parent", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
+        outcome_id = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())["id"]
+
+        data = json.dumps({
+            "title": "JSON action",
+            "parent": outcome_id,
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", "--json", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        lines = (arc_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = [json.loads(line) for line in lines]
+        action = next(i for i in items if i["type"] == "action")
+        assert action["parent"] == outcome_id
+
+    def test_json_missing_brief_fields_errors(self, arc_dir, monkeypatch):
+        """Missing required brief fields produce error."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({"title": "Incomplete", "brief": {"why": "only why"}})
+        result = run_arc("new", "--json", cwd=arc_dir, input=data)
+
+        assert result.returncode == 1
+        assert "Brief required. Missing:" in result.stderr
+        assert "--what" in result.stderr
+        assert "--done" in result.stderr
+
+    def test_json_missing_title_errors(self, arc_dir, monkeypatch):
+        """Missing title in JSON produces error."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({"brief": {"why": "w", "what": "x", "done": "d"}})
+        result = run_arc("new", "--json", cwd=arc_dir, input=data)
+
+        assert result.returncode == 1
+        assert "JSON must include 'title'" in result.stderr
+
+    def test_json_bad_parent_errors(self, arc_dir, monkeypatch):
+        """Non-existent parent in JSON produces error."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "Orphan",
+            "parent": "arc-nonexistent",
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", "--json", cwd=arc_dir, input=data)
+
+        assert result.returncode == 1
+        assert "not found" in result.stderr
+
+    def test_json_outcome_language_warning(self, arc_dir, monkeypatch):
+        """Activity-verb outcome title warns even via JSON."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "Implement OAuth",
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", "--json", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        assert "activity, not achievement" in result.stderr
+
+    def test_json_with_quiet(self, arc_dir, monkeypatch):
+        """--json with -q outputs just the ID."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "Quiet JSON",
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", "--json", "-q", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        assert result.stdout.strip().startswith("arc-")
+        assert "Created:" not in result.stdout
+
+    def test_json_with_how(self, arc_dir, monkeypatch):
+        """Optional how field preserved via JSON."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "With approach",
+            "brief": {"why": "w", "how": "the approach", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", "--json", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        item = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
+        assert item["brief"]["how"] == "the approach"
+
+    def test_json_invalid_json_errors(self, arc_dir, monkeypatch):
+        """Invalid JSON on stdin produces error."""
+        monkeypatch.chdir(arc_dir)
+
+        result = run_arc("new", "--json", cwd=arc_dir, input="not json at all")
+
+        assert result.returncode == 1
+        assert "Invalid JSON on stdin" in result.stderr
+
+    def test_no_title_without_json_flag_errors(self, arc_dir, monkeypatch):
+        """Omitting title without --json produces helpful error."""
+        monkeypatch.chdir(arc_dir)
+
+        result = run_arc("new", "--why", "w", "--what", "x", "--done", "d", cwd=arc_dir)
+
+        assert result.returncode == 1
+        assert "--json" in result.stderr
+
+
 class TestNewNotInitialized:
     def test_error_when_not_initialized(self, tmp_path, monkeypatch):
         """Error when .arc/ doesn't exist."""
