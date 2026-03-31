@@ -11,7 +11,7 @@ Two item types live in `.bon/items.jsonl` (or a shared Dolt database). An **outc
 {"id":"bon-bebune","type":"action","title":"Raw-file health checks","brief":{"why":"...","what":"1. Read items.jsonl... 2. Flag malformed JSON...","done":"bon doctor on a bad file reports all issues with line numbers"},"status":"done","parent":"bon-mufene","order":1,"created_at":"2026-03-02T21:29:19Z","created_by":"spm1001","waiting_for":null,"tactical":{"steps":["Read items.jsonl line-by-line","Flag malformed JSON","Flag conflict markers","Flag duplicate IDs"],"current":4,"session":"/home/modha/Repos/bon"},"updated_at":"2026-03-02T21:32:24Z","updated_by":"stepped","done_at":"2026-03-02T21:32:24Z"}
 ```
 
-Key fields: `brief` is mandatory — `{why, what, done}`, all three non-empty. `parent` links an action to its outcome. `waiting_for` holds the ID of a blocking item. `tactical` tracks step-by-step progress within a session (steps list, current index, session identity). `updated_by` records the verb of the last mutation ("stepped", "waited", "edited").
+Key fields: `brief` is mandatory — `{why, what, done}` required, `how` optional (approach/strategy). `parent` links an action to its outcome. `waiting_for` holds the ID of a blocking item. `tactical` tracks step-by-step progress within a session (steps list, current index, session identity). `updated_by` records the verb of the last mutation ("stepped", "waited", "edited").
 
 **Statuses are simple.** An item is `open` or `done`. "Waiting" isn't a status — it's an open item that has a non-null `waiting_for`. "Ready" means open with no blocker. "Active" means it has tactical steps in progress.
 
@@ -73,13 +73,13 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **LLM-ergonomic first.** `--quiet` for agents to capture just the ID. `--json` for piping. `--parent` aliased to `--outcome` because Claude's training priors are stronger on `--parent`. `check_outcome_language()` coaches agents away from activity framing.
 
-**Briefs are a forcing function.** `{why, what, done}` forces clear thinking. Numbered items in `what` become extractable tactical steps, making the brief executable.
+**Briefs are a forcing function.** `{why, how, what, done}` forces clear thinking. `how` is optional — captures approach/strategy/constraints when the work is complex enough to need it. Numbered items in `what` become extractable tactical steps, making the brief executable. `bon work` surfaces `how` as "Approach:" context above the step list. A bon brief with all four fields replaces a plan file — the plan IS the bon hierarchy.
 
 **Dispatch, not hierarchy.** The Dolt backend was added without class hierarchies or strategy patterns. Six `if _get_backend() == "dolt"` branches at function boundaries. Simple, readable, easy to remove if the experiment fails. The truncate-and-reinsert write strategy (DELETE all prefix rows, INSERT all, DOLT_COMMIT) deliberately mirrors JSONL's "rewrite the whole file" semantics — keeping both backends' concurrency guarantees identical at the cost of per-item efficiency that doesn't matter at bon's scale.
 
 ## The skills layer
 
-Bon ships two Claude Code skills plus a session-start hook. `/bon` (formerly `/tracker` and `/open`, merged) handles session orientation and draw-down discipline — it loads at session start when `.bon/` exists. `/close` handles end-of-session capture. `open-context.sh` is the hook that provides mechanical context (understanding, handoff, outcomes) before the LLM-mediated `/bon` ritual kicks in.
+Bon ships two Claude Code skills plus a session-start hook. `/bon` handles session orientation, draw-down/draw-up discipline, and teaches the plan-to-bon transmutation (create bon items instead of plan files). `/close` handles end-of-session capture via GODAR framework. `open-context.sh` is the hook that provides mechanical context (understanding, handoff, outcomes) before the LLM-mediated `/bon` ritual kicks in.
 
 **Skill gates shape Claude behavior at critical moments.** The /close skill's Decide phase gates what goes into bon vs handoff prose. A previous gate ("if this never gets done, what breaks?") biased Claudes toward deferring actionable work into handoff text. In a real 12-hour mind-sweep, this produced 6 outcomes with zero actions — the entire breakdown step was skipped. The fix: bon is the default for anything specific enough to write `--why`/`--what`/`--done`. "Handoff only" is restricted to genuinely non-actionable context (open questions, taste judgments, architectural tensions). The lesson: gate questions in skills are load-bearing. A permissive gate at close time compounds — work that should be tracked disappears into prose that no future Claude will parse.
 

@@ -44,7 +44,7 @@ Remember      → index session (background, automatic)
 Scripts live in **the bon plugin cache**. Find them with:
 
 ```bash
-SCRIPTS=$(find ~/.claude/plugins/cache -path "*/bon/*/scripts" -not -path "*/skills/*" -type d 2>/dev/null | head -1)
+SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep -v '/skills/' | head -1)
 [ -x "$SCRIPTS/close-context.sh" ] && echo "OK" || echo "BROKEN: close-context.sh not found"
 ```
 

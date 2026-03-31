@@ -38,7 +38,7 @@ Items live in `.bon/items.jsonl` (or a Dolt database when using the optional bac
 - **Outcome**: Desired result (has children)
 - **Action**: Concrete step (has parent, waiting_for)
 
-Both require `brief: {why, what, done}` — all three non-empty.
+Both require `brief: {why, what, done}` — all three non-empty. Optional `how` field captures approach/strategy.
 
 ## Adding a Command
 
