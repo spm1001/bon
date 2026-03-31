@@ -56,8 +56,8 @@ fi
 # === GATHER TO DISK (silent) ===
 
 # --- Handoff resolution ---
-# Primary: .bon/handoffs/ (git-tracked, no permission prompts)
-# Fallback: ~/.claude/handoffs/ (legacy location)
+# Primary: .bon/handoffs/ (walk up from CWD)
+# Fallback: ~/.bon/handoffs/ (global, for container sessions)
 NOW=$(date +%s)
 
 # Walk up to find .bon/handoffs/
@@ -71,20 +71,7 @@ while [ "$WALK" != "/" ]; do
     WALK=$(dirname "$WALK")
 done
 
-LEGACY_DIR="$HOME/.claude/handoffs"
-LEGACY_FOLDER="$LEGACY_DIR/$ENCODED_PATH"
-
-# Cross-machine fallback: Mac↔Linux home prefix
-if [ ! -d "$LEGACY_FOLDER" ]; then
-    ALT_ENCODED=""
-    case "$ENCODED_PATH" in
-        -home-modha-*)  ALT_ENCODED=$(echo "$ENCODED_PATH" | sed 's/^-home-modha-/-Users-modha-/') ;;
-        -Users-modha-*) ALT_ENCODED=$(echo "$ENCODED_PATH" | sed 's/^-Users-modha-/-home-modha-/') ;;
-    esac
-    if [ -n "$ALT_ENCODED" ] && [ -d "$LEGACY_DIR/$ALT_ENCODED" ]; then
-        LEGACY_FOLDER="$LEGACY_DIR/$ALT_ENCODED"
-    fi
-fi
+GLOBAL_BON_DIR="$HOME/.bon/handoffs"
 
 # Find the most recent handoff across both locations
 LATEST_FILE=""
@@ -97,20 +84,19 @@ find_latest_in() {
 }
 
 CANDIDATE_BON=$(find_latest_in "$BON_HANDOFF_DIR")
-CANDIDATE_LEGACY=$(find_latest_in "$LEGACY_FOLDER")
+CANDIDATE_GLOBAL=$(find_latest_in "$GLOBAL_BON_DIR")
 
-if [ -n "$CANDIDATE_BON" ] && [ -n "$CANDIDATE_LEGACY" ]; then
-    # Both exist — pick the most recent by mtime
-    if [ "$(file_mtime "$CANDIDATE_BON")" -ge "$(file_mtime "$CANDIDATE_LEGACY")" ]; then
-        LATEST_FILE="$CANDIDATE_BON"
-    else
-        LATEST_FILE="$CANDIDATE_LEGACY"
+# Pick the most recent candidate by mtime
+BEST_MTIME=0
+for CANDIDATE in "$CANDIDATE_BON" "$CANDIDATE_GLOBAL"; do
+    if [ -n "$CANDIDATE" ]; then
+        MT=$(file_mtime "$CANDIDATE")
+        if [ "$MT" -gt "$BEST_MTIME" ]; then
+            BEST_MTIME=$MT
+            LATEST_FILE="$CANDIDATE"
+        fi
     fi
-elif [ -n "$CANDIDATE_BON" ]; then
-    LATEST_FILE="$CANDIDATE_BON"
-elif [ -n "$CANDIDATE_LEGACY" ]; then
-    LATEST_FILE="$CANDIDATE_LEGACY"
-fi
+done
 
 if [ -n "$LATEST_FILE" ]; then
     LATEST_TIME=$(file_mtime "$LATEST_FILE")

@@ -29,27 +29,38 @@ while [ "$SEARCH" != "/" ]; do
     SEARCH=$(dirname "$SEARCH")
 done
 
-# No .bon/ found — not a bon project, nothing to do
-[ -z "$BON_ROOT" ] && exit 0
+# Walk-up missed — scan down for repo with most recent commit
+if [ -z "$BON_ROOT" ]; then
+    BEST_DIR=""
+    BEST_TIME=0
+    while IFS= read -r bon_dir; do
+        repo_dir=$(dirname "$bon_dir")
+        # Skip non-git dirs (e.g. pytest temp dirs)
+        git -C "$repo_dir" rev-parse --git-dir &>/dev/null || continue
+        latest=$(git -C "$repo_dir" log -1 --format=%ct 2>/dev/null || echo "0")
+        latest=${latest:-0}
+        if [ "$latest" -gt "$BEST_TIME" ]; then
+            BEST_TIME=$latest
+            BEST_DIR="$repo_dir"
+        fi
+    done < <(find "$CWD" -maxdepth 4 -name ".bon" -type d 2>/dev/null)
+    [ -n "$BEST_DIR" ] && BON_ROOT="$BEST_DIR"
+fi
+
+# Fallback: global ~/.bon/ for sessions without any project
+[ -z "$BON_ROOT" ] && BON_ROOT="$HOME"
 
 HANDOFF_DIR="$BON_ROOT/.bon/handoffs"
-
-# Legacy location for backwards-compat fast-path check
-ENCODED=$(echo "$CWD" | sed 's/[^a-zA-Z0-9-]/-/g')
-LEGACY_HANDOFF_DIR="$HOME/.claude/handoffs/$ENCODED"
 
 SHORT_ID="${SESSION_ID:0:8}"
 
 # If /close already wrote a handoff for this session, skip
-# Check both new location (.bon/handoffs/) and legacy (~/.claude/handoffs/)
-for CHECK_DIR in "$HANDOFF_DIR" "$LEGACY_HANDOFF_DIR"; do
-    if [ -f "$CHECK_DIR/${SHORT_ID}.md" ]; then
-        exit 0
-    fi
-    if ls "$CHECK_DIR"/*.md 2>/dev/null | xargs grep -l "session_id: $SESSION_ID" >/dev/null 2>&1; then
-        exit 0
-    fi
-done
+if [ -f "$HANDOFF_DIR/${SHORT_ID}.md" ]; then
+    exit 0
+fi
+if ls "$HANDOFF_DIR"/*.md 2>/dev/null | xargs grep -l "session_id: $SESSION_ID" >/dev/null 2>&1; then
+    exit 0
+fi
 
 mkdir -p "$HANDOFF_DIR"
 

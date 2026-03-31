@@ -114,7 +114,7 @@ is_container() {
 # Encoded path always starts with '-' — never use as bare arg; always prefix with absolute path
 ENCODED_PATH=$(echo "$CWD" | sed 's/[^a-zA-Z0-9-]/-/g')
 
-# Walk up to find .bon/handoffs/ (primary), fallback to legacy location
+# Walk up to find .bon/handoffs/ (primary)
 HANDOFF_DIR=""
 WALK="$CWD"
 while [ "$WALK" != "/" ]; do
@@ -124,8 +124,28 @@ while [ "$WALK" != "/" ]; do
     fi
     WALK=$(dirname "$WALK")
 done
-# Fallback: legacy location (non-bon projects or .bon not found)
-[ -z "$HANDOFF_DIR" ] && HANDOFF_DIR="$HOME/.claude/handoffs/$ENCODED_PATH"
+
+# Walk-up missed — scan down for repo with most recent commit
+# Covers container dirs (~/Repos) where work happened in a child repo
+if [ -z "$HANDOFF_DIR" ]; then
+    BEST_DIR=""
+    BEST_TIME=0
+    while IFS= read -r bon_dir; do
+        repo_dir=$(dirname "$bon_dir")
+        # Skip non-git dirs (e.g. pytest temp dirs)
+        git -C "$repo_dir" rev-parse --git-dir &>/dev/null || continue
+        latest=$(git -C "$repo_dir" log -1 --format=%ct 2>/dev/null || echo "0")
+        latest=${latest:-0}
+        if [ "$latest" -gt "$BEST_TIME" ]; then
+            BEST_TIME=$latest
+            BEST_DIR="$bon_dir/handoffs"
+        fi
+    done < <(find "$CWD" -maxdepth 4 -name ".bon" -type d 2>/dev/null)
+    [ -n "$BEST_DIR" ] && HANDOFF_DIR="$BEST_DIR"
+fi
+
+# Fallback: global bon handoffs (never legacy ~/.claude/handoffs/)
+[ -z "$HANDOFF_DIR" ] && HANDOFF_DIR="$HOME/.bon/handoffs"
 
 # Always output HANDOFF_DIR and SESSION_ID - even containers need handoffs
 echo "HANDOFF_DIR=$HANDOFF_DIR"
