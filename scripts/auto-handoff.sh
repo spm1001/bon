@@ -215,7 +215,7 @@ technical details. Do not add sections beyond Done/Next/Gotchas.
 PROMPTEOF
 
 # Generate via claude -p in bare mode (no hooks, no plugins)
-RESULT=$(echo "$PROMPT" | claude -p --bare --model haiku 2>/dev/null || true)
+RESULT=$(echo "$PROMPT" | claude -p --bare --model opus 2>/dev/null || true)
 
 if [ -n "$RESULT" ]; then
     echo "$RESULT" > "$HANDOFF_FILE"
