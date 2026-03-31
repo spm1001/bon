@@ -1,6 +1,6 @@
 # Bon — Instruction Shard
 
-Auto-loaded via `~/.claude/rules/bon.md`. Carries always-on rules only — skill context (`/bon`, `/close`) handles the rest.
+Auto-loaded via `~/.claude/rules/bon.md`. Carries always-on rules only — skill context (`/open`, `/close`) handles the rest.
 
 ## Mandatory Skill Loading
 

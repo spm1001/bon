@@ -28,7 +28,7 @@ src/bon/
 
 tests/            # pytest suite, one file per command
 fixtures/         # JSONL snapshots for parametrized tests
-skills/bon/SKILL.md      # Claude Code integration (session ritual + draw-down discipline)
+skills/open/SKILL.md     # Claude Code integration (session ritual + draw-down discipline)
 ```
 
 ## Data Model
@@ -140,7 +140,7 @@ save_items(items)                # Atomic write back
 | Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
 | Changing schema fields | bon-read.sh reads items.jsonl directly with jq |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
-| Stale global install after code changes | `uv tool install` reuses cached wheels. After changing bon code: `uv cache clean bon && uv tool install ~/Repos/bon --force --reinstall` |
+| Stale global install after code changes | `uv tool install` reuses cached wheels. After changing bon code: `uv cache clean bon --force && uv tool install ~/Repos/bon --force --reinstall` |
 | Calling `items_path()` in Dolt mode | Raises `BonError`. Check `_get_backend()` first, or use `load_items()`/`save_items()` which dispatch automatically. |
 | Dolt backend without pymysql | `BonError` with install instructions. Install: `pip install bon[dolt]` |
 | Session identity differs per backend | Use `get_session_identity()` not `os.path.realpath(os.getcwd())`. Dolt mode prefixes with hostname. |
@@ -172,7 +172,7 @@ bon migrate --to jsonl                     # Back to JSONL
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
 | Dolt backend logic | `dolt.py` |
-| Update Claude integration | `skills/bon/SKILL.md` |
+| Update Claude integration | `skills/open/SKILL.md` |
 | Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
 | Test bon-read.sh | `tests/test_bon_read.py` |
 

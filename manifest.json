@@ -88,9 +88,6 @@
     }
   },
   "skills": {
-    "bon": {
-      "target": "bon/skills/tracker"
-    },
     "open": {
       "target": "bon/skills/open"
     },
@@ -190,8 +187,8 @@
     "google-devdocs": {
       "target": "trousse/skills/google-devdocs"
     },
-    "audit": {
-      "target": "bon/skills/audit"
+    "review": {
+      "target": "bon/skills/review"
     }
   },
   "hooks": {

@@ -87,7 +87,7 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 ## The skills layer
 
-Bon ships two Claude Code skills plus a session-start hook. `/bon` handles session orientation, draw-down/draw-up discipline, and teaches the plan-to-bon transmutation (create bon items instead of plan files). `/close` handles end-of-session capture via GODAR framework. `open-context.sh` is the hook that provides mechanical context (understanding, handoff, outcomes) before the LLM-mediated `/bon` ritual kicks in.
+Bon ships three Claude Code skills plus a session-start hook. `/open` handles session orientation, draw-down/draw-up discipline, and teaches the plan-to-bon transmutation (create bon items instead of plan files). `/close` handles end-of-session capture via GODAR framework. `/review` orchestrates periodic backlog review. `open-context.sh` is the hook that provides mechanical context (understanding, handoff, outcomes) before the LLM-mediated `/open` ritual kicks in.
 
 **Skill gates shape Claude behavior at critical moments.** The /close skill's Decide phase gates what goes into bon vs handoff prose. A previous gate ("if this never gets done, what breaks?") biased Claudes toward deferring actionable work into handoff text. In a real 12-hour mind-sweep, this produced 6 outcomes with zero actions — the entire breakdown step was skipped. The fix: bon is the default for anything specific enough to write `--why`/`--what`/`--done`. "Handoff only" is restricted to genuinely non-actionable context (open questions, taste judgments, architectural tensions). The lesson: gate questions in skills are load-bearing. A permissive gate at close time compounds — work that should be tracked disappears into prose that no future Claude will parse.
 
