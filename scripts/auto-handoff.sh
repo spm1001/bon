@@ -215,7 +215,18 @@ technical details. Do not add sections beyond Done/Next/Gotchas.
 PROMPTEOF
 
 # Generate via claude -p in bare mode (no hooks, no plugins)
-RESULT=$(echo "$PROMPT" | claude -p --bare --model opus 2>/dev/null || true)
+# Use ephemeral HOME so session doesn't pollute `claude -r` history.
+# Pattern borrowed from ardoise.sh — copy just credentials, trash after.
+# (no native --ephemeral flag yet — see anthropics/claude-code#11793)
+EPHEMERAL_HOME=$(mktemp -d /tmp/bon-handoff-home-XXXXXX)
+mkdir -p "$EPHEMERAL_HOME/.claude"
+cp "$HOME/.claude/.credentials.json" "$EPHEMERAL_HOME/.claude/.credentials.json" 2>/dev/null || true
+if [ -f "$HOME/.claude/claude.json" ]; then
+    cp "$HOME/.claude/claude.json" "$EPHEMERAL_HOME/.claude/claude.json"
+    ln -s "$EPHEMERAL_HOME/.claude/claude.json" "$EPHEMERAL_HOME/.claude.json"
+fi
+RESULT=$(echo "$PROMPT" | HOME="$EPHEMERAL_HOME" claude -p --bare --model opus 2>/dev/null || true)
+rm -rf "$EPHEMERAL_HOME"
 
 if [ -n "$RESULT" ]; then
     echo "$RESULT" > "$HANDOFF_FILE"

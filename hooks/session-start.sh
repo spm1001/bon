@@ -1,35 +1,29 @@
 #!/bin/bash
 #
 # Session Start Hook
-# Outputs session context to stdout (Claude sees this automatically)
+# Outputs session context to stdout (Claude sees this automatically).
+# Instruction shard symlink is handled by ensure-bon.sh (runs first).
 #
 # Finds scripts relative to this hook's location (works in plugin cache).
+# No set -euo pipefail — individual failures must not kill the whole hook.
 
-set -euo pipefail
-
-# Symlink instruction shard into rules/ (survives plugin version changes)
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(dirname "$HOOK_DIR")"
-if [ -f "$PLUGIN_ROOT/instructions.md" ]; then
-    mkdir -p "$HOME/.claude/rules"
-    ln -sf "$PLUGIN_ROOT/instructions.md" "$HOME/.claude/rules/bon.md"
-fi
 
 # Read hook stdin (JSON with session metadata)
 INPUT=$(cat)
 SOURCE=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null || echo "")
 
-# On resume, skip the full briefing — it's already in context
-# Also delete any auto-handoff for this session (session isn't over, just reloading)
+# On resume, skip the full briefing — it's already in context.
+# Also delete any auto-handoff for this session (session isn't over, just reloading).
 if [ "$SOURCE" = "resume" ]; then
     SESSION_ID=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('session_id',''))" 2>/dev/null || echo "")
     if [ -n "$SESSION_ID" ]; then
         SHORT_ID="${SESSION_ID:0:8}"
-        # Walk up to find .bon/
         SEARCH=$(pwd -P)
         while [ "$SEARCH" != "/" ]; do
             if [ -d "$SEARCH/.bon/handoffs" ]; then
-                rm -f "$SEARCH/.bon/handoffs/${SHORT_ID}.md" 2>/dev/null
+                rm -f "$SEARCH/.bon/handoffs/${SHORT_ID}.md" 2>/dev/null || true
                 break
             fi
             SEARCH=$(dirname "$SEARCH")
