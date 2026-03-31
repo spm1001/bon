@@ -7,6 +7,14 @@
 
 set -euo pipefail
 
+# Symlink instruction shard into rules/ (survives plugin version changes)
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(dirname "$HOOK_DIR")"
+if [ -f "$PLUGIN_ROOT/instructions.md" ]; then
+    mkdir -p "$HOME/.claude/rules"
+    ln -sf "$PLUGIN_ROOT/instructions.md" "$HOME/.claude/rules/bon.md"
+fi
+
 # Read hook stdin (JSON with session metadata)
 INPUT=$(cat)
 SOURCE=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null || echo "")
@@ -30,9 +38,7 @@ if [ "$SOURCE" = "resume" ]; then
 fi
 
 if [ "$SOURCE" != "resume" ]; then
-    # Find scripts dir: sibling to hooks/ in the same repo/plugin
-    HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    PLUGIN_SCRIPTS="$(dirname "$HOOK_DIR")/scripts"
+    PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 
     if [ -x "$PLUGIN_SCRIPTS/open-context.sh" ]; then
         "$PLUGIN_SCRIPTS/open-context.sh" 2>/dev/null || true

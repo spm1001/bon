@@ -67,6 +67,14 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **The `.arc/` ghost.** Test infrastructure still uses the old name — `arc_dir` fixture, `run_arc()` helper, `arc-` prefixed fixtures. Not broken, but disorienting.
 
+## The brief's optional fields
+
+**`--how` is a self-contained string field**, not a linked document reference. Design is deliberate — bon items should replace plan files entirely, not reference external documents. `_normalize_brief()` in `display.py` ensures JSON output always includes `how: null` for items without it, without polluting stored JSONL. `OPTIONAL_BRIEF_FIELDS` dict in `storage.py` is the single point where optional-vs-required is declared.
+
+## Script resolution in skills
+
+**`find | head -1` is wrong for locating scripts across cached plugin versions.** It picks whichever version comes first in filesystem order, not the latest. The fix is `ls -td` (sort by modification time, newest first). Any script-finding pattern in skills should use this approach. This is the root cause behind bon-venasi (close skill picks stale scripts).
+
 ## The taste
 
 **Legibility over abstraction.** No base classes, no registries. Each command is a self-contained function with the same boilerplate at the top. The repetition is deliberate.
@@ -85,6 +93,8 @@ Bon ships two Claude Code skills plus a session-start hook. `/bon` handles sessi
 
 **Scripts live in `scripts/`, skills in `skills/*/`.** Both ship in the plugin cache. Path resolution must exclude `skills/*/scripts/` when searching for top-level scripts — `find -path "*/bon/*/scripts"` matches both because `*` spans `/` in `-path`.
 
-**`~/.claude/rules/*.md` auto-loads into every session.** Confirmed by test (magic-word shard). This means plugins can own instruction shards without `@include` wiring in the global CLAUDE.md. The pattern: a plugin's SessionStart hook symlinks its `instructions.md` into `~/.claude/rules/<plugin>.md`. Plugin updates change the cache path; next session's hook re-symlinks to the new version. The `~/.claude/` write restriction only applies to Claude's tool use (Write/Edit), not to subprocess hooks — so hook scripts can create symlinks without permission prompts. This is the mechanism behind Workstream 5 of the enrichment plan.
+**`~/.claude/rules/*.md` auto-loads into every session.** Confirmed by test (magic-word shard). This means plugins can own instruction shards without `@include` wiring in the global CLAUDE.md. The pattern: a plugin's SessionStart hook symlinks its `instructions.md` into `~/.claude/rules/<plugin>.md`. Plugin updates change the cache path; next session's hook re-symlinks to the new version. The `~/.claude/` write restriction only applies to Claude's tool use (Write/Edit), not to subprocess hooks — so hook scripts can create symlinks without permission prompts.
+
+**Rules files support path-scoping via YAML frontmatter.** Without frontmatter, rules are unconditional (always loaded). With a `paths:` field, rules only activate when Claude is working on files matching those glob patterns. Syntax: `---\npaths:\n  - "src/**"\n---`. Batterie instruction shards are unconditional (behavioral overrides apply everywhere), but path-scoped rules are available for file-type-specific instructions.
 
 **The briefing's "Suggested" section is a baton pass, not a board view.** It pulls from the previous handoff's Next items — the outgoing Claude's curated picks — not from `bon list --ready`. The full ready list is available on demand, but the startup stream carries only what the last Claude recommended. Bon IDs appear naturally when the outgoing Claude referenced them in handoff Next, giving the incoming Claude a direct `bon work` handle. This is Claude-to-Claude communication; human readability is secondary. When Suggested is in context from the hook, don't re-run `bon list` to pick direction — it's redundant and burns tokens. `bon list` is for the full picture: hierarchy, status, mid-session transitions, or auditing completeness.

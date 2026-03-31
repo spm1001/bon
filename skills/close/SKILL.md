@@ -44,8 +44,8 @@ Remember      → index session (background, automatic)
 Scripts live in **the bon plugin cache**. Find them with:
 
 ```bash
-SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep -v '/skills/' | head -1)
-[ -x "$SCRIPTS/close-context.sh" ] && echo "OK" || echo "BROKEN: close-context.sh not found"
+BON_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep -v '/skills/' | head -1)
+[ -x "$BON_SCRIPTS/close-context.sh" ] && echo "OK" || echo "BROKEN: close-context.sh not found"
 ```
 
 | Check | How | If Broken |
@@ -69,10 +69,10 @@ You may have `cd`'d during work. Your system prompt contains `Working directory:
 ## Gather
 
 ```bash
-"$SCRIPTS/close-context.sh"
+"$BON_SCRIPTS/close-context.sh"
 ```
 
-Where `$SCRIPTS` was resolved in the prerequisites above. Script outputs: TIME, GIT, BON, LOCATION context, HANDOFF_DIR, SESSION_ID.
+Where `$BON_SCRIPTS` was resolved in the prerequisites above. Script outputs: TIME, GIT, BON, LOCATION context, HANDOFF_DIR, SESSION_ID.
 
 Use TIME_OF_DAY for greetings. Use YEAR to anchor the handoff date. **Hold onto HANDOFF_DIR and SESSION_ID — you'll need both in Act.**
 
@@ -177,7 +177,7 @@ bon new "title" --why "consequence if not done" --what "concrete actions" --done
 **Handoff location is non-negotiable.** The script computes the path; you use it exactly.
 
 ```bash
-"$SCRIPTS/close-context.sh" | grep -E 'HANDOFF_DIR|SESSION_ID'
+"$BON_SCRIPTS/close-context.sh" | grep -E 'HANDOFF_DIR|SESSION_ID'
 ```
 
 This outputs both — use them directly, never recompute.
@@ -259,7 +259,7 @@ Write a short prose fragment (one paragraph, not a form) to `.bon/contributions/
 **This step requires the garde-manger plugin.** Check for it at runtime:
 
 ```bash
-GARDE_SCRIPTS=$(find ~/.claude/plugins/cache -path "*/garde-manger/*/scripts" -type d 2>/dev/null | head -1)
+GARDE_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/garde-manger/*/scripts 2>/dev/null | head -1)
 ```
 
 If `$GARDE_SCRIPTS` is empty, **skip this entire section** — extraction is a garde-manger concern, not bon's. The handoff is the critical artifact; extraction is optional enrichment.

@@ -1,6 +1,6 @@
 ---
-name: bon
-description: "Activate at session start when .bon/ exists AND before any bon CLI command. Handles session orientation (process contributions, present hierarchy, pick direction) and enforces draw-down workflow (bon show → bon work → bon step). Triggers on: session start with .bon/, /bon, 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists."
+name: open
+description: "Activate at session start when .bon/ exists AND before any bon CLI command. Handles session orientation (process contributions, present hierarchy, pick direction) and enforces draw-down workflow (bon show → bon work → bon step). Triggers on: session start with .bon/, /open, /bon, 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists."
 allowed-tools: "Bash(bon:*)", Read, Glob, Edit, Write
 ---
 

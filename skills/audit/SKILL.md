@@ -1,6 +1,6 @@
 ---
-name: audit
-description: "Orchestrates periodic cross-repo backlog review using 5-phase survey-verify-summarize-act-snapshot workflow that prevents closing items without codebase verification. Scans open bon items across all repos, dispatches parallel subagents to verify briefs against actual code, classifies as done/stale/active/blocked, and presents triage summary for user approval before closing. MANDATORY for backlog review sessions. Invoke on '/audit', 'audit my bons', 'backlog review', 'what needs closing', 'clean up bons', 'triage my backlog'. Requires bon skill loaded first."
+name: review
+description: "Orchestrates periodic cross-repo backlog review using 5-phase survey-verify-summarize-act-snapshot workflow that prevents closing items without codebase verification. Scans open bon items across all repos, dispatches parallel subagents to verify briefs against actual code, classifies as done/stale/active/blocked, and presents triage summary for user approval before closing. MANDATORY for backlog review sessions. Invoke on '/review', 'review my bons', 'backlog review', 'what needs closing', 'clean up bons', 'triage my backlog'. Requires bon skill loaded first."
 allowed-tools: "Bash(bon:*)", "Bash(uv:*)", Read, Glob, Grep, Agent, AskUserQuestion
 ---
 
@@ -204,7 +204,7 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 |-------|-------------|
 | **bon** | Audit uses bon CLI for closures. Does not duplicate draw-down teaching. Assumes bon is loaded. |
 | **close** | Audit's Phase 3→4 mirrors close's Decide→Act. But audit is cross-repo; close is single-session. |
-| **open** | After audit, /open re-orients to whatever's next. |
+| **open** | After review, /open re-orients to whatever's next. |
 
 ## References
 
