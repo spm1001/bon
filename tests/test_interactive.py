@@ -12,8 +12,8 @@ class TestPromptBrief:
     """Test prompt_brief() function directly."""
 
     def test_valid_brief_returned(self):
-        """Valid input returns complete brief dict."""
-        with patch('builtins.input', side_effect=["Because reasons", "A thing", "It works"]):
+        """Valid input returns complete brief dict (how skipped)."""
+        with patch('builtins.input', side_effect=["Because reasons", "", "A thing", "It works"]):
             brief = prompt_brief()
 
         assert brief == {
@@ -22,38 +22,51 @@ class TestPromptBrief:
             "done": "It works",
         }
 
+    def test_valid_brief_with_how(self):
+        """Valid input with how returns 4-field brief dict."""
+        with patch('builtins.input', side_effect=["Because reasons", "Use Redis", "A thing", "It works"]):
+            brief = prompt_brief()
+
+        assert brief == {
+            "why": "Because reasons",
+            "how": "Use Redis",
+            "what": "A thing",
+            "done": "It works",
+        }
+
     def test_empty_why_rejected(self):
         """Empty 'why' raises ArcError."""
-        with patch('builtins.input', side_effect=["", "A thing", "It works"]):
+        with patch('builtins.input', side_effect=[""]):
             with pytest.raises(BonError):
                 prompt_brief()
 
     def test_empty_what_rejected(self):
         """Empty 'what' raises ArcError."""
-        with patch('builtins.input', side_effect=["Because reasons", "", "It works"]):
+        with patch('builtins.input', side_effect=["Because reasons", "", ""]):
             with pytest.raises(BonError):
                 prompt_brief()
 
     def test_empty_done_rejected(self):
         """Empty 'done' raises ArcError."""
-        with patch('builtins.input', side_effect=["Because reasons", "A thing", ""]):
+        with patch('builtins.input', side_effect=["Because reasons", "", "A thing", ""]):
             with pytest.raises(BonError):
                 prompt_brief()
 
     def test_whitespace_only_rejected(self):
         """Whitespace-only input raises ArcError."""
-        with patch('builtins.input', side_effect=["   ", "A thing", "It works"]):
+        with patch('builtins.input', side_effect=["   "]):
             with pytest.raises(BonError):
                 prompt_brief()
 
     def test_input_stripped(self):
         """Input is stripped of leading/trailing whitespace."""
-        with patch('builtins.input', side_effect=["  Because reasons  ", "  A thing  ", "  It works  "]):
+        with patch('builtins.input', side_effect=["  Because reasons  ", "", "  A thing  ", "  It works  "]):
             brief = prompt_brief()
 
         assert brief["why"] == "Because reasons"
         assert brief["what"] == "A thing"
         assert brief["done"] == "It works"
+        assert "how" not in brief
 
 
 class TestArcErrorInProcess:
@@ -75,7 +88,7 @@ class TestInteractiveCLI:
 
         # Mock isatty to return True, then provide input
         with patch('sys.stdin.isatty', return_value=True):
-            with patch('builtins.input', side_effect=["Test why", "Test what", "Test done"]):
+            with patch('builtins.input', side_effect=["Test why", "", "Test what", "Test done"]):
                 # Import and call main directly to use mocked stdin
                 from bon.cli import main
                 with patch('sys.argv', ['arc', 'new', 'Interactive test']):
@@ -116,7 +129,7 @@ class TestInteractiveCLI:
 
         # Provide only --why, should prompt for all three
         with patch('sys.stdin.isatty', return_value=True):
-            with patch('builtins.input', side_effect=["Interactive why", "Interactive what", "Interactive done"]):
+            with patch('builtins.input', side_effect=["Interactive why", "", "Interactive what", "Interactive done"]):
                 from bon.cli import main
                 with patch('sys.argv', ['arc', 'new', 'Partial flags', '--why', 'Ignored']):
                     main()

@@ -114,6 +114,9 @@ elif mode == "current":
         if item.get("tactical") and item.get("status") == "open":
             t = item["tactical"]
             print(f'Working: {item["title"]} ({item["id"]})')
+            how = item.get("brief", {}).get("how")
+            if how:
+                print(f'Approach: {how}')
             for idx, step in enumerate(t.get("steps", [])):
                 current = t.get("current", 0)
                 if idx < current:

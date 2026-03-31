@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from bon.display import format_hierarchical, format_json, format_jsonl, format_tactical
+from bon.display import _normalize_brief, format_hierarchical, format_json, format_jsonl, format_tactical
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from bon.storage import (
     KNOWN_VERBS,
@@ -106,6 +106,8 @@ def prompt_brief() -> dict:
     if not why:
         error("'Why' cannot be empty")
 
+    how = input("  How will we approach it? (optional, Enter to skip) ").strip()
+
     what = input("  What will we produce? ").strip()
     if not what:
         error("'What' cannot be empty")
@@ -114,13 +116,16 @@ def prompt_brief() -> dict:
     if not done:
         error("'Done' cannot be empty")
 
-    return {"why": why, "what": what, "done": done}
+    brief = {"why": why, "what": what, "done": done}
+    if how:
+        brief["how"] = how
+    return brief
 
 
-def require_brief_flags(why: str | None, what: str | None, done: str | None) -> dict:
+def require_brief_flags(why: str | None, what: str | None, done: str | None, how: str | None = None) -> dict:
     """Validate brief flags for non-interactive creation.
 
-    All three flags required when not in interactive mode.
+    --why, --what, --done are required. --how is optional.
     """
     missing = []
     if not why:
@@ -133,7 +138,10 @@ def require_brief_flags(why: str | None, what: str | None, done: str | None) -> 
     if missing:
         error(f"Brief required. Missing: {', '.join(missing)}")
 
-    return {"why": why, "what": what, "done": done}
+    brief = {"why": why, "what": what, "done": done}
+    if how:
+        brief["how"] = how
+    return brief
 
 
 # Activity verbs that suggest an outcome title describes work, not achievement.
@@ -184,7 +192,7 @@ def cmd_new(args):
     if sys.stdin.isatty() and not (args.why and args.what and args.done):
         brief = prompt_brief()
     else:
-        brief = require_brief_flags(args.why, args.what, args.done)
+        brief = require_brief_flags(args.why, args.what, args.done, getattr(args, 'how', None))
 
     # Lint outcome titles for activity language
     if not parent:
@@ -294,16 +302,13 @@ def cmd_show(args):
         error(f"Item '{args.id}' not found")
 
     if args.json:
-        # For outcomes, include actions
+        item_copy = _normalize_brief(item)
         if item["type"] == "outcome":
-            item_copy = dict(item)
             item_copy["actions"] = sorted(
-                [i for i in items if i.get("parent") == item["id"]],
+                [_normalize_brief(i) for i in items if i.get("parent") == item["id"]],
                 key=lambda x: x.get("order", DEFAULT_ORDER)
             )
-            print(json.dumps(item_copy, indent=2, ensure_ascii=False))
-        else:
-            print(json.dumps(item, indent=2, ensure_ascii=False))
+        print(json.dumps(item_copy, indent=2, ensure_ascii=False))
         return
 
     # Header
@@ -325,6 +330,8 @@ def cmd_show(args):
     brief = item.get("brief", {})
     if brief:
         print(f"\n   --why: {brief.get('why', 'N/A')}")
+        if brief.get("how"):
+            print(f"   --how: {brief['how']}")
         print(f"   --what: {brief.get('what', 'N/A')}")
         print(f"   --done: {brief.get('done', 'N/A')}")
 
@@ -535,12 +542,13 @@ def cmd_edit(args):
         args.title,
         args.parent is not None,
         args.why,
+        args.how is not None,
         args.what,
         args.done,
         args.order is not None,
     ])
     if not has_edit:
-        error("At least one edit flag required: --title, --outcome, --why, --what, --done, --order")
+        error("At least one edit flag required: --title, --outcome, --why, --how, --what, --done, --order")
 
     items = load_items()
     prefix = load_prefix()
@@ -568,6 +576,11 @@ def cmd_edit(args):
         edited["parent"] = None if args.parent.lower() == "none" else args.parent
     if args.why:
         edited["brief"]["why"] = args.why
+    if args.how is not None:
+        if args.how:
+            edited["brief"]["how"] = args.how
+        else:
+            edited["brief"].pop("how", None)
     if args.what:
         edited["brief"]["what"] = args.what
     if args.done:
@@ -1007,6 +1020,10 @@ def cmd_work(args):
     item["updated_by"] = "worked"
     save_items(items)
 
+    how = item.get("brief", {}).get("how")
+    if how:
+        print(f"Approach: {how}")
+        print()
     print(format_tactical(item["tactical"]))
 
 
@@ -1352,6 +1369,7 @@ def main():
     new_parser.add_argument("title", help="Title for the item")
     new_parser.add_argument("--outcome", "--for", "--parent", dest="parent", help="Parent outcome ID (creates action)")
     new_parser.add_argument("--why", help="Brief: why are we doing this?")
+    new_parser.add_argument("--how", help="Brief: how will we approach it? (optional)")
     new_parser.add_argument("--what", help="Brief: what will we produce?")
     new_parser.add_argument("--done", help="Brief: how do we know it's done?")
     add_output_flags(new_parser, quiet=True)
@@ -1398,6 +1416,7 @@ def main():
     edit_parser.add_argument("--title", help="New title")
     edit_parser.add_argument("--outcome", "--parent", dest="parent", help="New parent outcome ID (use 'none' to make standalone)")
     edit_parser.add_argument("--why", help="New brief.why")
+    edit_parser.add_argument("--how", help="New brief.how (approach/strategy)")
     edit_parser.add_argument("--what", help="New brief.what")
     edit_parser.add_argument("--done", help="New brief.done")
     edit_parser.add_argument("--order", type=int, help="New order within parent")

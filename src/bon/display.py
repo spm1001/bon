@@ -4,6 +4,27 @@ import json
 from bon.ids import DEFAULT_ORDER
 from bon.queries import filter_ready, filter_waiting
 
+# Optional brief fields with their default values for JSON output.
+# Required fields (why, what, done) are always present; optional ones
+# get normalized to their default when missing from stored data.
+OPTIONAL_BRIEF_FIELDS = {"how": None}
+
+
+def _normalize_brief(item: dict) -> dict:
+    """Return a copy of item with optional brief fields guaranteed present.
+
+    Used at the JSON output boundary so consumers get a consistent shape
+    without polluting stored data with nulls.
+    """
+    if "brief" not in item:
+        return item
+    item = dict(item)
+    item["brief"] = dict(item["brief"])
+    for field, default in OPTIONAL_BRIEF_FIELDS.items():
+        if field not in item["brief"]:
+            item["brief"][field] = default
+    return item
+
 
 def format_tactical(tactical: dict, action_status: str | None = None) -> str:
     """Format tactical steps for display.
@@ -48,15 +69,15 @@ def format_json(items: list[dict]) -> str:
         key=lambda x: x.get("order", DEFAULT_ORDER)
     ):
         actions = sorted(
-            [i for i in items if i.get("parent") == outcome["id"]],
+            [_normalize_brief(i) for i in items if i.get("parent") == outcome["id"]],
             key=lambda x: x.get("order", DEFAULT_ORDER)
         )
-        outcome_copy = dict(outcome)
+        outcome_copy = _normalize_brief(outcome)
         outcome_copy["actions"] = actions
         outcomes.append(outcome_copy)
 
     standalone = sorted(
-        [i for i in items if i["type"] == "action" and not i.get("parent")],
+        [_normalize_brief(i) for i in items if i["type"] == "action" and not i.get("parent")],
         key=lambda x: x.get("order", DEFAULT_ORDER)
     )
 
@@ -67,7 +88,7 @@ def format_jsonl(items: list[dict]) -> str:
     """Format as flat JSONL, one item per line."""
     lines = []
     for item in items:
-        lines.append(json.dumps(item, ensure_ascii=False))
+        lines.append(json.dumps(_normalize_brief(item), ensure_ascii=False))
     return "\n".join(lines)
 
 

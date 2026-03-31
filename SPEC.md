@@ -199,21 +199,26 @@ Actions can have tactical steps for tracking progress through work. The `tactica
 
 ### The `brief` Field
 
-The `brief` field enables Claude-to-Claude handoff. It has three required subfields:
+The `brief` field enables Claude-to-Claude handoff. It has three required subfields and one optional:
 
 | Subfield | Required | Question it answers |
 |----------|----------|---------------------|
 | `why` | ✓ | Why are we doing this? |
+| `how` | | How will we approach it? |
 | `what` | ✓ | What will we produce/achieve? |
 | `done` | ✓ | How do we know it's complete? |
 
+`how` is optional. When present, it captures the approach, strategy, constraints, and sequencing — things that don't fit in `what` (deliverables) or `why` (motivation). Items without `how` are valid; the field may be absent from older data.
+
 **For Outcomes:**
 - `why` — Purpose, what led here, why this matters
+- `how` — Overall strategy, sequencing between actions, dangerous partial states
 - `what` — Key results, vision, what success looks like
 - `done` — Success criteria, how you know the outcome is achieved
 
 **For Actions:**
 - `why` — Context the receiving Claude needs, background
+- `how` — Specific approach: technology choices, files to touch, things to avoid
 - `what` — Deliverables, artifacts, specific things to produce
 - `done` — Definition of done, acceptance criteria
 
@@ -223,8 +228,18 @@ The `brief` field enables Claude-to-Claude handoff. It has three required subfie
 ```json
 {
   "why": "OAuth flow causing race conditions when batch jobs run concurrently. See error logs from Jan 10.",
+  "how": "Use Redis distributed lock (not file lock — multi-machine). Check lock before spawning, release on completion or timeout. Don't modify the OAuth flow itself.",
   "what": "1. processes list command to show running executions. 2. --guard flag to abort if already running. 3. --force flag to skip check.",
   "done": "Can run `itv-appscript processes list` and see running jobs. Running with --guard aborts if duplicate detected."
+}
+```
+
+**Good brief without how (simple work):**
+```json
+{
+  "why": "Typo in API docs — endpoint says /users but should be /v2/users",
+  "what": "Fix the endpoint reference in docs/api.md",
+  "done": "Docs show /v2/users"
 }
 ```
 
@@ -243,6 +258,7 @@ The `brief` field enables Claude-to-Claude handoff. It has three required subfie
 
 - **Concrete details:** File paths, function names, API endpoints, error messages
 - **Numbered steps** in `what` when multiple deliverables exist
+- **Approach in `how`** when the work has constraints, technology choices, or sequencing that a future Claude needs
 - **Verifiable criteria** in `done` — not "it works" but "returns 200 with valid token"
 - **References** to related items, commits, or documentation when relevant
 
@@ -252,6 +268,7 @@ The `brief` field enables Claude-to-Claude handoff. It has three required subfie
 ```json
 {
   "why": "OAuth token refresh fails silently when refresh_token is expired. Users see 401 errors with no recovery path. Affects ~5% of daily active users based on error logs.",
+  "how": "Detect at the middleware layer, not in individual routes. Clear credentials and redirect — don't try to auto-refresh (the refresh_token is expired, not just the access_token). Add query param so the login page can show context.",
   "what": "1. Detect expired refresh_token (not just access_token). 2. Clear stored credentials and redirect to /auth/login. 3. Add 'session_expired' query param so UI can show explanation.",
   "done": "Expired refresh_token triggers redirect within 1 request. Login page shows 'Your session expired, please sign in again.' No user sees raw 401."
 }
@@ -407,7 +424,7 @@ Completed items retain their order. This preserves position for display (showing
 ### Commands (13)
 
 ```
-bon new "title" [--outcome PARENT] [--why W --what X --done D]
+bon new "title" [--outcome PARENT] [--why W [--how H] --what X --done D]
                                   Create outcome (or action if --outcome)
 bon done ID                       Complete item
 bon show ID [--current]           View item with actions (--current for active tactical)
@@ -456,14 +473,14 @@ def init(prefix: str = "bon"):
 ### `bon new`
 
 ```bash
-bon new "title" [--outcome PARENT] [--why WHY] [--what WHAT] [--done DONE]
+bon new "title" [--outcome PARENT] [--why WHY] [--how HOW] [--what WHAT] [--done DONE]
 ```
 
 Creates outcome (default) or action (if `--outcome`). Aliases: `--for`, `--parent`.
 
 **Brief is required.** Either:
 - Interactive: prompted for why/what/done (must provide non-empty answers)
-- Non-interactive: must provide `--why`, `--what`, `--done` flags
+- Non-interactive: must provide `--why`, `--what`, `--done` flags. `--how` is optional.
 
 ```python
 def new(title: str, parent: str | None = None,
