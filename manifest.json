@@ -94,9 +94,6 @@
     "close": {
       "target": "bon/skills/close"
     },
-    "amp-close": {
-      "target": "trousse/skills/amp-close"
-    },
     "diagram": {
       "target": "trousse/skills/diagram"
     },
@@ -243,37 +240,5 @@
     }
   },
   "inline_skills": [],
-  "agents": {
-    "gemini": {
-      "config_dir": "~/.gemini",
-      "symlinks": {
-        "settings.json": "gemini/settings.json",
-        "GEMINI.md": "gemini/GEMINI.md"
-      },
-      "skills": {
-        "bon": {
-          "target": "bon/gemini/skills/bon"
-        },
-        "garde": {
-          "target": "garde-manger/skills/memory"
-        },
-        "mise": {
-          "target": "mise-en-space/skills/workspace"
-        },
-        "passe": {
-          "target": "passe/skills/browser"
-        },
-        "todoist-gtd": {
-          "target": "todoist-gtd"
-        }
-      }
-    },
-    "amp": {
-      "config_dir": "~/.config/amp",
-      "symlinks": {
-        "settings.json": "amp/settings.json"
-      },
-      "skills": {}
-    }
-  }
+  "agents": {}
 }
