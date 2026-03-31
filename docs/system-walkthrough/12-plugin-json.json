@@ -1,0 +1,61 @@
+{
+  "name": "bon",
+  "version": "0.12.0",
+  "description": "GTD-native work tracker for AI coding agents \u2014 outcomes, actions, tactical steps",
+  "author": {
+    "name": "Sameer Modha",
+    "url": "https://github.com/spm1001"
+  },
+  "repository": "https://github.com/spm1001/bon",
+  "license": "MIT",
+  "keywords": [
+    "gtd",
+    "tracking",
+    "productivity",
+    "work-management"
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/ensure-bon.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/bon-tactical.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/context-budget.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
