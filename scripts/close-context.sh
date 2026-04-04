@@ -86,7 +86,7 @@ if [ -d ".bon" ] || [ -d ".arc" ]; then
         echo "WAITING_COUNT=$WAITING_COUNT"
         if [ -n "$OPEN_OUTPUT" ]; then
             echo "ITEMS:"
-            echo "$OPEN_OUTPUT" | head -15
+            echo "$OPEN_OUTPUT"
         fi
         echo "BON_EXISTS=true"
     else
