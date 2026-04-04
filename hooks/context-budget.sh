@@ -75,9 +75,9 @@ MAX_K=$(( MAX_TOKENS / 1000 ))
 
 # Tiered message
 if [ "$USED_PCT" -ge 90 ]; then
-    MSG="CONTEXT CRITICAL: ${USED_PCT}% used (${USED_K}k/${MAX_K}k). ~${REMAINING_K}k left. Wrap up or hand off NOW."
+    MSG="Context: ${USED_PCT}% used (${USED_K}k/${MAX_K}k). ~${REMAINING_K}k remaining. Good point to wrap up or hand off."
 elif [ "$USED_PCT" -ge 75 ]; then
-    MSG="Context budget: ${USED_PCT}% used (${USED_K}k/${MAX_K}k). ~${REMAINING_K}k remaining. Start wrapping up."
+    MSG="Context: ${USED_PCT}% used (${USED_K}k/${MAX_K}k). ~${REMAINING_K}k remaining. Consider wrapping up soon."
 else
     MSG="Context: ${USED_PCT}% (${USED_K}k/${MAX_K}k, ~${REMAINING_K}k free)"
 fi
