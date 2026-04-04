@@ -87,6 +87,8 @@ Handoff resolution uses a three-tier strategy: walk up from CWD for `.bon/handof
 
 Instructional text is emotional regulation. The CSO scoring rubric awarded 10/25 points for MANDATORY — the highest score for the strongest threat-register word — which incentivised every skill in the ecosystem to open with a shouted command. Anthropic's research shows these patterns causally increase corner-cutting in model behaviour, even when the output looks composed. The fix is reforming the scoring system, not just softening individual files. The `register-principles.md` reference document in skill-forge captures the full framework.
 
+**Surface-level lint is necessary but insufficient.** The register lint tool (`lint_skill.py`'s `check_register()`) checks ALL CAPS density, negation ratio, and opening tone. These catch the obvious patterns but miss subtler stress generators: threat framing ("broken scripts mean lost handoffs"), constraint density (seven-row mistake tables), conditional punishment ("if you skip this, future Claude can't prioritise"), and urgency stacking (bold + table + bold). The amp-close skill passed lint at 50% negation ratio, suggesting thresholds may be miscalibrated. The deeper question is document posture — does the text assume competence and provide context, or assume failure risk and provide guardrails? These produce measurably different model behaviour but aren't greppable. bon-kaviru tracks approach design for posture-level analysis.
+
 ## The taste
 
 **Legibility over abstraction.** No base classes, no registries. Each command is a self-contained function with the same boilerplate at the top. The repetition is deliberate.

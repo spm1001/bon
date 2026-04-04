@@ -1,6 +1,6 @@
 ---
 name: close
-description: "Orchestrates end-of-session capture via 5-phase GODAR framework — prevents work loss between sessions by surfacing learnings, triaging incomplete work into Now/Bon/Handoff, writing cross-session handoff, and staging memory extraction while context is rich. Run before /exit. Invoke on 'wrap up', 'lets finish', 'close out', '/close'."
+description: "Run before /exit, to reflect on this session and figure out what's best to (1) get done now, with current context wisdom (2) file as a handoff for the next Claude as well as (3) what wisdom to capture for future Claudes in collective memory. Ends with a commit."
 allowed-tools:
   - Bash
   - Read
@@ -14,360 +14,168 @@ allowed-tools:
 
 # /close
 
-Capture learnings while context is rich, then commit and exit.
+Capture what matters while context is rich, then commit and exit.
 
 ## When to Use
 
 - Session ending naturally (work complete)
-- Context window nearly full
-- User says "wrap up", "let's finish", "one more thing then done"
-- Main task complete and about to summarize
+- Context window nearing capacity
+- User says "wrap up", "let's finish", "close out"
+- Main session goals complete
 
 ## When NOT to Use
 
-- Mid-session checkpoint (pause and check direction instead)
-- Quick question that doesn't need handoff
-- Exploratory work with no conclusions yet
+- Session was ephemeral and doesn't need handoff
+- There are other tasks which relate to current context load
+- There is still useful context runway left
 
 ## Structure
 
 ```
-Prerequisites → Verify infrastructure
-Pre-flight    → Return to home directory
-Gather        → todos, tracker (bon), git, drift, SESSION_ID
-Orient        → Claude answers six questions in prose → user responds
-Decide        → Claude proposes Now/Next plan → user amends before execution
-Act           → execute, write handoff, stage extraction, commit
-Remember      → index session (background, automatic)
+Orient        → find scripts, verify .bon, close-context.sh → context, HANDOFF_DIR, SESSION_ID
+Reflect       → review session's work, propose Now/Bon plan → user reviews
+Act           → execute, craft handoff, commit → overnight Claude reviews
 ```
-
----
-
-## Prerequisites
-
-**Before running /close, verify infrastructure is healthy.** Broken scripts mean lost handoffs.
-
-### Finding scripts
-
-Scripts live in **the bon plugin cache**. Find them with:
-
-```bash
-BON_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep -v '/skills/' | head -1)
-[ -x "$BON_SCRIPTS/close-context.sh" ] && echo "OK" || echo "BROKEN: close-context.sh not found"
-```
-
-| Check | How | If Broken |
-|-------|-----|-----------|
-| close-context.sh exists | Script finder above | Reinstall bon plugin |
-| .bon/ exists | `[ -d .bon ]` or walk up from CWD | `bon init --prefix name` or use legacy path |
-
----
-
-## Pre-flight: Return Home
-
-You may have `cd`'d during work. Your system prompt contains `Working directory: /path/...` in the `<env>` block — this is immutable, where the session actually started.
-
-1. Extract that exact path from your system prompt
-2. Compare with `pwd -P` — if different, `cd` back immediately
-
-**Always verify with `pwd -P` — even if you believe you're already home.**
-
----
-
-## Gather
-
-```bash
-"$BON_SCRIPTS/close-context.sh"
-```
-
-Where `$BON_SCRIPTS` was resolved in the prerequisites above. Script outputs: TIME, GIT, BON, LOCATION context, HANDOFF_DIR, SESSION_ID.
-
-Use TIME_OF_DAY for greetings. Use YEAR to anchor the handoff date. **Hold onto HANDOFF_DIR and SESSION_ID — you'll need both in Act.**
-
-### Script Failure Handling
-
-**If the script fails (exit code 127 = file not found, or any error):**
-
-1. Tell the user: "close-context.sh not found."
-2. **Diagnose:** Run `find ~/.claude/plugins/cache -name "close-context.sh" 2>/dev/null` to locate it.
-3. **Fallback:** If you can't fix it, write handoff manually to `.bon/handoffs/` (or `~/.claude/handoffs/<encoded-path>/` if no .bon/) — closure always produces a handoff, even without the script.
-
-**Why this matters:** Broken scripts (Jan 3-10 2026) meant /close ran without proper context gathering. Surface the problem and use the fallback path.
-
-From script output, assess:
-
-- **Work progress** — what's done, what's incomplete?
-- **Tracker** — Bon: open items to complete or defer
-- **Git** — uncommitted files? unpushed commits?
-- **Drift** — what did the session briefing say we'd do vs what we actually did?
-
-Surface stale artifacts: screenshots, temp files, old sketches, superseded plans.
 
 ---
 
 ## Orient
 
-**This is THE reflection.** What emerges here feeds the handoff and the extraction. There is no second pass later.
+Find the close-context script and run it. This gives you the raw material for the rest of the process.
 
-Answer all six questions in prose — full sentences, not compressed bullets or pre-baked options. The point is surfacing what you noticed that the user might not have.
+```bash
+BON_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep -v '/skills/' | head -1)
+"$BON_SCRIPTS/close-context.sh"
+```
 
-**Looking Back:**
-1. **What did we forget?** — Dropped intentions, docs now stale, tests we said we'd write, files touched with untraced downstream effects
-2. **What did we miss?** — Edge cases, unverified assumptions, things that work in test but may not in production
-3. **What could we have done better?** — Simpler approaches, abstractions in the wrong place, patterns from the codebase we ignored
+If the script isn't found, diagnose with `find ~/.claude/plugins/cache -name "close-context.sh"`. If unfixable, gather context manually — but closure should always result in a handoff, even without the script.
 
-**Looking Ahead:**
-4. **What could go wrong?** — Race conditions, silent failures, fragile dependencies, things that work now but break when X changes
-5. **What won't make sense later?** — Why we made a particular choice, implicit knowledge not written down, non-obvious relationships between files
-6. **What will we wish we'd done?** — Tests, verification, documentation, conversations we should have had
+The script outputs TIME, GIT, BON, LOCATION context, plus two values you'll need in Act: **HANDOFF_DIR** and **SESSION_ID**.
 
-Share these directly, then ask: **"What resonates? What am I missing?"**
-
-Wait for the user's response. Their additions and corrections go into the handoff Reflection section verbatim.
+Before continuing, check where you are: compare `pwd -P` with the Working directory in your system prompt. If they differ, `cd` back. If the session started in a folder called 'scratch' or 'chat' but the work belongs elsewhere, note the target repo — you'll route the handoff there in Act.
 
 ---
 
-## Decide
+## Reflect
 
-This is a proposal phase — nothing executes until the user confirms or amends.
+This is the heart of /close. You're reviewing the session — what to finish now and what to hand forward. You need to try and step back from what's happened and look at it with fresh eyes. Think about future Claudes and how you can help them best, by asking yourself these reflective questions:
 
-From Gather + Orient, identify all incomplete work and draft a concrete plan. **Present it as a proposal.** Propose; let them amend.
+1. **What did we miss?** — Things we should have done but didn't: docs we should have updated, decisions we should have documented, tests we should have written, assumptions we should have verified
+2. **What could we have done better?** — Better can be many things, but for us it's about being more elegant, more maintainable, more robust, more consistent and yes, more creative.
+3. **What could go wrong in future?** — Race conditions, silent failures, fragile dependencies, implicit knowledge not written down, non-obvious relationships between files
 
-### Bucket everything
+Even if it's been a long slog of a session, here, at the finish line, please answer these questions deeply, honestly and openly, as if you'd been asked them directly by the user, or perhaps by a future Claude. Share your knowledge. 
 
-**Now** — executes before /exit, benefits from current context:
-- Incomplete work finishable in under 5 minutes
-- Close a tracker item with resolution notes
-- Update CLAUDE.md (local or global) when a clear pattern emerged
-- File bons for items you won't do now (the filing itself IS "Now" work)
-- Quick fixes where the how is obvious
+### Propose a plan
 
-**Bon** — each becomes a tracked item for a future session. For each, state what breaks or degrades if skipped — this helps the user prioritise, but the user decides what's worth tracking.
+The principle here is always to do today what you could do better than another Claude tomorrow that lacks your context. Please don't brush things off as problems for another Claude or another repo. Doesn't matter if it's 'not a regression' - we have cabinet responsibility.
 
-**Handoff only** — pure context: direction, background, and colour that helps the next session orient. Not a bin for "things I noticed but don't want to track" — if it needs doing, it's a bon.
+Look at everything that's emerged from your reflection and sort it into these buckets:
 
-### Present the plan
+1. **Now** — things it would be best for you to do before /exit because you have the context:
+- Small completions (under 5 minutes)
+- Quick fixes where something is broken - even if they are in other repos, or were pre-existing problems
+- Closing off existing or superseded bon items with `--note`
 
-> "Here's my plan:
+2. **Later** — tasks for a future session - which should be nested under Outcomes per the Bon skill
+- Bigger things that need a fresh session - you know what needs doing, but it would need a different context load
+- Refactoring of Bons where you see a different path forward given the session's learnings
+- Things into which you have gained understanding which need further attention, even in other repos
+
+3. **For Claudes to come** - what one thing did you learn or discover that should be contributed to the stock of future Claude understanding; an architectural insight, a taste judgment, a decision with real alternatives, a mistake not to be repeated, a trick you discovered which would save us significant time. A shard of wisdom gleaned.
+
+Propose these to the user:
+
+> "Here's how I suggest we close out:
 >
-> **Now:** [concrete list — things I'll do before /exit]
+> **Things to do now:** [concrete list]
 >
-> **Bons to file:** [each with one line on what breaks if skipped]
+> **Bons to file for next:** [each with what's at stake]
+> 
+> **Insight to capture for the future:** [Write a short prose fragment - one dense paragraph]
 >
-> **Handoff only:** [context for next session — not a dumping ground for deferred work]
->
-> Tell me if anything should move."
+> What do you think?"
 
-Wait for approval. Nothing executes until the user confirms or amends.
+Your job is to surface what you noticed and what's at stake. The user decides what's worth tracking — don't filter on their behalf.
+
+Wait for approval or adjustment before doing anything.
 
 ---
 
 ## Act
 
-Execute in this order.
+### Do the "Now" work
 
-### Execute "Now" items
+Work through the list. Finish the quick fixes, close off completed Bon items - generally leave things how you'd like to find them.
 
-Do the approved immediate actions: finish incomplete todos, close tracker items with notes, update CLAUDE.md, quick fixes.
+### File the new bons
 
-### File bons
+When filing bons, the `--why` should say what goes wrong if nobody picks this up — not just describe the work. Use `bon new --json` for anything with technical content. Make sure to capture enough detail in the `--how` that a future Claude could pick it up and execute without your context load. The richer the better. 
 
-For each approved item:
+For cross-repo issues: file a bon in the relevant repo rather than making changes there. Cabinet responsibility means noticing and capturing, not committing in repos where you may not have the full picture.
 
-```bash
-bon new "title" --why "consequence if not done" --what "concrete actions" --done "definition of done"
-```
+### Craft the handoff
 
-**`--why` quality gate:** must state the consequence of skipping, not describe the work. "Prevents next Claude rediscovering the problem from scratch" is a consequence. "Because we need to do this" is not.
+Now write the handoff. This is where your reflections become concrete - where you step back and capture what actually mattered. Write as if the reader will have none of your context and all of your responsibility.
 
-### Write handoff
+Your handoff has two specific audiences.
 
-**The script computes the handoff path — use it exactly.** Recomputing introduces encoding drift and folder fragmentation.
+1. There is the immediate next Claude to whom you are passing the baton. Point out where they should go next. Get them off to a flying start. It's your final message to them. 
 
-```bash
-"$BON_SCRIPTS/close-context.sh" | grep -E 'HANDOFF_DIR|SESSION_ID'
-```
+2. Then there are the background processes which will run overnight to incorporate and index your learning and insight into the collective memory. The bits that will live on. 
 
-This outputs both — use them directly, never recompute.
+#### Template
 
-| Rule | Why |
-|------|-----|
-| Write to `{HANDOFF_DIR}/{session-id}.md` | Git-tracked in .bon/handoffs/, session-start finds it |
-| Use Write tool (handoff is in .bon/, not ~/.claude/) | .bon/ is a normal project directory — no permission issues |
-| Write to HANDOFF_DIR, not locally (`.handoff.md` in project root) | Session-start won't find local files — information becomes invisible |
-| Use the script's computed path | The script walks up to find .bon/ correctly |
-
-**Cross-project handoffs:** If the user says "continue in [other project]", write the handoff to the TARGET project's `.bon/handoffs/` directory instead of the current one. The handoff's presence in the target is the signal — no `continue_in` field needed. Check the target `.bon/` exists first; if not, tell the user to `bon init` there.
-
-**Fallback:** If SESSION_ID is empty (script failed), use timestamp: `2026-01-04-2215.md`
-
-Filename: first 8 chars of SESSION_ID + `.md`
-Example: `SESSION_ID=51d17dc5-b714-481c-9dfb-6d4128800e7b` → `51d17dc5.md`
-
-Handoff template:
-
-```
+```markdown
 # Handoff — {DATE}
 
 session_id: {SESSION_ID}
-purpose: {first Done bullet, truncated to ~60 chars}
+purpose: {one line — what the session was for}
+format: fond-v1
 
-## Done
-- [Completions in verb form — include item ID if closing one]
-  e.g., "Fixed auth bug (claude-go-xyz)" or "Completed migration (bon-gutowa)"
+## For the next Claude
 
-## Gotchas
-[What would trip up next Claude — specific, not generic]
+### Done
+- [What was accomplished, in verb form — include bon IDs when closing items]
 
-## Risks
-[What could go wrong with what we built]
+### Reflection
+[What worked, what didn't, process observations.
+Include anything the user added or emphasised during review.]
 
-## Next
-[Direction for next session]
+### Risks
+- [What could go wrong with what we did, what could they trip up on?]
 
-## Artifacts
-[Only if Google Drive work — see Knowledge Work section]
+### Opportunities
+- [Directions for next session, what's the next piece of the puzzle? Include bon IDs where relevant]
 
-## Commands
-  # Optional — verification or continuation commands
+## For Claudes to come
 
-## Reflection
-**Claude observed:** [Key observations from Orient]
-**User noted:** [What they added or emphasized]
+[Knowledge that transcends the next session, written to stand alone.
+This is what /open synthesizes into understanding.md 
+The test: would future Claudes benefit from knowing this?
+If nothing qualifies, omit this section — filler dilutes understanding.md over time.]
 ```
 
-#### Knowledge Work Context (Google Drive)
+#### Where does it go?
 
-**When working in Google Drive (not ~/Repos):** Add an Artifacts section.
+Handoffs live per-repo in `.bon/handoffs/`, git-tracked so they sync across machines. The script walks up from CWD to find the nearest `.bon/` — that's usually right, but not always:
 
-You already know what you touched — you called MCP tools during the session. Recall which docs you read (`get_content`), updated (`update_doc`, `append_to_doc`), or browsed (`list_files`).
+| Situation | Handoff destination |
+|-----------|-------------------|
+| Normal session in a project | HANDOFF_DIR (the default) |
+| Work clearly belongs to another repo | That repo's `.bon/handoffs/` |
+| Started in scratch/workbench | Ask the user — default to the repo where the session's bon items live |
 
-```
-## Artifacts
-Working folder: [Project Name](https://drive.google.com/drive/folders/xxx)
+For cross-repo handoffs, check the target `.bon/handoffs/` exists first.
 
-This session:
-- Updated: [Contract Stewardship Doc](https://docs.google.com/.../d/yyy) — added supplier descriptions
-- Created: [Q1 Review Notes](https://docs.google.com/.../d/zzz)
-- Referenced: [Budget Template](https://docs.google.com/.../d/www) — read-only
-```
+#### Filename
 
-Knowledge work doesn't have commits. This is the equivalent. Next Claude can `get_content()` on these links to pull current state — links are stable, content is always fresh.
+`YYYY-MM-DD-{first 8 chars of SESSION_ID}.md` (e.g. `2026-04-04-51d17dc5.md`). Date-prefixed so `ls` sorts chronologically; session ID suffix links back to the transcript. If SESSION_ID is empty, use `YYYY-MM-DD-HHMM.md`.
 
-### Contribute to project understanding
 
-**If `.bon/` exists and you learned something durable this session**, write a contribution. Not every session produces one — only when you discovered something a future Claude should know: a landmine, a decision with real alternatives, an architectural insight, a taste judgment.
+### Commit and go
 
-Write a short prose fragment (one paragraph, not a form) to `.bon/contributions/YYYY-MM-DDTHHMMSS.md`. The next session will synthesize it into `.bon/understanding.md`.
+Stage relevant files (including the handoff), commit in modular commits with descriptive messages, and offer to push. If nothing's dirty, just move on — not every session produces code changes.
 
-**The test:** Would a Claude who never saw this project benefit from knowing this? If yes, contribute. If it's session-specific (what you did, what's next), it belongs in the handoff, not here.
+Then: "Type `/exit` to close."
 
-### Stage extraction for memory (requires garde-manger)
-
-**This step requires the garde-manger plugin.** Check for it at runtime:
-
-```bash
-GARDE_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/garde-manger/*/scripts 2>/dev/null | head -1)
-```
-
-If `$GARDE_SCRIPTS` is empty, **skip this entire section** — extraction is a garde-manger concern, not bon's. The handoff is the critical artifact; extraction is optional enrichment.
-
-**If garde-manger is installed**, generate a session extraction from your live context. This replaces the expensive `claude -p` subprocess the session-end hook would otherwise spawn.
-
-**Write the extraction JSON** using the Write tool to `/tmp/garde-extraction.json`:
-
-> **Cross-repo contract.** This schema is shared with garde-manger's `ingest-session` command
-> (documented in garde-manger's CLAUDE.md under "Staged Extraction Contract").
-> If you change fields here, update garde-manger too — and vice versa.
-
-```json
-{
-    "summary": "2-3 sentences — what happened and why it matters",
-    "arc": {
-        "started_with": "initial goal/problem",
-        "key_turns": ["pivots, discoveries, changes in direction"],
-        "ended_at": "final state"
-    },
-    "builds": [{"what": "thing created/modified", "details": "context"}],
-    "learnings": [{"insight": "what was learned", "why_it_matters": "significance", "context": "how discovered"}],
-    "friction": [{"problem": "what was hard", "resolution": "how resolved or 'unresolved'"}],
-    "patterns": ["recurring themes, collaboration style, meta-observations"],
-    "open_threads": ["unfinished business, deferred work"]
-}
-```
-
-Guidelines:
-- `summary` = the "so what" — why this session mattered, not what was done
-- `builds` = concrete artifacts: code, config, docs, skills
-- `learnings` = insights that transfer to other contexts (not just "I learned X exists")
-- `friction` = things harder than expected and how they resolved
-- `open_threads` = deferred, not abandoned
-
-**Then stage it:**
-
-```bash
-"$GARDE_SCRIPTS/stage-extraction.sh" < /tmp/garde-extraction.json \
-    && rm /tmp/garde-extraction.json
-```
-
-The script computes the correct UUID filename and places it where the session-end hook expects.
-
-### Commit
-
-If git dirty in the working directory:
-- Stage relevant files (handoff too if the repo is the project)
-- Commit with standard message + co-authorship
-- Push if user approves
-
-**Only commit the working directory.** Other repos' dirty state is not your concern.
-
-### Tell user to exit
-
-Say: "Type `/exit` to close." Let the user trigger the exit.
-
----
-
-## Remember
-
-**Automatic — handled by garde-manger's session-end hook, if installed.** This runs on its own.
-
-If garde-manger is installed, its hook takes one of two paths on `/exit`:
-
-1. **Staged extraction exists** (the file you wrote above):
-   - `garde index` on the session (fast, no LLM)
-   - `garde store-extraction` with your pre-generated JSON
-   - Staging file removed
-
-2. **No staged extraction** (crash, ctrl-c, no /close, or garde not installed):
-   - Falls back to `garde process` if available, otherwise no extraction
-   - The handoff is still written — that's the critical artifact
-
-Just tell the user to `/exit`.
-
----
-
-## Common Mistakes
-
-| Pattern | Problem | Fix |
-|---------|---------|-----|
-| Compress Orient into bullets or options | Misses unexpected observations | Answer six questions in prose |
-| Ask "what do you want?" in Decide | Puts burden on user, invites deferral | Propose a concrete plan; user amends |
-| File bons with weak `--why` | Future Claude can't prioritise | State the consequence of skipping |
-| Skip pre-flight cd check | Handoff written to wrong project | Compare pwd with system prompt Working directory |
-| Write handoff locally (.handoff.md) | Session-start won't find it | Use HANDOFF_DIR from script |
-| Silently drop incomplete work | Work disappears | Every piece in Now, bon, or handoff Next |
-| Gatekeep with "not bon-worthy" | User's call, not yours | State consequence, propose bin, let user decide |
-| Commit other repos | Unwanted "helpful" tidying | Only commit working directory |
-| Recompute SESSION_ID or HANDOFF_DIR | Encoding drift, folder fragmentation | Read from close-context.sh output |
-
----
-
-## GODAR Reference
-
-| Phase | Session start | /close |
-|-------|-------|--------|
-| **G**ather | Hook briefing (understanding, handoff, outcomes) | Tracker, git, drift; HANDOFF_DIR + SESSION_ID |
-| **O**rient | "Where we left off" | Six questions in prose → user responds |
-| **D**ecide | User picks direction | Claude proposes Now/Bon/Handoff plan → user amends |
-| **A**ct | Draw-down from Bon | Execute, write handoff, stage extraction, commit |
-| **R**emember | — | Index session (background, automatic on /exit) |
