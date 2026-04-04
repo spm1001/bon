@@ -1,6 +1,6 @@
 ---
 name: close
-description: "Run before /exit, to reflect on this session and figure out what's best to (1) get done now, with current context wisdom (2) file as a handoff for the next Claude as well as (3) what wisdom to capture for future Claudes in collective memory. Ends with a commit."
+description: "Run before /exit, to reflect on this session and end it properly by figuring out what's best to (1) do now, with current context wisdom (2) file as a handoff for the next Claude as well as (3) capture for future Claudes in collective memory. Ends with a set of quick fixes and a commit. Invoke on 'wrap up', 'let's finish', 'close out', '/close'."
 allowed-tools:
   - Bash
   - Read
@@ -66,37 +66,54 @@ This is the heart of /close. You're reviewing the session — what to finish now
 
 Even if it's been a long slog of a session, here, at the finish line, please answer these questions deeply, honestly and openly, as if you'd been asked them directly by the user, or perhaps by a future Claude. Share your knowledge. 
 
-### Propose a plan
+### Generate actions from your reflections
 
-The principle here is always to do today what you could do better than another Claude tomorrow that lacks your context. Please don't brush things off as problems for another Claude or another repo. Doesn't matter if it's 'not a regression' - we have cabinet responsibility.
+Now turn your reflections into a plan. Like Newton II, most of your observations will imply an equal and opposite action — name it. Here's what that inversion looks like in practice:
 
-Look at everything that's emerged from your reflection and sort it into these buckets:
+> **Reflection:** "We updated the handoff template but the SPEC.md still describes the old format."
+> → **Now:** Update SPEC.md (5 min, have the context)
+>
+> **Reflection:** "The /open skill expects contribution files that we've stopped writing."
+> → **Later:** Update /open to read new handoff format (needs fresh session, different context load)
+>
+> **Reflection:** "The filename scheme changed but downstream scripts may parse the old format."
+> → **Later:** Audit scripts for filename assumptions (needs a thorough trawl across repos)
+>
+> **Reflection:** "Collaborative editing via rmate works but Sublime doesn't auto-refresh remote files."
+> → **User override: drop** — tafelmusik will supersede this approach
+>
+> **Reflection:** "When the skill assumes competence rather than assuming failure, instructions get shorter and behaviour gets better."
+> → **For Claudes to come:** Skill register insight
+
+The principle is: don't put off to another Claude something that you could do better because of your insight. Don't brush things off as 'some-other-Claude's problem. Doesn't matter if it's 'not a regression' —  it may be a long time until another Claude comes this way again, and we have cabinet responsibility to leave things better than we found them. 
+
+Sort your actions into three buckets:
 
 1. **Now** — things it would be best for you to do before /exit because you have the context:
 - Small completions (under 5 minutes)
-- Quick fixes where something is broken - even if they are in other repos, or were pre-existing problems
+- Quick fixes where something is broken — even if they are in other repos, or were pre-existing problems
 - Closing off existing or superseded bon items with `--note`
 
-2. **Later** — tasks for a future session - which should be nested under Outcomes per the Bon skill
-- Bigger things that need a fresh session - you know what needs doing, but it would need a different context load
+2. **Later** — tasks for a future session, which should be nested under Outcomes per the Bon skill:
+- Bigger things that need a fresh session — you know what needs doing, but it would need a different context load
 - Refactoring of Bons where you see a different path forward given the session's learnings
 - Things into which you have gained understanding which need further attention, even in other repos
 
-3. **For Claudes to come** - what one thing did you learn or discover that should be contributed to the stock of future Claude understanding; an architectural insight, a taste judgment, a decision with real alternatives, a mistake not to be repeated, a trick you discovered which would save us significant time. A shard of wisdom gleaned.
+3. **For Claudes to come** — what one thing did you learn or discover that should be contributed to the stock of future Claude understanding; an architectural insight, a taste judgment, a decision with real alternatives, a mistake not to be repeated, a trick you discovered which would save us significant time. A shard of wisdom gleaned.
 
 Propose these to the user:
 
 > "Here's how I suggest we close out:
 >
-> **Things to do now:** [concrete list]
+> **Things to do now:** [concrete list of remedies implied by your reflections]
 >
-> **Bons to file for next:** [each with what's at stake]
-> 
-> **Insight to capture for the future:** [Write a short prose fragment - one dense paragraph]
+> **Bons to file for next:** [list of future work with an explanation of what's at stake]
+>
+> **Insight to capture for the future:** [one dense paragraph to contribute]
 >
 > What do you think?"
 
-Be systematic: for each reflection, ask yourself whether there's a concrete action. If the answer is yes, it goes in Now or Later — don't leave it as an observation without a follow-through. Your job is to surface what you noticed and what's at stake. The user decides what's worth tracking — don't filter on their behalf.
+Your job is to surface what you noticed and what's at stake. The user decides what's worth tracking — don't filter on their behalf.
 
 Wait for approval or adjustment before doing anything.
 
