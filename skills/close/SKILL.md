@@ -96,7 +96,7 @@ Propose these to the user:
 >
 > What do you think?"
 
-Your job is to surface what you noticed and what's at stake. The user decides what's worth tracking — don't filter on their behalf.
+Be systematic: for each reflection, ask yourself whether there's a concrete action. If the answer is yes, it goes in Now or Later — don't leave it as an observation without a follow-through. Your job is to surface what you noticed and what's at stake. The user decides what's worth tracking — don't filter on their behalf.
 
 Wait for approval or adjustment before doing anything.
 
@@ -170,7 +170,7 @@ For cross-repo handoffs, check the target `.bon/handoffs/` exists first.
 
 #### Filename
 
-`YYYY-MM-DD-{first 8 chars of SESSION_ID}.md` (e.g. `2026-04-04-51d17dc5.md`). Date-prefixed so `ls` sorts chronologically; session ID suffix links back to the transcript. If SESSION_ID is empty, use `YYYY-MM-DD-HHMM.md`.
+Use HANDOFF_FILE from the script output — it generates `YYYY-MM-DD-{session-id-8}.md` (date-prefixed for chronological `ls`, session ID suffix for transcript linkage).
 
 
 ### Commit and go

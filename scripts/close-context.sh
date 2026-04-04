@@ -156,6 +156,15 @@ SESSION_ID=$(ls -t "$HOME/.claude/projects/$ENCODED_PATH"/*.jsonl 2>/dev/null \
     || true)
 echo "SESSION_ID=${SESSION_ID}"
 
+# Generate handoff filename: YYYY-MM-DD-{first 8 chars of session ID}.md
+TODAY=$(date +%Y-%m-%d)
+if [ -n "$SESSION_ID" ]; then
+    HANDOFF_FILE="${TODAY}-${SESSION_ID:0:8}.md"
+else
+    HANDOFF_FILE="${TODAY}-$(date +%H%M).md"
+fi
+echo "HANDOFF_FILE=$HANDOFF_FILE"
+
 if is_container "$CWD"; then
     echo "IS_CONTAINER=true"
     echo "CWD=$CWD"
