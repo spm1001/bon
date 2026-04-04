@@ -1,6 +1,6 @@
 # Bon — Understanding
 
-Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. ~2,300 lines of core source plus a 470-line optional Dolt module. 384 tests. Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
+Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. ~2,300 lines of core source plus a 470-line optional Dolt module. 418 tests. Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
 
 ## The data model
 
@@ -11,7 +11,11 @@ Two item types live in `.bon/items.jsonl` (or a shared Dolt database). An **outc
 {"id":"bon-bebune","type":"action","title":"Raw-file health checks","brief":{"why":"...","what":"1. Read items.jsonl... 2. Flag malformed JSON...","done":"bon doctor on a bad file reports all issues with line numbers"},"status":"done","parent":"bon-mufene","order":1,"created_at":"2026-03-02T21:29:19Z","created_by":"spm1001","waiting_for":null,"tactical":{"steps":["Read items.jsonl line-by-line","Flag malformed JSON","Flag conflict markers","Flag duplicate IDs"],"current":4,"session":"/home/modha/Repos/bon"},"updated_at":"2026-03-02T21:32:24Z","updated_by":"stepped","done_at":"2026-03-02T21:32:24Z"}
 ```
 
-Key fields: `brief` is mandatory — `{why, what, done}` required, `how` optional (approach/strategy). `parent` links an action to its outcome. `waiting_for` holds the ID of a blocking item. `tactical` tracks step-by-step progress within a session (steps list, current index, session identity). `updated_by` records the verb of the last mutation ("stepped", "waited", "edited").
+Key fields: `brief` is mandatory — `{why, what, done}` required, `how` optional (approach/strategy). `parent` links an action to its outcome. `waiting_for` holds a **list** of blocker IDs (or `None`). `tactical` tracks step-by-step progress within a session (steps list, current index, session identity). `updated_by` records the verb of the last mutation ("stepped", "waited", "edited").
+
+### Multi-blocker waiting_for
+
+`waiting_for` is a list of strings, not a single string. `load_items()` normalises legacy single-string values to one-element lists via `_normalise_waiting_for()` in storage.py. In JSONL, stored as `"waiting_for": ["bon-abc", "bon-def"]`. In Dolt, lists are serialised as JSON array strings in the existing `VARCHAR(500)` column. `None` still means "not waiting." Empty list `[]` is normalised to `None` on save. Truthiness checks (`not item.get("waiting_for")`) work unchanged for both `None` and `[]`. The unblock-on-done cascade now removes the completed ID from all items' blocker lists and only fully unblocks when the list is empty (partial unblock). A parallel `wait_note` field stores optional context for why an item is blocked. External consumers that do exact string comparison (`waiting_for == "some-id"`) will break — they need to check membership in a list instead.
 
 **Statuses are simple.** An item is `open` or `done`. "Waiting" isn't a status — it's an open item that has a non-null `waiting_for`. "Ready" means open with no blocker. "Active" means it has tactical steps in progress.
 
@@ -39,7 +43,7 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 ## The invariants
 
-**Unblock on done.** When any item is marked done, all items whose `waiting_for` points to it get unblocked automatically. This cascade lives in both `cmd_done` and `cmd_step` (auto-complete on final step). It's the only cross-item mutation. Breaking it breaks the dependency model.
+**Unblock on done.** When any item is marked done, all items whose `waiting_for` contains it get that ID removed from their blocker list. Full unblock happens only when the list becomes empty. This cascade lives in both `cmd_done` and `cmd_step` (auto-complete on final step). Breaking it breaks the dependency model.
 
 **Single active tactical per session.** At most one action per session can have active tactical steps. Enforced at `bon work` time. Session identity is `os.path.realpath(os.getcwd())` in JSONL mode, `hostname:realpath` in Dolt mode. `_matches_session()` is the linchpin — `None` session means "only unscoped items," a real path means "this path OR unscoped."
 
@@ -53,7 +57,7 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **`bon wait` destroys tactical state.** Waiting an action with steps in progress silently discards all tactical data. No confirmation. An agent that waits an action at 4/5 steps loses that progress permanently.
 
-**External consumers read items.jsonl directly.** `bon-read.sh` uses raw JSONL with embedded Python. In Dolt mode it falls back to the CLI. Field names and structure are a contract that extends beyond this codebase.
+**External consumers read items.jsonl directly.** `bon-read.sh` uses raw JSONL with embedded Python. In Dolt mode it falls back to the CLI. Field names and structure are a contract that extends beyond this codebase. The `waiting_for` change from string to list is a breaking change for external consumers doing exact string comparison.
 
 **`items_path()` raises in Dolt mode.** Code that calls it must check `_get_backend()` first or use `load_items()`/`save_items()` which dispatch automatically.
 
@@ -71,9 +75,17 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **`--how` is a self-contained string field**, not a linked document reference. Design is deliberate — bon items should replace plan files entirely, not reference external documents. `_normalize_brief()` in `display.py` ensures JSON output always includes `how: null` for items without it, without polluting stored JSONL. `OPTIONAL_BRIEF_FIELDS` dict in `storage.py` is the single point where optional-vs-required is declared.
 
+## Handoff resolution
+
+Handoff resolution uses a three-tier strategy: walk up from CWD for `.bon/handoffs/`, scan down for the child repo with the most recent git commit (covering container dirs like `~/Repos`), then fall back to `~/.bon/handoffs/` as a global catch-all. The legacy `~/.claude/handoffs/` path is fully eliminated. The scan-down heuristic uses "most recent commit timestamp" rather than "most commits in N hours" because at close time the session's repo typically has the single freshest commit. The scan-down filters to git repos only via `git rev-parse --git-dir`. The global `~/.bon/` directory is safe from `check_initialized()` because it looks for `.bon/items.jsonl`, which won't exist there.
+
 ## Script resolution in skills
 
 **`find | head -1` is wrong for locating scripts across cached plugin versions.** It picks whichever version comes first in filesystem order, not the latest. The fix is `ls -td` (sort by modification time, newest first). Any script-finding pattern in skills should use this approach. This is the root cause behind bon-venasi (close skill picks stale scripts).
+
+## Emotional register as instructional design
+
+Instructional text is emotional regulation. The CSO scoring rubric awarded 10/25 points for MANDATORY — the highest score for the strongest threat-register word — which incentivised every skill in the ecosystem to open with a shouted command. Anthropic's research shows these patterns causally increase corner-cutting in model behaviour, even when the output looks composed. The fix is reforming the scoring system, not just softening individual files. The `register-principles.md` reference document in skill-forge captures the full framework.
 
 ## The taste
 

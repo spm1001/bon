@@ -1,6 +1,6 @@
 ---
 name: close
-description: "Orchestrates end-of-session capture via 5-phase GODAR framework — prevents work loss between sessions by surfacing learnings, triaging incomplete work into Now/Bon/Handoff, writing cross-session handoff, and staging memory extraction while context is rich. MANDATORY before /exit. Invoke FIRST on 'wrap up', 'lets finish', 'close out', '/close'."
+description: "Orchestrates end-of-session capture via 5-phase GODAR framework — prevents work loss between sessions by surfacing learnings, triaging incomplete work into Now/Bon/Handoff, writing cross-session handoff, and staging memory extraction while context is rich. Run before /exit. Invoke on 'wrap up', 'lets finish', 'close out', '/close'."
 allowed-tools:
   - Bash
   - Read
@@ -36,7 +36,7 @@ Prerequisites → Verify infrastructure
 Pre-flight    → Return to home directory
 Gather        → todos, tracker (bon), git, drift, SESSION_ID
 Orient        → Claude answers six questions in prose → user responds
-Decide        → Claude proposes Now/Next plan → user amends (STOP)
+Decide        → Claude proposes Now/Next plan → user amends before execution
 Act           → execute, write handoff, stage extraction, commit
 Remember      → index session (background, automatic)
 ```
@@ -63,14 +63,14 @@ BON_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep 
 
 ---
 
-## Pre-flight: Return Home (MANDATORY)
+## Pre-flight: Return Home
 
 You may have `cd`'d during work. Your system prompt contains `Working directory: /path/...` in the `<env>` block — this is immutable, where the session actually started.
 
 1. Extract that exact path from your system prompt
 2. Compare with `pwd -P` — if different, `cd` back immediately
 
-**Do not skip. Do not trust your memory of whether you moved back. Check.**
+**Always verify with `pwd -P` — even if you believe you're already home.**
 
 ---
 
@@ -88,7 +88,7 @@ Use TIME_OF_DAY for greetings. Use YEAR to anchor the handoff date. **Hold onto 
 
 **If the script fails (exit code 127 = file not found, or any error):**
 
-1. **STOP.** Tell the user: "close-context.sh not found."
+1. Tell the user: "close-context.sh not found."
 2. **Diagnose:** Run `find ~/.claude/plugins/cache -name "close-context.sh" 2>/dev/null` to locate it.
 3. **Fallback:** If you can't fix it, write handoff manually to `.bon/handoffs/` (or `~/.claude/handoffs/<encoded-path>/` if no .bon/) — don't skip closure entirely.
 
@@ -129,7 +129,7 @@ Wait for the user's response. Their additions and corrections go into the handof
 
 ## Decide
 
-**STOP.** Do not execute anything until this phase completes.
+This is a proposal phase — nothing executes until the user confirms or amends.
 
 From Gather + Orient, identify all incomplete work and draft a concrete plan. **Present it — don't ask the user what they want.** Propose; let them amend.
 
@@ -182,7 +182,7 @@ bon new "title" --why "consequence if not done" --what "concrete actions" --done
 
 ### Write handoff
 
-**Handoff location is non-negotiable.** The script computes the path; you use it exactly.
+**The script computes the handoff path — use it exactly.** Recomputing introduces encoding drift and folder fragmentation.
 
 ```bash
 "$BON_SCRIPTS/close-context.sh" | grep -E 'HANDOFF_DIR|SESSION_ID'
@@ -346,7 +346,7 @@ Just tell the user to `/exit`.
 
 ---
 
-## Anti-Patterns
+## Common Mistakes
 
 | Pattern | Problem | Fix |
 |---------|---------|-----|

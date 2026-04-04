@@ -1,8 +1,10 @@
 # /// script
 # requires-python = ">=3.9"
 # ///
-"""Audit survey — scans all .bon/ directories under ~/Repos and produces
-a JSON summary of open items with full briefs and age flags.
+"""Audit survey — recursively scans all .bon/ directories under ~/Repos and
+produces a JSON summary of open items with full briefs and age flags.
+
+Supports both JSONL and Dolt backends. Dolt repos are read via `bon list --jsonl`.
 
 Built for the /audit skill. For human-readable overviews, use bon-survey.py.
 
@@ -13,12 +15,13 @@ Usage:
 
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 
-def load_items(bon_path: Path) -> list[dict]:
+def load_items_jsonl(bon_path: Path) -> list[dict]:
     """Load items from a .bon/items.jsonl file, deduping by last occurrence."""
     items = {}
     with open(bon_path) as f:
@@ -29,6 +32,45 @@ def load_items(bon_path: Path) -> list[dict]:
             item = json.loads(line)
             items[item["id"]] = item  # last wins (union merge dedup)
     return list(items.values())
+
+
+def load_items_dolt(repo_path: Path) -> list[dict]:
+    """Load items from a Dolt-backed repo via `bon list --jsonl`."""
+    try:
+        result = subprocess.run(
+            ["bon", "list", "--jsonl"],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+        items = {}
+        for line in result.stdout.strip().splitlines():
+            if line:
+                item = json.loads(line)
+                items[item["id"]] = item
+        return list(items.values())
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return []
+
+
+def get_backend(bon_dir: Path) -> str:
+    """Read .bon/backend to determine storage type. Absent = jsonl."""
+    backend_file = bon_dir / "backend"
+    if backend_file.exists():
+        return backend_file.read_text().strip()
+    return "jsonl"
+
+
+def load_items(bon_dir: Path, repo_path: Path) -> list[dict]:
+    """Load items from a .bon/ directory, dispatching by backend."""
+    backend = get_backend(bon_dir)
+    if backend == "dolt":
+        return load_items_dolt(repo_path)
+    items_path = bon_dir / "items.jsonl"
+    if items_path.exists():
+        return load_items_jsonl(items_path)
+    return []
 
 
 def age_flag(created_at: str | None) -> str | None:
@@ -73,20 +115,40 @@ def item_record(item: dict) -> dict:
     return record
 
 
+def repo_label(repo_path: Path, repos_dir: Path) -> str:
+    """Derive a human-readable repo label relative to ~/Repos."""
+    try:
+        return str(repo_path.relative_to(repos_dir))
+    except ValueError:
+        return repo_path.name
+
+
+def discover_bon_dirs(repos_dir: Path) -> list[Path]:
+    """Recursively find all .bon/ directories under repos_dir."""
+    return sorted(repos_dir.rglob(".bon"))
+
+
 def survey(repos_dir: Path, repo_filter: list[str] | None = None) -> list[dict]:
-    """Scan repos and return structured audit data."""
+    """Recursively scan repos and return structured audit data."""
     results = []
-    for entry in sorted(repos_dir.iterdir()):
-        if not entry.is_dir():
+
+    for bon_dir in discover_bon_dirs(repos_dir):
+        if not bon_dir.is_dir():
             continue
-        if repo_filter and entry.name not in repo_filter:
+        # Skip nested .bon inside node_modules, .git, etc.
+        parts = bon_dir.parts
+        if any(p.startswith(".") and p != ".bon" for p in parts):
+            continue
+        if "node_modules" in parts:
             continue
 
-        items_path = entry / ".bon" / "items.jsonl"
-        if not items_path.exists():
+        repo_path = bon_dir.parent
+        label = repo_label(repo_path, repos_dir)
+
+        if repo_filter and not any(f in label for f in repo_filter):
             continue
 
-        items = load_items(items_path)
+        items = load_items(bon_dir, repo_path)
         open_items = [i for i in items if i.get("status") == "open"]
 
         if not open_items:
@@ -96,8 +158,8 @@ def survey(repos_dir: Path, repo_filter: list[str] | None = None) -> list[dict]:
         actions = [item_record(i) for i in open_items if i["type"] == "action"]
 
         results.append({
-            "repo": entry.name,
-            "repo_path": str(entry),
+            "repo": label,
+            "repo_path": str(repo_path),
             "open_count": len(open_items),
             "outcomes": outcomes,
             "actions": actions,
