@@ -1,10 +1,16 @@
-# Handoff — 2026-04-01 (auto)
+# Handoff — 2026-04-04 (auto)
 
 session_id: a3bdda46-6e77-494f-abb7-30f52094749d
-purpose: Session ended without /close
+purpose: fix: register reform pass — remove truncation, soften close skill, bump 0.16.2
 
 ## Done
-- (no commits detected in session)
+- e423a53 fix: register reform pass — remove truncation, soften close skill, bump 0.16.2
+- 663b32f chore: close session — register reform handoff and contribution
+- 72f58c8 chore: track accumulated handoff files
+- 1578e41 fix: rewrite close skill to calm register (bon-sulupe)
+- 1d659a9 chore: emotional register audit — handoff and contribution
+- 1da4069 fix: defuse threat-register language in hooks
+- d2d741a Auto-fix CLI version drift in SessionStart hook
 
 ## Next
 - ○ SPEC.md updated for JSON stdin and implicit detection (bon-fekatu)
@@ -18,8 +24,11 @@ purpose: Session ended without /close
 -   6. ○ Set up Dolt backup to GitHub (bon-pecake)
 -   (+1 waiting)
 - ○ Migrate Mac legacy handoffs to .bon/handoffs/ (bon-fajefa)
-- Standalone:
--   ○ bon new honours explicit type field in JSON stdin (bon-jihoko)
+- ○ Skill descriptions updated to calm register across batterie ecosystem (bon-luwije)
+-   1. ✓ Fix close-context.sh hierarchy truncation (bon-kadoce)
+-   2. ✓ Add register lint verification to ecosystem sweep (bon-boseri)
+-   3. ✓ Soften imperative-negative phrases in close skill (bon-zedufa)
+-   4. ○ Develop approach for deeper emotional valence audit (bon-kaviru)
 
 ## Gotchas
 - Auto-generated handoff — no reflective close was performed
