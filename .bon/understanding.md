@@ -67,8 +67,6 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **`cmd_work` argument parsing is fragile.** Uses `argparse.REMAINDER` with hand-rolled filtering of `--force` from positionals. Don't use it as a template.
 
-**Auto-handoff quoting is fragile.** `auto-handoff.sh` embeds shell variables into a `nohup bash -c '...'` string via sed single-quote escaping. Single quotes in git commit messages or bon item titles break the inner script. The mechanical fallback only runs when the LLM path isn't *attempted* (no transcript or no ccconv), not when it's attempted and *fails*. Silent failure — no output, no error.
-
 **The `.arc/` ghost.** Test infrastructure still uses the old name — `arc_dir` fixture, `run_arc()` helper, `arc-` prefixed fixtures. Not broken, but disorienting.
 
 ## The brief's optional fields

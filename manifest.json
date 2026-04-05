@@ -187,9 +187,6 @@
     "session-start.sh": {
       "target": "bon/hooks/session-start.sh"
     },
-    "session-end.sh": {
-      "target": "bon/hooks/session-end.sh"
-    },
     "bon-tactical.sh": {
       "target": "bon/hooks/bon-tactical.sh"
     }
@@ -203,9 +200,6 @@
     },
     "bon-read.sh": {
       "target": "bon/scripts/bon-read.sh"
-    },
-    "auto-handoff.sh": {
-      "target": "bon/scripts/auto-handoff.sh"
     },
     "stage-extraction.sh": {
       "target": "garde-manger/scripts/stage-extraction.sh"
