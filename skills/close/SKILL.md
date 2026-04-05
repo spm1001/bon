@@ -87,7 +87,21 @@ Now turn your reflections into a plan. Like Newton II, most of your observations
 
 The principle is: don't put off to another Claude something that you could do better because of your insight. Don't brush things off as 'some-other-Claude's problem. Doesn't matter if it's 'not a regression' —  it may be a long time until another Claude comes this way again, and we have cabinet responsibility to leave things better than we found them. 
 
-Sort your actions into three buckets:
+### Triage before sorting
+
+Before you sort, force each observation through a table. This prevents two failure modes: vague reflections without consequences (which can't be triaged) and reflexive action-generation without examining whether action is actually warranted.
+
+| # | Reflection | Consequence | Remedy | When |
+|---|-----------|-------------|--------|------|
+| 1 | No input validation on POST endpoint | Malformed requests → 500 instead of 400; confusing for future Claudes debugging | Add guard, return 400 with message | Do now |
+| 2 | Magic number in sync loop instead of shared constant | One side breaks silently if prefix changes | Extract constant to shared module | Do now |
+| 3 | Auto-discovery silently picks first room when multiple active | User doesn't know where their comment went | Print selected room name | Do now |
+| 4 | Resolve endpoint doesn't scope to room | Semantically misleading URL; subtle bugs when more surfaces consume it | Add WHERE clause to scope resolve | File as Bon |
+| 5 | Sends session_id that server ignores | Dangling intent — but removing means re-adding later | Leave it; field is harmless and the intent is documented | Chill |
+
+The three timing categories are **do now**, **file as bon**, and **on reflection, chill**. The third is the most important — it gives you permission to notice something without manufacturing work for it. "Chill" is an examined conclusion, not a lazy omission. Present the table to the user grouped by timing — it's their review surface. They may promote or demote items.
+
+Now sort the remaining actions into three buckets:
 
 1. **Now** — things it would be best for you to do before /exit because you have the context:
 - Small completions (under 5 minutes)
