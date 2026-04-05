@@ -103,6 +103,8 @@ Before you sort, force each observation through a table. This prevents two failu
 
 The three timing categories are **do now**, **file as bon**, and **on reflection, chill**. The third is the most important — it gives you permission to notice something without manufacturing work for it. "Chill" is an examined conclusion, not a lazy omission. Present the table to the user grouped by timing — it's their review surface. They may promote or demote items.
 
+**Consistency check:** Your Remedy and When columns must agree. If Remedy names a concrete action (file a bon, add a guard, update docs), When must be Do now or File as Bon — not Chill. Chill means "examined and genuinely no action needed." A Remedy that describes work paired with a When of Chill is a contradiction — you've talked yourself out of your own recommendation between two columns. In practice, user corrections at this step are almost always upgrades (chill→bon, bon→do now), never downgrades. If you're uncertain, err toward action — the user can always demote, but items you default to Chill tend to disappear entirely.
+
 Now sort the remaining actions into three buckets:
 
 1. **Now** — things it would be best for you to do before /exit because you have the context:
