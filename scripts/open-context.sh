@@ -234,13 +234,15 @@ elif [ "$BON_BACKEND" != "none" ]; then
     fi
 fi
 
-# --- 6. Suggested (from handoff Next section) ---
+# --- 6. Suggested (from handoff Opportunities or Next section) ---
 if [ -n "$LATEST_FILE" ]; then
-    NEXT_LINES=$(sed -n '/^## Next/,/^## /{/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
+    # fond-v1: ### Opportunities under ## For the next Claude
+    NEXT_LINES=$(sed -n '/^### Opportunities/,/^#/{/^#/d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
+    # Legacy: ## Next (flat section)
+    [ -z "$NEXT_LINES" ] && NEXT_LINES=$(sed -n '/^## Next/,/^## /{/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
     if [ -n "$NEXT_LINES" ]; then
         echo "Suggested:"
         echo "$NEXT_LINES" | while IFS= read -r line; do
-            # Preserve leading whitespace from handoff but ensure minimum indent
             echo "  $line"
         done
         echo ""

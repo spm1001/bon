@@ -61,14 +61,19 @@ When you'd normally enter plan mode, create bon items instead. A bon hierarchy *
 
 The session-start hook provides orientation automatically (understanding, handoff, outcomes, suggested items). Your job is the LLM-mediated work the hook can't do.
 
-### 1. Process Contributions
+### 1. Synthesize Knowledge
 
-If `.bon/contributions/` contains files:
+The most recent handoff may contain a `## For Claudes to come` section — durable knowledge written by the previous Claude to transcend their session. When present:
 
 1. Read `.bon/understanding.md`
-2. Read each contribution file
-3. **Rewrite** understanding.md — integrate new knowledge, make salience judgments. Don't append.
-4. Delete processed contribution files
+2. Read the `## For Claudes to come` section from the handoff
+3. **Rewrite** understanding.md — integrate the new knowledge, make salience judgments, restructure where needed. Don't append.
+
+This synthesis is onboarding. Integrating new knowledge into an existing document forces you to read the existing understanding, find where the new insight fits, and rewrite with judgment. By the time you're done, you know the project — not just the words on the page.
+
+The handoff stays on disk — never delete it. Not every handoff has a compost zone; when absent, skip this step.
+
+**Transition:** If `.bon/contributions/` contains files, process those the same way (read, integrate into understanding.md, delete the contribution files). This path is being retired.
 
 ### 2. Present Hierarchy
 
@@ -170,7 +175,7 @@ Between actions:
 
 ## Session Close
 
-Use `/close` at session end. It handles the full GODAR framework.
+Use `/close` at session end. It handles reflection, handoff, and capture.
 
 ---
 
