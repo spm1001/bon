@@ -1,6 +1,6 @@
 ---
 name: open
-description: "Activate at session start when .bon/ exists AND before any bon CLI command. Handles session orientation (process contributions, present hierarchy, pick direction) and enforces draw-down workflow (bon show → bon work → bon step). Triggers on: session start with .bon/, /open, /bon, 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists."
+description: "Activate at session start when .bon/ exists AND before any bon CLI command. Handles session orientation (process contributions, present hierarchy, pick direction) and structures draw-down workflow (bon show → bon work → bon step). Triggers on: session start with .bon/, /open, /bon, 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists."
 allowed-tools:
   - "Bash(bon:*)"
   - Read
@@ -201,8 +201,8 @@ Use `/close` at session end. It handles reflection, handoff, and capture.
 
 Outcomes describe what will be true, not work to be done. The CLI warns on activity-verb titles automatically.
 
-| Activity (bad) | Achievement (good) |
-|----------------|-------------------|
+| Activity | Achievement |
+|----------|-------------|
 | Implement OAuth | Users can authenticate with GitHub |
 | Build rate limiter | API stays responsive under peak load |
 | Add test coverage | Claudes don't hit surprising edges |
@@ -259,9 +259,9 @@ All commands support `--json` for output. `bon new` reads JSON from piped stdin 
 
 `how` is `null` in JSON output when not set. Absent from stored data when not provided.
 
-**Field-name traps:**
+**Field-name mapping:**
 
-| Wrong | Right |
+| Instead of | Use |
 |---|---|
 | `item["why"]` | `item["brief"]["why"]` |
 | `item["how"]` | `item["brief"]["how"]` |
@@ -274,7 +274,7 @@ All commands support `--json` for output. `bon new` reads JSON from piped stdin 
 
 ---
 
-## Common Mistakes
+## Quick Corrections
 
 | What you typed | Use instead | Why |
 |---|---|---|
@@ -285,9 +285,8 @@ All commands support `--json` for output. `bon new` reads JSON from piped stdin 
 
 ### Shell Escaping
 
-**For creating items:** Pipe JSON to `bon new` with a heredoc. Do not use flags with
-backslash line continuations — they look clean but break on quotes, backticks, and
-parentheses in technical content. Flags are only for quick stubs.
+**For creating items:** Pipe JSON to `bon new` with a heredoc for anything with special
+characters (quotes, backticks, parentheses). Flags are only for quick stubs.
 
 **For reading items:** When piping `bon --json` output through inline python, use a heredoc:
 
@@ -305,5 +304,4 @@ PYEOF
 
 Create sequentially, not in parallel tool calls. If one fails, Claude Code cancels all sibling calls.
 
-Pipe JSON to `bon new` for each item — clean heredocs with no escaping concerns.
-Never use flags for batch creation:
+Pipe JSON to `bon new` for each item — clean heredocs with no escaping concerns:
