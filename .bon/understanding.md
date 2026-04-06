@@ -61,6 +61,8 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **`items_path()` raises in Dolt mode.** Code that calls it must check `_get_backend()` first or use `load_items()`/`save_items()` which dispatch automatically.
 
+**`.pre-dolt` backup files don't mean migration failed.** `bon migrate --to dolt` leaves `.bon/items.jsonl.pre-dolt` as a safety backup. A subagent reading this file and inferring "Dolt migration is broken" nearly caused the working backend to be overwritten with stale JSONL. The backup's existence is normal. To verify backend health: run `bon list` and check the exit code. Don't infer state from artefacts when you can query the live system.
+
 **`KNOWN_VERBS` needs manual updates.** The frozenset in `storage.py` lists valid `updated_by` verbs. Adding a mutation command means adding its verb here.
 
 **`error()` raises, doesn't print.** It raises `BonError`, caught in `main()`. Not print-and-exit.
@@ -100,6 +102,8 @@ Instructional text is emotional regulation. The CSO scoring rubric awarded 10/25
 ## The skills layer
 
 Bon ships three Claude Code skills plus a session-start hook. `/open` handles session orientation — synthesizing knowledge from the previous handoff's "For Claudes to come" zone into understanding.md, draw-down/draw-up discipline, and the plan-to-bon transmutation. `/close` handles end-of-session reflection and produces a two-zone handoff: "For the next Claude" (operational context — done, risks, opportunities) and "For Claudes to come" (durable knowledge for understanding.md synthesis). `/review` orchestrates periodic backlog review. `open-context.sh` is the hook that provides mechanical context (understanding, handoff, outcomes) before the LLM-mediated `/open` ritual kicks in.
+
+**Three temporal rhythms govern the session lifecycle.** Rapid-cycle (~30 /close+/open pairs per day) carries operational context via Gotchas/Next in the handoff's "For the next Claude" zone. Overnight composting carries durable insight — Learned sections flow into understanding.md, Done sections feed garde-manger extraction. Anthropic's background system (autoDream) consolidates MEMORY.md from session transcripts, carrying typed observations (feedback/project/reference). The handoff's two-zone structure maps directly to the first two rhythms. We don't need to write to MEMORY.md explicitly — a rich handoff in the session transcript feeds Anthropic's system naturally.
 
 **Skill gates shape Claude behavior at critical moments.** The /close skill's Reflect phase gates what goes into bon vs handoff prose. A previous gate ("if this never gets done, what breaks?") biased Claudes toward deferring actionable work into handoff text. In a real 12-hour mind-sweep, this produced 6 outcomes with zero actions — the entire breakdown step was skipped. The fix: bon is the default for anything specific enough to write `--why`/`--what`/`--done`. "Handoff only" is restricted to genuinely non-actionable context (open questions, taste judgments, architectural tensions). The lesson: gate questions in skills are load-bearing. A permissive gate at close time compounds — work that should be tracked disappears into prose that no future Claude will parse.
 
