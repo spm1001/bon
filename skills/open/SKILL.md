@@ -155,6 +155,22 @@ cat <<'EOF' | bon new -q
 EOF
 ```
 
+**Standalone actions** — for field reports, one-off fixes, observations — use `type: "action"`:
+
+```bash
+cat <<'EOF' | bon new -q
+{
+  "type": "action",
+  "title": "Field Report: OAuth flaky under concurrent load",
+  "brief": {
+    "why": "Noticed 3 failures in 10 test runs under load",
+    "what": "Document the pattern, identify root cause",
+    "done": "Either fixed or filed as action under appropriate outcome"
+  }
+}
+EOF
+```
+
 ### When to Track vs Just Do
 
 | Track in Bon | Just do it |
@@ -220,7 +236,7 @@ bon step --skip "reason"     # Skip current step
 bon step --no-complete       # Final step: don't auto-complete
 bon edit ID --title/--why/--how/--what/--done/--order  # Edit fields
 bon edit ID --how ""         # Clear how field
-bon convert ID               # Action → outcome
+bon convert ID               # Action → outcome, or outcome → standalone action
 bon convert ID --outcome P   # Outcome → action under P
 bon status                   # Overview counts
 ```
