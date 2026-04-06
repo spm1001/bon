@@ -50,6 +50,17 @@ if [ -z "$ISSUES" ] && command -v bon &>/dev/null; then
     fi
 fi
 
+# Check 3: pymysql available (needed for any Dolt-backed repo)
+if command -v bon &>/dev/null; then
+    if ! python3 -c "import pymysql" 2>/dev/null; then
+        # Only warn if there are Dolt repos — check common locations
+        HAS_DOLT=$(find ~/Repos -maxdepth 3 -name backend -path '*/.bon/*' -exec grep -l dolt {} + 2>/dev/null | head -1 || true)
+        if [ -n "$HAS_DOLT" ]; then
+            ISSUES="${ISSUES}• pymysql not found but Dolt-backed repos exist. Reinstall with extras:\n  uv tool install \"$INSTALL_SRC\"\n"
+        fi
+    fi
+fi
+
 # Silent exit if nothing happened
 [ -z "$FIXED" ] && [ -z "$ISSUES" ] && exit 0
 

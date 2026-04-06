@@ -1182,6 +1182,10 @@ def cmd_migrate(args):
     bon_dir = Path(".bon")
 
     if target == "dolt":
+        # Verify Dolt is reachable before touching any state
+        from bon.dolt import verify_dolt_connection
+        verify_dolt_connection()
+
         # Migrate JSONL → Dolt: load from files, write to Dolt
         items = load_items()  # Still JSONL at this point
         archive = load_archive()

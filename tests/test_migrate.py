@@ -1,6 +1,10 @@
 """Tests for bon migrate command."""
+import os
+from unittest.mock import patch
 
+import pytest
 
+from bon.storage import BonError, _reset_backend, _reset_data_dir
 from conftest import run_arc
 
 
@@ -86,3 +90,48 @@ class TestSessionIdentity:
         hostname = socket.gethostname()
         expected = f"{hostname}:{os.path.realpath(str(tmp_path))}"
         assert session == expected
+
+
+class TestMigrateDoltVerification:
+    """Test that migrate --to dolt verifies connection before switching backend."""
+
+    def test_migrate_to_dolt_fails_cleanly_when_server_down(self, arc_dir, monkeypatch):
+        """If Dolt is unreachable, backend file should not be written."""
+        from bon.cli import cmd_migrate
+
+        monkeypatch.chdir(arc_dir)
+        _reset_data_dir()
+        _reset_backend()
+
+        # Create a stub item so there's something to migrate
+        (arc_dir / ".bon" / "items.jsonl").write_text(
+            '{"id":"arc-aaa","type":"outcome","title":"t","brief":{"why":"w","what":"x","done":"d"},'
+            '"status":"open","order":1,"created_at":"2026-01-01T00:00:00Z","created_by":"test"}\n'
+        )
+
+        class Args:
+            to = "dolt"
+
+        with patch("bon.dolt.verify_dolt_connection", side_effect=BonError("Cannot connect")):
+            with pytest.raises(BonError, match="Cannot connect"):
+                cmd_migrate(Args())
+
+        # Backend file must NOT have been written
+        assert not (arc_dir / ".bon" / "backend").exists()
+        # JSONL files must be untouched
+        assert (arc_dir / ".bon" / "items.jsonl").exists()
+        assert not (arc_dir / ".bon" / "items.jsonl.pre-dolt").exists()
+
+    @pytest.mark.skipif(
+        os.environ.get("BON_DOLT_TEST") != "1",
+        reason="BON_DOLT_TEST=1 not set",
+    )
+    def test_migrate_to_dolt_succeeds_with_live_server(self, arc_dir, monkeypatch):
+        """With a running Dolt server, migration should complete."""
+        monkeypatch.chdir(arc_dir)
+        _reset_data_dir()
+        _reset_backend()
+
+        result = run_arc("migrate", "--to", "dolt", cwd=arc_dir)
+        assert result.returncode == 0
+        assert (arc_dir / ".bon" / "backend").read_text() == "dolt"

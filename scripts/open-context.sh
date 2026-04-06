@@ -179,6 +179,13 @@ else
     rm -f "$BON_FILE"
 fi
 
+# === GHOST FILE WARNING ===
+if [ "$BON_BACKEND" = "dolt" ] && [ -f ".bon/items.jsonl" ]; then
+    echo "Warning: .bon/items.jsonl exists but backend is Dolt — this file is stale (pre-migration ghost)."
+    echo "  Remove it: rm .bon/items.jsonl"
+    echo ""
+fi
+
 # === STDOUT BRIEFING ===
 echo "=== SESSION ==="
 

@@ -10,19 +10,30 @@ HOOK_INPUT=$(cat)
 CWD=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('cwd',''))" <<< "$HOOK_INPUT" 2>/dev/null || true)
 [ -n "$CWD" ] && cd "$CWD" 2>/dev/null || true
 
-# Check .bon/ first, fall back to .arc/ during transition
-if [ -f .bon/items.jsonl ]; then
-    ITEMS_FILE=.bon/items.jsonl
+# Detect backend
+BON_BACKEND="none"
+if [ -f .bon/backend ] && [ "$(cat .bon/backend 2>/dev/null)" = "dolt" ]; then
+    BON_BACKEND="dolt"
+elif [ -f .bon/items.jsonl ]; then
+    BON_BACKEND="jsonl"
 elif [ -f .arc/items.jsonl ]; then
-    ITEMS_FILE=.arc/items.jsonl
-else
-    exit 0
+    BON_BACKEND="jsonl"
 fi
+[ "$BON_BACKEND" = "none" ] && exit 0
 
-tactical=$(python3 << 'PYEOF'
+if [ "$BON_BACKEND" = "dolt" ]; then
+    # Dolt: use bon CLI
+    command -v bon &>/dev/null || exit 0
+    tactical=$(bon show --current 2>/dev/null || true)
+else
+    # JSONL: parse file directly (faster, no CLI dependency)
+    ITEMS_FILE=".bon/items.jsonl"
+    [ -f .arc/items.jsonl ] && [ ! -f .bon/items.jsonl ] && ITEMS_FILE=".arc/items.jsonl"
+
+    tactical=$(python3 << 'PYEOF'
 import json, sys
 
-items_file = sys.argv[1] if len(sys.argv) > 1 else ".bon/items.jsonl"
+items_file = ".bon/items.jsonl"
 lines = []
 try:
     with open(items_file) as f:
@@ -51,7 +62,8 @@ except Exception:
 if lines:
     print("\n".join(lines))
 PYEOF
-)
+    )
+fi
 
 [ -z "$tactical" ] && exit 0
 

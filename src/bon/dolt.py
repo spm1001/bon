@@ -178,6 +178,13 @@ def _reset_connection():
     _cached_connection = None
 
 
+def verify_dolt_connection():
+    """Open a connection and run a trivial query. Raises BonError on failure."""
+    conn = _get_connection()
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1")
+
+
 # ---------- schema ----------
 
 _SCHEMA_SQL = [

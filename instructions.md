@@ -28,6 +28,16 @@ When a skill or tool fails during real work: file a Field Report bon item in the
 
 Frame outcomes as achievements: "Taught Claude to generate charts" not "Create chart generation skill." Past-tense verb + the "so what."
 
+## Dolt Backend
+
+Some repos use Dolt instead of JSONL. The `bon` CLI handles both transparently. If bon commands fail with "Cannot connect," the Dolt server may be down:
+
+```bash
+systemctl --user start dolt-bon.service   # on hezza
+```
+
+If a repo has both `.bon/backend=dolt` and a stale `items.jsonl`, the JSONL file is a pre-migration ghost — bon ignores it.
+
 ## Session Lifecycle
 
 **Starting:** Hooks provide orientation. Draw-down from bon before writing code.
