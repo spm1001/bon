@@ -2,7 +2,7 @@
 import pytest
 from conftest import run_arc
 
-# Expected outputs from SPEC.md
+# Expected outputs for snapshot tests
 EXPECTED_LIST_DEFAULT = {
     "empty": "No outcomes.\n",
 

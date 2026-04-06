@@ -123,15 +123,22 @@ class TestConvertOutcomeToAction:
 class TestConvertValidation:
     """Test convert command validation."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["multiple_outcomes"], indirect=True)
-    def test_convert_outcome_requires_parent(self, arc_dir_with_fixture, monkeypatch):
-        """Converting outcome without --parent is an error."""
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["two_outcomes_no_children"], indirect=True)
+    def test_convert_outcome_to_standalone_action(self, arc_dir_with_fixture, monkeypatch):
+        """Converting outcome without --parent creates standalone action."""
         monkeypatch.chdir(arc_dir_with_fixture)
 
-        result = run_arc("convert", "arc-aaa", cwd=arc_dir_with_fixture)
+        result = run_arc("convert", "arc-bbb", cwd=arc_dir_with_fixture)
 
-        assert result.returncode == 1
-        assert "requires --outcome" in result.stderr
+        assert result.returncode == 0
+        assert "Converted arc-bbb to action" in result.stdout
+
+        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        items = {json.loads(line)["id"]: json.loads(line) for line in lines}
+
+        assert items["arc-bbb"]["type"] == "action"
+        assert items["arc-bbb"]["parent"] is None
+        assert items["arc-bbb"]["waiting_for"] is None
 
     @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
     def test_convert_action_rejects_parent(self, arc_dir_with_fixture, monkeypatch):

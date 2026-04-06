@@ -192,6 +192,7 @@ def cmd_new(args):
             error("JSON must include 'title'")
 
         parent = data.get("parent", args.parent)
+        explicit_type = data.get("type")
 
         brief_data = data.get("brief", {})
         brief = require_brief_flags(
@@ -206,6 +207,7 @@ def cmd_new(args):
 
         title = args.title
         parent = args.parent
+        explicit_type = None
 
         # Get brief: interactive prompts or flags
         if sys.stdin.isatty() and not (args.why and args.what and args.done):
@@ -224,8 +226,11 @@ def cmd_new(args):
     # Include archived IDs to prevent collisions with archived items
     existing_ids.update(i["id"] for i in load_archive())
 
-    # Lint outcome titles for activity language
-    if not parent:
+    # Determine item type: explicit type from JSON, or inferred from parent
+    is_action = bool(parent) or explicit_type == "action"
+
+    # Lint outcome titles for activity language (skip for actions)
+    if not is_action:
         check_outcome_language(title)
 
     if parent:
@@ -247,6 +252,20 @@ def cmd_new(args):
             "status": "open",
             "parent": actual_parent,
             "order": next_order(items, "action", actual_parent),
+            "created_at": now_iso(),
+            "created_by": get_creator(),
+            "waiting_for": None,
+        }
+    elif is_action:
+        # Standalone action (explicit type, no parent)
+        item = {
+            "id": generate_unique_id(prefix, existing_ids),
+            "type": "action",
+            "title": title,
+            "brief": brief,
+            "status": "open",
+            "parent": None,
+            "order": next_order(items, "action", None),
             "created_at": now_iso(),
             "created_by": get_creator(),
             "waiting_for": None,
@@ -692,15 +711,17 @@ def cmd_convert(args):
         error(f"Item '{args.id}' not found")
 
     if item["type"] == "outcome":
-        # Outcome → Action: requires --outcome
-        if not args.parent:
-            error("Converting outcome to action requires --outcome")
-
-        parent = find_by_id(items, args.parent, prefix)
-        if not parent:
-            error(f"Parent '{args.parent}' not found")
-        if parent["type"] != "outcome":
-            error(f"Parent must be an outcome, got {parent['type']}")
+        # Validate parent if given
+        old_parent = None
+        if args.parent:
+            parent = find_by_id(items, args.parent, prefix)
+            if not parent:
+                error(f"Parent '{args.parent}' not found")
+            if parent["type"] != "outcome":
+                error(f"Parent must be an outcome, got {parent['type']}")
+            new_parent = parent["id"]
+        else:
+            new_parent = None
 
         # Check for children
         children = [i for i in items if i.get("parent") == item["id"]]
@@ -712,14 +733,13 @@ def cmd_convert(args):
             apply_reparent(items, child, item["id"], None)
             child["parent"] = None
 
-        # Convert outcome → action
-        old_parent = None
-        new_parent = parent["id"]
+        # Convert outcome → action (standalone if no --outcome given)
         item["type"] = "action"
         item["parent"] = new_parent
         item["waiting_for"] = None
         item.pop("wait_note", None)
-        apply_reparent(items, item, old_parent, new_parent)
+        if new_parent:
+            apply_reparent(items, item, old_parent, new_parent)
 
     else:  # action → outcome
         if args.parent:

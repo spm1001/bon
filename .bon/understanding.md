@@ -25,7 +25,7 @@ Key fields: `brief` is mandatory — `{why, what, done}` required, `how` optiona
 
 `cli.py` is the bulk of the codebase — every command is a standalone function that loads items, mutates the in-memory list, and writes back. `storage.py` handles I/O, validation, and backend dispatch. When `.bon/backend` contains "dolt", six storage functions dispatch to `dolt.py` via lazy import — cli.py doesn't know which backend is active. `display.py`, `ids.py`, and `queries.py` are small support modules.
 
-The complexity isn't in the code — it's in the spec. `SPEC.md` is 55k words, though it has drifted from implementation in places. When behavior is unclear, check the spec but verify against the code.
+The complexity isn't in the code — it's in the interactions between commands and the invariants they maintain. When behavior is unclear, check the tests and the code.
 
 Every command follows the same pattern: `check_initialized()` → `load_items()` → mutate → `save_items()`. No exceptions. No middleware.
 
@@ -40,6 +40,8 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 `bon migrate --to dolt` now verifies Dolt connectivity before switching the backend file (via `verify_dolt_connection()` in dolt.py). This prevents stranded data when Dolt is unreachable. `bon migrate --to jsonl` rolls back.
 
 **Dolt in production:** The server runs as a systemd user service (`dolt-bon.service`), needs `loginctl enable-linger` for headless machines, and a non-root database user scoped to the bon database only (`bon@'%'`). Dolt 1.83.6 removed `--user`/`--password` flags from `sql-server` — users are managed via SQL after auto-created root@localhost on first start. The `dolt sql` local CLI bypasses server auth entirely (runs in-process against the data directory). For multi-machine access, the server binds to 0.0.0.0 and each client machine needs `~/.config/bon/dolt.toml` pointing to the server's Tailscale IP. The pymysql dependency must be included in all install paths: `uv tool install` with `[dolt]` extras, `setup.sh`, `update-all.sh`, and the `ensure-bon.sh` advisory hint.
+
+**Dolt backup via Git remote:** Dolt supports Git repositories as native remotes — `dolt remote add backup https://github.com/ORG/REPO.git` (the `.git` suffix is required; without it you get a generic 422, not a helpful hint). Data is stored under `refs/dolt/data` in the Git repo, preserving full Dolt commit history. `dolt clone` from the GitHub URL gives a fully functional Dolt database. This is dramatically better than SQL dump + git commit, which loses Dolt's version history. The feature is relatively new and not obvious from Dolt's docs or error messages. Backup runs daily at 4am via cron (`spm1001/bon-dolt-backup`).
 
 **Scripts and hooks are Dolt-aware.** `bon-read.sh`, `bon-tactical.sh`, `open-context.sh`, and `ensure-bon.sh` all check `.bon/backend` and dispatch to the CLI for Dolt repos. Cross-repo consumers (`garde-manger/adapters/bon.py`, `trousse/scripts/bon-survey.py`, `bon/skills/review/scripts/audit_survey.py`) also detect backend and use `bon list --jsonl` for Dolt repos. The instruction shard documents Dolt recovery (`systemctl --user start dolt-bon.service`).
 
@@ -96,6 +98,8 @@ Instructional text is emotional regulation. The CSO scoring rubric awarded 10/25
 **Surface-level lint is necessary but insufficient.** The register lint tool (`lint_skill.py`'s `check_register()`) checks ALL CAPS density, negation ratio, and opening tone. These catch the obvious patterns but miss subtler stress generators: threat framing ("broken scripts mean lost handoffs"), constraint density (seven-row mistake tables), conditional punishment ("if you skip this, future Claude can't prioritise"), and urgency stacking (bold + table + bold). The amp-close skill passed lint at 50% negation ratio, suggesting thresholds may be miscalibrated. The deeper question is document posture — does the text assume competence and provide context, or assume failure risk and provide guardrails? These produce measurably different model behaviour but aren't greppable. bon-kaviru tracks approach design for posture-level analysis.
 
 ## The taste
+
+**Scope boundaries can be avoidance.** When audit or fix work surfaces a related issue — you've read the file, you know the fix, it's ten minutes of work — "that's a separate issue" is technically true but functionally resistance. The cost of filing a bon is low, but the cost of fixing it *now* while you have context is often lower. Watch for drawing a clean scope line that happens to exclude work right in front of you.
 
 **Legibility over abstraction.** No base classes, no registries. Each command is a self-contained function with the same boilerplate at the top. The repetition is deliberate.
 

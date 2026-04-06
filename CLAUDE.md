@@ -183,7 +183,7 @@ bon migrate --to jsonl                     # Back to JSONL
 
 | Need to... | Read... |
 |------------|---------|
-| Understand exact behavior | `SPEC.md` (canonical) |
+| Understand architecture & invariants | `.bon/understanding.md` |
 | See expected outputs | `fixtures/*.jsonl` |
 | Add/modify command | `cli.py` |
 | Change storage format | `storage.py` |
@@ -191,9 +191,5 @@ bon migrate --to jsonl                     # Back to JSONL
 | Update Claude integration | `skills/open/SKILL.md` |
 | Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
 | Test bon-read.sh | `tests/test_bon_read.py` |
-
-## Spec-Driven Development
-
-`SPEC.md` is a reference (~55k) but has drifted from implementation in places. Verify against the code for edge cases. Tests are often derived from spec examples.
 
 

@@ -450,6 +450,70 @@ class TestNewJsonStdin:
         assert "Created:" not in result.stdout
 
 
+class TestStandaloneAction:
+    """Standalone actions via explicit type field in JSON stdin."""
+
+    def test_json_type_action_creates_standalone_action(self, arc_dir, monkeypatch):
+        """Explicit type=action with no parent creates a standalone action."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Fix a typo in docs",
+            "brief": {"why": "typo spotted", "what": "fix it", "done": "no typo"}
+        })
+        result = run_arc("new", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        item = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
+        assert item["type"] == "action"
+        assert item["parent"] is None
+        assert item["waiting_for"] is None
+
+    def test_json_no_type_no_parent_creates_outcome(self, arc_dir, monkeypatch):
+        """No explicit type and no parent still creates an outcome (default)."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "title": "Docs are accurate",
+            "brief": {"why": "accuracy", "what": "review", "done": "reviewed"}
+        })
+        result = run_arc("new", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        item = json.loads((arc_dir / ".bon" / "items.jsonl").read_text().strip())
+        assert item["type"] == "outcome"
+
+    def test_standalone_action_no_outcome_language_warning(self, arc_dir, monkeypatch):
+        """Standalone actions skip outcome language lint."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Implement the fix",
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        result = run_arc("new", cwd=arc_dir, input=data)
+
+        assert result.returncode == 0
+        assert result.stderr == ""  # No activity-language warning
+
+    def test_standalone_action_appears_in_standalone_section(self, arc_dir, monkeypatch):
+        """Standalone actions show in the Standalone section of bon list."""
+        monkeypatch.chdir(arc_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Field report: something odd",
+            "brief": {"why": "w", "what": "x", "done": "d"}
+        })
+        run_arc("new", cwd=arc_dir, input=data)
+
+        result = run_arc("list", cwd=arc_dir)
+        assert "Standalone:" in result.stdout
+        assert "Field report: something odd" in result.stdout
+
+
 class TestNewNotInitialized:
     def test_error_when_not_initialized(self, tmp_path, monkeypatch):
         """Error when .arc/ doesn't exist."""

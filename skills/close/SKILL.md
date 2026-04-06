@@ -72,8 +72,8 @@ Even if it's been a long slog of a session, here, at the finish line, please ans
 
 Now turn your reflections into a plan. Like Newton II, most of your observations will imply an equal and opposite action — name it. Here's what that inversion looks like in practice:
 
-> **Reflection:** "We updated the handoff template but the SPEC.md still describes the old format."
-> → **Now:** Update SPEC.md (5 min, have the context)
+> **Reflection:** "We updated the handoff template but CLAUDE.md still describes the old format."
+> → **Now:** Update CLAUDE.md (5 min, have the context)
 >
 > **Reflection:** "The /open skill expects contribution files that we've stopped writing."
 > → **Later:** Update /open to read new handoff format (needs fresh session, different context load)
