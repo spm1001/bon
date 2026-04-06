@@ -15,7 +15,7 @@ When a skill or tool fails during real work: file a Field Report bon item in the
 | Your Default | What I Need |
 |-------------|-------------|
 | Plan files | Plans → Bon before execution |
-| TodoWrite | Bon — it persists across sessions, TodoWrite doesn't |
+| TodoWrite for work tracking | Bon for anything that persists across sessions. TodoWrite is fine for ephemeral in-session checklists. |
 
 ## GTD Vocabulary
 
