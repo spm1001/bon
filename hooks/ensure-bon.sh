@@ -69,6 +69,4 @@ MSG=""
 [ -n "$FIXED" ] && MSG="${MSG}✓ bon auto-fixed:\n\n${FIXED}"
 [ -n "$ISSUES" ] && MSG="${MSG}⚠️ bon needs attention:\n\n${ISSUES}"
 
-cat <<EOF
-{"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "${MSG}"}}
-EOF
+python3 -c "import json; print(json.dumps({'hookSpecificOutput': {'hookEventName': 'SessionStart', 'additionalContext': '''${MSG}'''}}))"
