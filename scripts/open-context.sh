@@ -1,6 +1,6 @@
 #!/bin/bash
 # Session context gathering — enriched briefing
-# Stdout: full orientation (understanding + handoff + structured summary)
+# Stdout: handoff + structured summary (understanding.md loaded via /open skill)
 # Disk: full bon hierarchy (bon.txt) for on-demand reading
 
 set -euo pipefail
@@ -199,16 +199,7 @@ fi
 echo "Good $TIME_OF_DAY. It's $(date '+%-d %b %Y, %H:%M')."
 echo ""
 
-# --- 2. understanding.md in full ---
-if [ -f ".bon/understanding.md" ]; then
-    cat ".bon/understanding.md"
-    echo ""
-elif [ -f "understanding.md" ]; then
-    cat "understanding.md"
-    echo ""
-fi
-
-# --- 3. Latest handoff in full ---
+# --- 2. Latest handoff in full ---
 if [ -n "$LATEST_FILE" ]; then
     echo "Last session ($LATEST_STR): $LATEST_PURPOSE"
     echo ""
@@ -216,7 +207,7 @@ if [ -n "$LATEST_FILE" ]; then
     echo ""
 fi
 
-# --- 4. Outcomes only ---
+# --- 3. Outcomes only ---
 if [ "$BON_BACKEND" != "none" ]; then
     if [ -n "${BON_DOLT_ERROR:-}" ]; then
         echo "Bon: backend is dolt but server is unreachable"
@@ -231,7 +222,7 @@ if [ "$BON_BACKEND" != "none" ]; then
     fi
 fi
 
-# --- 5. Active work / nothing in progress ---
+# --- 4. Active work / nothing in progress ---
 if [ -n "${BON_DOLT_ERROR:-}" ]; then
     true  # Already reported above
 elif [ "$BON_BACKEND" != "none" ]; then
@@ -241,7 +232,7 @@ elif [ "$BON_BACKEND" != "none" ]; then
     fi
 fi
 
-# --- 6. Suggested (from handoff Opportunities or Next section) ---
+# --- 5. Suggested (from handoff Opportunities or Next section) ---
 if [ -n "$LATEST_FILE" ]; then
     # fond-v1: ### Opportunities under ## For the next Claude
     NEXT_LINES=$(sed -n '/^### Opportunities/,/^#/{/^#/d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
@@ -256,7 +247,7 @@ if [ -n "$LATEST_FILE" ]; then
     fi
 fi
 
-# --- 7. Contributions pending ---
+# --- 6. Contributions pending ---
 if [ -d ".bon/contributions" ]; then
     CONTRIB_FILES=$(ls -1 .bon/contributions/*.md 2>/dev/null || true)
     if [ -n "$CONTRIB_FILES" ]; then

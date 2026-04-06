@@ -43,6 +43,8 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 **Scripts and hooks are Dolt-aware.** `bon-read.sh`, `bon-tactical.sh`, `open-context.sh`, and `ensure-bon.sh` all check `.bon/backend` and dispatch to the CLI for Dolt repos. Cross-repo consumers (`garde-manger/adapters/bon.py`, `trousse/scripts/bon-survey.py`, `bon/skills/review/scripts/audit_survey.py`) also detect backend and use `bon list --jsonl` for Dolt repos. The instruction shard documents Dolt recovery (`systemctl --user start dolt-bon.service`).
 
+**The migration lesson: blast radius is in the consumers.** The Dolt code change was straightforward. The real work was finding four scripts across three repos that read `items.jsonl` directly and would have silently produced empty results after migration. The fix pattern is uniform (check `.bon/backend`, dispatch to CLI for Dolt, keep direct reads for JSONL), but discovery requires knowing every consumer exists — and they're scattered. Before any storage migration, grep for the old filename across ALL repos. Infrastructure transitions have two phases: Phase 1 is making the new thing work; Phase 2 is making everything else aware the old thing is gone. Phase 2 is where reliability lives.
+
 **Ghost files.** After migration, `.bon/items.jsonl.pre-dolt` backup files exist in each repo. These are rollback insurance — no script reads them. `open-context.sh` warns if a stale `items.jsonl` (not `.pre-dolt`) exists alongside `backend=dolt`.
 
 ## The invariants
