@@ -23,7 +23,7 @@ if [ "$SOURCE" = "resume" ]; then
         SEARCH=$(pwd -P)
         while [ "$SEARCH" != "/" ]; do
             if [ -d "$SEARCH/.bon/handoffs" ]; then
-                rm -f "$SEARCH/.bon/handoffs/${SHORT_ID}.md" 2>/dev/null || true
+                rm -f "$SEARCH/.bon/handoffs/"*"${SHORT_ID}.md" 2>/dev/null || true
                 break
             fi
             SEARCH=$(dirname "$SEARCH")
