@@ -31,15 +31,19 @@ Every command follows the same pattern: `check_initialized()` → `load_items()`
 
 ## Storage backends
 
-**JSONL** (default): `.bon/items.jsonl`, git-tracked, zero dependencies. The original and still the right choice for single-machine work.
+**Dolt is the universal backend.** As of April 2026, all 20 repos share a single Dolt database on hezza. JSONL support remains in the code (and `bon migrate --to jsonl` works for rollback), but no repo uses it in production. Every `.bon/` directory has a `backend` file containing "dolt".
 
-**Dolt** (optional): MySQL-compatible database with git semantics. Items scoped by prefix — all projects share one database, filtered by `id LIKE prefix-%`. Requires `pymysql` (`pip install bon[dolt]`). Connection via env vars or `~/.config/bon/dolt.toml`. Each write produces a Dolt commit. Session identity includes hostname to prevent cross-machine conflicts.
+**How Dolt works:** MySQL-compatible database with git semantics. Items scoped by prefix — all projects share one database, filtered by `id LIKE prefix-%`. Each write produces a Dolt commit. Requires `pymysql` (`pip install bon[dolt]`). Connection via env vars or `~/.config/bon/dolt.toml`.
 
 Backend dispatch is at the function boundary in `storage.py`. Six functions dispatch: `load_items`, `save_items`, `load_archive`, `append_archive`, `remove_from_archive`, and `items_path` (which raises in Dolt mode — there's no file). The `.bon/` directory still exists in Dolt mode — it holds `backend`, `prefix`, and local-only files.
 
-`bon migrate --to dolt` and `bon migrate --to jsonl` move items between backends. `bon init --backend dolt` creates a new Dolt-backed project.
+`bon migrate --to dolt` now verifies Dolt connectivity before switching the backend file (via `verify_dolt_connection()` in dolt.py). This prevents stranded data when Dolt is unreachable. `bon migrate --to jsonl` rolls back.
 
-**Dolt in production** requires more than dolt.py. The server runs as a systemd user service (`dolt-bon.service`), needs `loginctl enable-linger` for headless machines, and a non-root database user scoped to the bon database only (`bon@'%'`). Dolt 1.83.6 removed `--user`/`--password` flags from `sql-server` — users are managed via SQL after auto-created root@localhost on first start. The `dolt sql` local CLI bypasses server auth entirely (runs in-process against the data directory). For multi-machine access, the server binds to 0.0.0.0 and each client machine needs `~/.config/bon/dolt.toml` pointing to the server's Tailscale IP. The pymysql dependency must be included in all install paths: `uv tool install` with `[dolt]` extras, `setup.sh`, `update-all.sh`, and the `ensure-bon.sh` advisory hint.
+**Dolt in production:** The server runs as a systemd user service (`dolt-bon.service`), needs `loginctl enable-linger` for headless machines, and a non-root database user scoped to the bon database only (`bon@'%'`). Dolt 1.83.6 removed `--user`/`--password` flags from `sql-server` — users are managed via SQL after auto-created root@localhost on first start. The `dolt sql` local CLI bypasses server auth entirely (runs in-process against the data directory). For multi-machine access, the server binds to 0.0.0.0 and each client machine needs `~/.config/bon/dolt.toml` pointing to the server's Tailscale IP. The pymysql dependency must be included in all install paths: `uv tool install` with `[dolt]` extras, `setup.sh`, `update-all.sh`, and the `ensure-bon.sh` advisory hint.
+
+**Scripts and hooks are Dolt-aware.** `bon-read.sh`, `bon-tactical.sh`, `open-context.sh`, and `ensure-bon.sh` all check `.bon/backend` and dispatch to the CLI for Dolt repos. Cross-repo consumers (`garde-manger/adapters/bon.py`, `trousse/scripts/bon-survey.py`, `bon/skills/review/scripts/audit_survey.py`) also detect backend and use `bon list --jsonl` for Dolt repos. The instruction shard documents Dolt recovery (`systemctl --user start dolt-bon.service`).
+
+**Ghost files.** After migration, `.bon/items.jsonl.pre-dolt` backup files exist in each repo. These are rollback insurance — no script reads them. `open-context.sh` warns if a stale `items.jsonl` (not `.pre-dolt`) exists alongside `backend=dolt`.
 
 ## The invariants
 
