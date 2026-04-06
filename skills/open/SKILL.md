@@ -59,7 +59,9 @@ When you'd normally enter plan mode, create bon items instead. A bon hierarchy *
 
 ## Session Start Ritual
 
-The session-start hook provides orientation automatically (understanding, handoff, outcomes, suggested items). Your job is the LLM-mediated work the hook can't do.
+The session-start hook provides orientation automatically (handoff, outcomes, suggested items). Your job is the LLM-mediated work the hook can't do.
+
+The hook output may be truncated in the system-reminder preview. When you see "Output too large ... Full output saved to: {path}", Read that file — the handoff (including "For Claudes to come") is likely past the truncation point.
 
 ### 1. Synthesize Knowledge
 
