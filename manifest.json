@@ -200,9 +200,6 @@
     },
     "bon-read.sh": {
       "target": "bon/scripts/bon-read.sh"
-    },
-    "stage-extraction.sh": {
-      "target": "garde-manger/scripts/stage-extraction.sh"
     }
   },
   "tools": {

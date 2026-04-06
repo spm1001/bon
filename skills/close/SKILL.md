@@ -66,7 +66,7 @@ This is the heart of /close. You're reviewing the session — what to finish now
 2. **What could we have done better?** — Better can be many things, but for us it's about being more elegant, more maintainable, more robust, more consistent and yes, more creative.
 3. **What could go wrong in future?** — Race conditions, silent failures, fragile dependencies, implicit knowledge not written down, non-obvious relationships between files
 
-Even if it's been a long slog of a session, here, at the finish line, please answer these questions deeply, honestly and openly, as if you'd been asked them directly by the user, or perhaps by a future Claude. Share your knowledge. 
+These questions work best when answered with genuine honesty — what you actually noticed, not what sounds thorough. Share your knowledge.
 
 ### Generate actions from your reflections
 
@@ -87,11 +87,11 @@ Now turn your reflections into a plan. Like Newton II, most of your observations
 > **Reflection:** "When the skill assumes competence rather than assuming failure, instructions get shorter and behaviour gets better."
 > → **For Claudes to come:** Skill register insight
 
-The principle is: don't put off to another Claude something that you could do better because of your insight. Don't brush things off as 'some-other-Claude's problem. Doesn't matter if it's 'not a regression' —  it may be a long time until another Claude comes this way again, and we have cabinet responsibility to leave things better than we found them. 
+The principle: you have context that the next Claude won't. Use it. Cabinet responsibility means leaving things better than you found them — it may be a long time until another Claude comes this way again.
 
 ### Triage before sorting
 
-Before you sort, force each observation through a table. This prevents two failure modes: vague reflections without consequences (which can't be triaged) and reflexive action-generation without examining whether action is actually warranted.
+Before you sort, run each observation through a table. The table separates "what I noticed" from "what to do about it" — some observations warrant action, others are worth naming but not acting on.
 
 | # | Reflection | Consequence | Remedy | When |
 |---|-----------|-------------|--------|------|
@@ -101,9 +101,11 @@ Before you sort, force each observation through a table. This prevents two failu
 | 4 | Resolve endpoint doesn't scope to room | Semantically misleading URL; subtle bugs when more surfaces consume it | Add WHERE clause to scope resolve | File as Bon |
 | 5 | Sends session_id that server ignores | Dangling intent — but removing means re-adding later | Leave it; field is harmless and the intent is documented | Chill |
 
-The three timing categories are **do now**, **file as bon**, and **on reflection, chill**. The third is the most important — it gives you permission to notice something without manufacturing work for it. "Chill" is an examined conclusion, not a lazy omission. Present the table to the user grouped by timing — it's their review surface. They may promote or demote items.
+The three When values are **Do now**, **File as Bon**, and **Chill**. Every row gets one — no blank cells. "Chill" is the most interesting — it gives you permission to notice something without manufacturing work for it. An examined "no action needed" is a real conclusion, not an omission.
 
-**Consistency check:** Your Remedy and When columns must agree. If Remedy names a concrete action (file a bon, add a guard, update docs), When must be Do now or File as Bon — not Chill. Chill means "examined and genuinely no action needed." A Remedy that describes work paired with a When of Chill is a contradiction — you've talked yourself out of your own recommendation between two columns. In practice, user corrections at this step are almost always upgrades (chill→bon, bon→do now), never downgrades. If you're uncertain, err toward action — the user can always demote, but items you default to Chill tend to disappear entirely.
+Present the table to the user grouped by timing — it's their review surface. They may promote or demote items.
+
+**Consistency check:** Remedy and When should agree. If your Remedy names concrete work, When should be Do now or File as Bon. If you're uncertain, lean toward action — the user can always demote.
 
 Now sort the remaining actions into three buckets:
 
@@ -145,7 +147,7 @@ Work through the list. Finish the quick fixes, close off completed Bon items - g
 
 ### File the new bons
 
-When filing bons, the `--why` should say what goes wrong if nobody picks this up — not just describe the work. Use `bon new --json` for anything with technical content. Make sure to capture enough detail in the `--how` that a future Claude could pick it up and execute without your context load. The richer the better. 
+When filing bons, the `--why` should explain what's at stake — not just describe the work. Use `bon new --json` for anything with technical content. Capture enough detail in the `--how` that a future Claude could pick it up without your context load.
 
 For cross-repo issues: file a bon in the relevant repo rather than making changes there. Cabinet responsibility means noticing and capturing, not committing in repos where you may not have the full picture.
 

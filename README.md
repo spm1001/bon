@@ -39,18 +39,43 @@ Or manually: `uv tool install ~/Repos/bon`.
 # Initialize in your project
 bon init
 
-# Create an outcome (desired result)
-bon new "Users can export data" \
-  --why "Users requesting CSV exports" \
-  --what "Export button, CSV generation, download" \
-  --done "Can export any table to CSV"
+# Create an outcome (desired result) — pipe JSON to stdin
+cat <<'EOF' | bon new -q
+{
+  "title": "Users can export data",
+  "brief": {
+    "why": "Users requesting CSV exports",
+    "what": "1. Export button in toolbar 2. CSV generation 3. Download endpoint",
+    "done": "Can export any table to CSV"
+  }
+}
+EOF
 
-# Add actions to that outcome
-bon new "Add export button to toolbar" \
-  --outcome bon-abcdef \
-  --why "Entry point for export flow" \
-  --what "Button in toolbar, opens format picker" \
-  --done "Button visible, click opens modal"
+# Add an action under that outcome
+cat <<'EOF' | bon new -q
+{
+  "title": "Add export button to toolbar",
+  "parent": "bon-abcdef",
+  "brief": {
+    "why": "Entry point for export flow",
+    "what": "Button in toolbar, opens format picker",
+    "done": "Button visible, click opens modal"
+  }
+}
+EOF
+
+# File a standalone action (field report, one-off fix)
+cat <<'EOF' | bon new -q
+{
+  "type": "action",
+  "title": "Field Report: CSV encoding broken on non-ASCII",
+  "brief": {
+    "why": "Japanese characters produce mojibake in exports",
+    "what": "Diagnose encoding, fix or file under outcome",
+    "done": "Non-ASCII exports render correctly"
+  }
+}
+EOF
 
 # See what's ready
 bon list --ready
@@ -59,12 +84,14 @@ bon list --ready
 bon done bon-ghijkl
 ```
 
+Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q`
+
 ## Commands
 
 | Command | Description |
 |---------|-------------|
 | `init [--prefix P] [--backend {jsonl\|dolt}]` | Initialize `.bon/` directory |
-| `new TITLE [--outcome PARENT] --why W --what X --done D` | Create outcome or action |
+| `new [TITLE] [--outcome PARENT] --why W --what X --done D` | Create outcome or action (JSON stdin or flags) |
 | `list [--ready\|--waiting\|--all]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
@@ -248,7 +275,7 @@ Bon stores work in `.bon/items.jsonl` (or a Dolt database) as two item types:
 }
 ```
 
-**Actions** — Concrete next steps. Belong to outcomes.
+**Actions** — Concrete next steps. Belong to outcomes, or standalone (field reports, one-off fixes).
 ```json
 {
   "id": "bon-ghijkl",
