@@ -151,7 +151,7 @@ bon new "Quick fix" --why w --what x --done d -q   # Flags (stubs only)
 | Reading JSONL by line position | Items are sorted by ID, not insertion order. Find by type/ID, not `lines[N]` |
 | Case-sensitive ID lookup | Use `find_by_id()` with prefix |
 | Breaking unblock-on-done | Test with `waiting_dependency` fixture |
-| Standalone actions forgotten | Check items where `parent` is None |
+| Standalone actions forgotten | Check items where `parent` is None. Create with `type: "action"` in JSON stdin |
 | Interactive mode untested | Test with `input=` parameter |
 | Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
 | Changing schema fields | bon-read.sh reads items.jsonl directly with jq |

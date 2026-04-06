@@ -726,7 +726,8 @@ def cmd_convert(args):
         # Check for children
         children = [i for i in items if i.get("parent") == item["id"]]
         if children and not args.force:
-            error(f"Outcome has {len(children)} children. Use --force to make them standalone.")
+            dest = f"action under {args.parent}" if args.parent else "standalone action"
+            error(f"Outcome has {len(children)} children. Use --force to convert to {dest} (children become standalone).")
 
         # Orphan children (make standalone actions)
         for child in children:
