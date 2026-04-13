@@ -14,6 +14,7 @@ When a skill or tool fails during real work: file a Field Report bon item in the
 
 | Your Default | What I Need |
 |-------------|-------------|
+| EnterPlanMode for complex tasks | `bon:plan` — thinking expressed as understanding.md + bon hierarchy |
 | Plan files | Plans → Bon before execution |
 | TodoWrite for work tracking | Bon for anything that persists across sessions. TodoWrite is fine for ephemeral in-session checklists. |
 
