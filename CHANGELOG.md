@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.21.0] - 2026-04-16
+
+### Changed
+- Replaced `context-budget.sh` with `session-dashboard.sh` — a per-turn dashboard that reports context as % free (abundance framing), detects session gaps, compaction, permission mode changes, and branch changes. Uses `transcript_path` from hook stdin instead of globbing the project dir for the newest `.jsonl` (which misattributed a stale transcript's usage to the current session at startup).
+- Low-context nudge uses identical language at 20% free and 1% free — no escalation curve. The numbers carry the signal; escalating urgency amplifies the vectors that degrade output quality exactly when calm matters most.
+
+### Removed
+- `hooks/context-budget.sh` — replaced by the dashboard.
+
 ## [0.8.1] - 2026-03-21
 
 ### Added
