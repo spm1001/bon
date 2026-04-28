@@ -92,7 +92,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 |---------|-------------|
 | `init [--prefix P] [--backend {jsonl\|dolt}]` | Initialize `.bon/` directory |
 | `new [TITLE] [--outcome PARENT] --why W --what X --done D` | Create outcome or action (JSON stdin or flags) |
-| `list [--ready\|--waiting\|--all]` | Show items hierarchically |
+| `list [--ready\|--waiting\|--all] [--limit N]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
 | `doctor` | Check items.jsonl for health issues |
@@ -133,7 +133,10 @@ bon list              # Open outcomes + their actions (default)
 bon list --ready      # Only items ready to work on
 bon list --waiting    # Only items that are waiting
 bon list --all        # Include done items
+bon list --limit 5    # First 5 top-level items (children come along)
 ```
+
+**`--limit N`** truncates to the first N top-level items — outcomes first, then standalones. Children of kept outcomes always come along, so output never cuts mid-item. Combine with any filter (e.g. `--ready --limit 3`).
 
 **What `--ready` shows:**
 - All open outcomes (always visible for context)

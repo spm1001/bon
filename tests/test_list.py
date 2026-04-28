@@ -144,3 +144,88 @@ class TestListNotInitialized:
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
+
+
+class TestListLimit:
+    """Test arc list --limit N truncates to first N top-level items."""
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["multiple_outcomes"], indirect=True)
+    def test_limit_truncates_outcomes(self, arc_dir_with_fixture, monkeypatch):
+        """--limit 1 keeps only the first outcome (with its children)."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+        expected = """\
+○ First outcome (arc-aaa)
+  1. ○ Action for first (arc-ccc)
+"""
+        result = run_arc("list", "--limit", "1", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert result.stdout == expected, f"\nGot:\n{repr(result.stdout)}\n\nExpected:\n{repr(expected)}"
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["multiple_outcomes"], indirect=True)
+    def test_limit_larger_than_available(self, arc_dir_with_fixture, monkeypatch):
+        """--limit N where N > available returns everything."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+        result_unlimited = run_arc("list", cwd=arc_dir_with_fixture)
+        result_limited = run_arc("list", "--limit", "100", cwd=arc_dir_with_fixture)
+        assert result_limited.returncode == 0
+        assert result_limited.stdout == result_unlimited.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcomes_and_standalones"], indirect=True)
+    def test_limit_spans_outcomes_and_standalones(self, arc_dir_with_fixture, monkeypatch):
+        """--limit consumes outcomes first, then spends remaining budget on standalones."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+        expected = """\
+○ First outcome (arc-aaa)
+  1. ○ Action for first (arc-ccc)
+
+○ Second outcome (arc-bbb)
+
+Standalone:
+  ○ Standalone one (arc-ddd)
+"""
+        result = run_arc("list", "--limit", "3", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert result.stdout == expected, f"\nGot:\n{repr(result.stdout)}\n\nExpected:\n{repr(expected)}"
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcomes_and_standalones"], indirect=True)
+    def test_limit_under_outcome_count_drops_standalones(self, arc_dir_with_fixture, monkeypatch):
+        """--limit smaller than outcome count drops all standalones."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+        result = run_arc("list", "--limit", "1", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+        assert "Standalone:" not in result.stdout
+        assert "arc-aaa" in result.stdout
+        assert "arc-bbb" not in result.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcomes_and_standalones"], indirect=True)
+    def test_limit_zero_treated_as_no_limit(self, arc_dir_with_fixture, monkeypatch):
+        """--limit 0 is permissive, not exclusive — returns everything."""
+        monkeypatch.chdir(arc_dir_with_fixture)
+        result_zero = run_arc("list", "--limit", "0", cwd=arc_dir_with_fixture)
+        result_unlimited = run_arc("list", cwd=arc_dir_with_fixture)
+        assert result_zero.returncode == 0
+        assert result_zero.stdout == result_unlimited.stdout
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcomes_and_standalones"], indirect=True)
+    def test_limit_with_json(self, arc_dir_with_fixture, monkeypatch):
+        """--limit affects --json output: outcomes truncated, standalones share budget."""
+        import json
+        monkeypatch.chdir(arc_dir_with_fixture)
+        result = run_arc("list", "--limit", "1", "--json", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert len(data["outcomes"]) == 1
+        assert data["outcomes"][0]["id"] == "arc-aaa"
+        assert len(data["outcomes"][0]["actions"]) == 1
+        assert data["standalone"] == []
+
+    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcomes_and_standalones"], indirect=True)
+    def test_limit_with_jsonl(self, arc_dir_with_fixture, monkeypatch):
+        """--limit affects --jsonl output: only kept top-level items + their children."""
+        import json
+        monkeypatch.chdir(arc_dir_with_fixture)
+        result = run_arc("list", "--limit", "1", "--jsonl", cwd=arc_dir_with_fixture)
+        assert result.returncode == 0
+        ids = {json.loads(line)["id"] for line in result.stdout.strip().split("\n")}
+        # First outcome (arc-aaa) and its child (arc-ccc); no other outcomes or standalones
+        assert ids == {"arc-aaa", "arc-ccc"}

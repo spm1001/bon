@@ -66,6 +66,31 @@ def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
         return outcomes + actions
 
 
+def limit_items(items: list[dict], limit: int | None) -> list[dict]:
+    """Truncate to first N top-level items, keeping their children.
+
+    Top-level = outcomes + standalone actions. Render order is outcomes
+    before standalones, each sorted by (order, id). Children of kept
+    outcomes come along regardless. limit=None or limit<=0 returns items
+    unchanged.
+    """
+    if not limit or limit <= 0:
+        return items
+
+    outcomes = sorted(
+        [i for i in items if i["type"] == "outcome"],
+        key=lambda x: (x.get("order", DEFAULT_ORDER), x["id"])
+    )
+    standalones = sorted(
+        [i for i in items if i["type"] == "action" and not i.get("parent")],
+        key=lambda x: (x.get("order", DEFAULT_ORDER), x["id"])
+    )
+
+    kept_top = (outcomes + standalones)[:limit]
+    kept_ids = {i["id"] for i in kept_top}
+    return [i for i in items if i["id"] in kept_ids or i.get("parent") in kept_ids]
+
+
 def cmd_init(args):
     """Initialize .bon/ directory."""
     prefix = args.prefix
@@ -309,12 +334,14 @@ def cmd_list(args):
     # Handle output format
     if args.json:
         filtered = filter_items_for_output(items, filter_mode)
+        filtered = limit_items(filtered, args.limit)
         print(format_json(filtered))
     elif args.jsonl:
         filtered = filter_items_for_output(items, filter_mode)
+        filtered = limit_items(filtered, args.limit)
         print(format_jsonl(filtered))
     else:
-        output = format_hierarchical(items, filter_mode)
+        output = format_hierarchical(items, filter_mode, limit=args.limit)
         print(output)
 
 
@@ -1477,6 +1504,8 @@ def main():
     list_parser.add_argument("--ready", action="store_true", help="Show only ready items")
     list_parser.add_argument("--waiting", action="store_true", help="Show only waiting items")
     list_parser.add_argument("--all", action="store_true", help="Include done items")
+    list_parser.add_argument("--limit", type=int, default=None,
+                             help="Truncate to first N top-level items (outcomes + standalones); children of kept outcomes always come along")
     add_output_flags(list_parser, json=True, jsonl=True)
     list_parser.set_defaults(func=cmd_list)
 

@@ -92,7 +92,7 @@ def format_jsonl(items: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
+def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: int | None = None) -> str:
     """Format items as hierarchical text output.
 
     Args:
@@ -102,6 +102,9 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
             - "ready": Open outcomes, only ready actions (or waiting count)
             - "waiting": Open outcomes, only waiting actions
             - "all": All outcomes including done, all their actions
+        limit: If set, keep only the first N top-level items (outcomes
+            before standalones, each by render order). Children of kept
+            outcomes come along.
 
     Returns:
         Formatted string output
@@ -114,6 +117,17 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
         [i for i in items if i["type"] == "outcome" and (include_done_outcomes or i["status"] == "open")],
         key=lambda x: x.get("order", DEFAULT_ORDER)
     )
+
+    # Apply limit: outcomes first, then standalones share whatever's left
+    standalone_budget: int | None
+    if limit is not None and limit > 0:
+        if len(outcomes) >= limit:
+            outcomes = outcomes[:limit]
+            standalone_budget = 0
+        else:
+            standalone_budget = limit - len(outcomes)
+    else:
+        standalone_budget = None
 
     for outcome in outcomes:
         # Outcome line
@@ -192,6 +206,9 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default") -> str:
         standalone = standalone_base
     else:
         standalone = [a for a in standalone_base if a["status"] == "open"]
+
+    if standalone_budget is not None:
+        standalone = sorted(standalone, key=lambda x: (x.get("order", DEFAULT_ORDER), x["id"]))[:standalone_budget]
 
     if standalone:
         if lines:
