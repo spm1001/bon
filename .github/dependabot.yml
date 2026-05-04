@@ -4,4 +4,12 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
-
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 5
