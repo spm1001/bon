@@ -72,7 +72,7 @@ fi
 # === BON STATUS (default tracker) ===
 echo ""
 echo "=== BON ==="
-if [ -d ".bon" ] || [ -d ".arc" ]; then
+if [ -d ".bon" ]; then
     # Find bon CLI - check PATH first, then known location
     BON_CMD=$(command -v bon 2>/dev/null || echo "$HOME/Repos/bon/.venv/bin/bon")
 

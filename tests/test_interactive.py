@@ -2,7 +2,7 @@
 from unittest.mock import patch
 
 import pytest
-from conftest import run_arc
+from conftest import run_bon
 
 from bon.cli import prompt_brief
 from bon.storage import BonError
@@ -69,11 +69,11 @@ class TestPromptBrief:
         assert "how" not in brief
 
 
-class TestArcErrorInProcess:
-    """Test that ArcError can be caught in-process (no subprocess needed)."""
+class TestBonErrorInProcess:
+    """Test that BonError can be caught in-process (no subprocess needed)."""
 
-    def test_error_raises_arc_error(self):
-        """error() raises ArcError catchable in-process."""
+    def test_error_raises_bon_error(self):
+        """error() raises BonError catchable in-process."""
         from bon.storage import error
         with pytest.raises(BonError, match="test message"):
             error("test message")
@@ -82,60 +82,60 @@ class TestArcErrorInProcess:
 class TestInteractiveCLI:
     """Test CLI with interactive mode triggered."""
 
-    def test_interactive_mode_creates_item(self, arc_dir, monkeypatch):
+    def test_interactive_mode_creates_item(self, bon_dir, monkeypatch):
         """Interactive mode creates item when no brief flags given."""
-        monkeypatch.chdir(arc_dir)
+        monkeypatch.chdir(bon_dir)
 
         # Mock isatty to return True, then provide input
         with patch('sys.stdin.isatty', return_value=True):
             with patch('builtins.input', side_effect=["Test why", "", "Test what", "Test done"]):
                 # Import and call main directly to use mocked stdin
                 from bon.cli import main
-                with patch('sys.argv', ['arc', 'new', 'Interactive test']):
+                with patch('sys.argv', ['bon', 'new', 'Interactive test']):
                     main()
 
         # Verify item created
         import json
-        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
+        items = (bon_dir / ".bon" / "items.jsonl").read_text().strip()
         item = json.loads(items)
         assert item["title"] == "Interactive test"
         assert item["brief"]["why"] == "Test why"
         assert item["brief"]["what"] == "Test what"
         assert item["brief"]["done"] == "Test done"
 
-    def test_flags_bypass_interactive(self, arc_dir, monkeypatch):
+    def test_flags_bypass_interactive(self, bon_dir, monkeypatch):
         """Providing all brief flags bypasses interactive prompt."""
-        monkeypatch.chdir(arc_dir)
+        monkeypatch.chdir(bon_dir)
 
         # Even with TTY, flags should bypass prompts
-        result = run_arc(
+        result = run_bon(
             "new", "Non-interactive",
             "--why", "Flag why",
             "--what", "Flag what",
             "--done", "Flag done",
-            cwd=arc_dir
+            cwd=bon_dir
         )
 
         assert result.returncode == 0
 
         import json
-        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
+        items = (bon_dir / ".bon" / "items.jsonl").read_text().strip()
         item = json.loads(items)
         assert item["brief"]["why"] == "Flag why"
 
-    def test_partial_flags_with_tty_uses_interactive(self, arc_dir, monkeypatch):
+    def test_partial_flags_with_tty_uses_interactive(self, bon_dir, monkeypatch):
         """Partial flags with TTY still prompts for all fields."""
-        monkeypatch.chdir(arc_dir)
+        monkeypatch.chdir(bon_dir)
 
         # Provide only --why, should prompt for all three
         with patch('sys.stdin.isatty', return_value=True):
             with patch('builtins.input', side_effect=["Interactive why", "", "Interactive what", "Interactive done"]):
                 from bon.cli import main
-                with patch('sys.argv', ['arc', 'new', 'Partial flags', '--why', 'Ignored']):
+                with patch('sys.argv', ['bon', 'new', 'Partial flags', '--why', 'Ignored']):
                     main()
 
         import json
-        items = (arc_dir / ".bon" / "items.jsonl").read_text().strip()
+        items = (bon_dir / ".bon" / "items.jsonl").read_text().strip()
         item = json.loads(items)
         # Interactive input should be used, not the flag
         assert item["brief"]["why"] == "Interactive why"

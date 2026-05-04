@@ -1,9 +1,9 @@
-"""Tests for arc work command."""
+"""Tests for bon work command."""
 import json
 import re
 
 import pytest
-from conftest import run_arc
+from conftest import run_bon
 
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
@@ -60,41 +60,41 @@ class TestParseStepsFromWhat:
 class TestWorkParseWhat:
     """Test parsing steps from --what field."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_parses_what(self, arc_dir_with_fixture, monkeypatch):
-        """arc work parses numbered steps from --what."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_parses_what(self, bon_dir_with_fixture, monkeypatch):
+        """bon work parses numbered steps from --what."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        # First, update arc-ccc to have numbered steps in --what
-        result = run_arc(
-            "edit", "arc-ccc",
+        # First, update bon-ccc to have numbered steps in --what
+        result = run_bon(
+            "edit", "bon-ccc",
             "--what", "1. Add login button 2. Add redirect flow 3. Test integration",
-            cwd=arc_dir_with_fixture
+            cwd=bon_dir_with_fixture
         )
         assert result.returncode == 0
 
         # Now work on it
-        result = run_arc("work", "arc-ccc", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "bon-ccc", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         assert "→ 1. Add login button [current]" in result.stdout
         assert "2. Add redirect flow" in result.stdout
         assert "3. Test integration" in result.stdout
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_parses_multiline_what(self, arc_dir_with_fixture, monkeypatch):
-        """arc work correctly parses steps from multiline --what."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_parses_multiline_what(self, bon_dir_with_fixture, monkeypatch):
+        """bon work correctly parses steps from multiline --what."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
         # Set --what with embedded newlines (as Claude might produce)
-        result = run_arc(
-            "edit", "arc-ccc",
+        result = run_bon(
+            "edit", "bon-ccc",
             "--what", "1. Add login button\n2. Add redirect flow\n3. Test integration",
-            cwd=arc_dir_with_fixture
+            cwd=bon_dir_with_fixture
         )
         assert result.returncode == 0
 
-        result = run_arc("work", "arc-ccc", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "bon-ccc", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         assert "→ 1. Add login button [current]" in result.stdout
@@ -105,15 +105,15 @@ class TestWorkParseWhat:
 class TestWorkExplicitSteps:
     """Test providing explicit steps."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_explicit_steps(self, arc_dir_with_fixture, monkeypatch):
-        """arc work accepts explicit steps as arguments."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_explicit_steps(self, bon_dir_with_fixture, monkeypatch):
+        """bon work accepts explicit steps as arguments."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc(
-            "work", "arc-ccc",
+        result = run_bon(
+            "work", "bon-ccc",
             "Step A", "Step B", "Step C",
-            cwd=arc_dir_with_fixture
+            cwd=bon_dir_with_fixture
         )
 
         assert result.returncode == 0
@@ -125,13 +125,13 @@ class TestWorkExplicitSteps:
 class TestWorkProseErrors:
     """Test error when --what has no numbered steps."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_prose_what_errors(self, arc_dir_with_fixture, monkeypatch):
-        """arc work errors when --what has prose without numbers."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_prose_what_errors(self, bon_dir_with_fixture, monkeypatch):
+        """bon work errors when --what has prose without numbers."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        # arc-ccc has "Login button in header, redirect flow" - no numbers
-        result = run_arc("work", "arc-ccc", cwd=arc_dir_with_fixture)
+        # bon-ccc has "Login button in header, redirect flow" - no numbers
+        result = run_bon("work", "bon-ccc", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
         assert "No numbered steps" in result.stderr
@@ -140,25 +140,25 @@ class TestWorkProseErrors:
 class TestWorkOutcomeErrors:
     """Test error when trying to add steps to outcome."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_outcome_errors_with_children(self, arc_dir_with_fixture, monkeypatch):
-        """arc work on outcome with children shows them."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_outcome_errors_with_children(self, bon_dir_with_fixture, monkeypatch):
+        """bon work on outcome with children shows them."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("work", "arc-aaa", "Step 1", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "bon-aaa", "Step 1", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
         assert "is an outcome" in result.stderr
         assert "Tactical steps are for actions" in result.stderr
         assert "Did you mean one of its actions?" in result.stderr
-        assert "arc-ccc" in result.stderr  # Shows child action
+        assert "bon-ccc" in result.stderr  # Shows child action
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
-    def test_work_outcome_errors_no_children(self, arc_dir_with_fixture, monkeypatch):
-        """arc work on outcome without children suggests creating one."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_work_outcome_errors_no_children(self, bon_dir_with_fixture, monkeypatch):
+        """bon work on outcome without children suggests creating one."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("work", "arc-aaa", "Step 1", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "bon-aaa", "Step 1", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
         assert "is an outcome" in result.stderr
@@ -169,18 +169,18 @@ class TestWorkOutcomeErrors:
 class TestWorkSerialEnforcement:
     """Test serial execution constraint."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
-    def test_work_another_active_errors(self, arc_dir_with_fixture, monkeypatch):
-        """arc work errors when another action has active steps."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_work_another_active_errors(self, bon_dir_with_fixture, monkeypatch):
+        """bon work errors when another action has active steps."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        # arc-child already has tactical steps in progress
+        # bon-child already has tactical steps in progress
         # Try to create a new action and work on it
-        result = run_arc(
+        result = run_bon(
             "new", "Another action",
-            "--for", "arc-parent",
+            "--for", "bon-parent",
             "--why", "Test", "--what", "Test", "--done", "Test",
-            cwd=arc_dir_with_fixture
+            cwd=bon_dir_with_fixture
         )
         assert result.returncode == 0
 
@@ -188,36 +188,36 @@ class TestWorkSerialEnforcement:
         new_id = result.stdout.strip().replace("Created: ", "")
 
         # Now try to work on the new action
-        result = run_arc("work", new_id, "Step 1", cwd=arc_dir_with_fixture)
+        result = run_bon("work", new_id, "Step 1", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
-        assert "arc-child has active steps" in result.stderr
+        assert "bon-child has active steps" in result.stderr
 
 
 class TestWorkProgressProtection:
     """Test protection of in-progress steps."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
-    def test_work_progress_requires_force(self, arc_dir_with_fixture, monkeypatch):
-        """arc work errors when steps in progress, unless --force."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_work_progress_requires_force(self, bon_dir_with_fixture, monkeypatch):
+        """bon work errors when steps in progress, unless --force."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        # arc-child has tactical at current=1
-        result = run_arc("work", "arc-child", "New steps", cwd=arc_dir_with_fixture)
+        # bon-child has tactical at current=1
+        result = run_bon("work", "bon-child", "New steps", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
         assert "Steps in progress" in result.stderr
         assert "--force" in result.stderr
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
-    def test_work_force_restarts(self, arc_dir_with_fixture, monkeypatch):
-        """arc work --force restarts steps."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_work_force_restarts(self, bon_dir_with_fixture, monkeypatch):
+        """bon work --force restarts steps."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc(
-            "work", "arc-child", "--force",
+        result = run_bon(
+            "work", "bon-child", "--force",
             "New step A", "New step B",
-            cwd=arc_dir_with_fixture
+            cwd=bon_dir_with_fixture
         )
 
         assert result.returncode == 0
@@ -225,14 +225,14 @@ class TestWorkProgressProtection:
 
 
 class TestWorkStatus:
-    """Test arc work --status."""
+    """Test bon work --status."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
-    def test_work_status_shows_current(self, arc_dir_with_fixture, monkeypatch):
-        """arc work --status shows current tactical state."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_work_status_shows_current(self, bon_dir_with_fixture, monkeypatch):
+        """bon work --status shows current tactical state."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("work", "--status", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "--status", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         assert "Working on: Test action with steps" in result.stdout
@@ -240,42 +240,42 @@ class TestWorkStatus:
         assert "→ 2. Step two [current]" in result.stdout
         assert "3. Step three" in result.stdout
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_status_no_tactical(self, arc_dir_with_fixture, monkeypatch):
-        """arc work --status when no tactical active."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_status_no_tactical(self, bon_dir_with_fixture, monkeypatch):
+        """bon work --status when no tactical active."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("work", "--status", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "--status", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         assert "No active tactical steps" in result.stdout
 
 
 class TestWorkClear:
-    """Test arc work --clear."""
+    """Test bon work --clear."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
-    def test_work_clear(self, arc_dir_with_fixture, monkeypatch):
-        """arc work --clear removes tactical steps."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_work_clear(self, bon_dir_with_fixture, monkeypatch):
+        """bon work --clear removes tactical steps."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("work", "--clear", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "--clear", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
-        assert "Cleared tactical steps from arc-child" in result.stdout
+        assert "Cleared tactical steps from bon-child" in result.stdout
 
         # Verify tactical removed
-        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        lines = (bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         items = [json.loads(line) for line in lines]
-        child = next(i for i in items if i["id"] == "arc-child")
+        child = next(i for i in items if i["id"] == "bon-child")
         assert "tactical" not in child
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_clear_no_tactical(self, arc_dir_with_fixture, monkeypatch):
-        """arc work --clear is silent when no tactical active."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_clear_no_tactical(self, bon_dir_with_fixture, monkeypatch):
+        """bon work --clear is silent when no tactical active."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("work", "--clear", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "--clear", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         assert result.stdout == ""
@@ -284,13 +284,13 @@ class TestWorkClear:
 class TestWorkDoneAction:
     """Test errors on done actions."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_done_action_errors(self, arc_dir_with_fixture, monkeypatch):
-        """arc work errors on already-done actions."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_done_action_errors(self, bon_dir_with_fixture, monkeypatch):
+        """bon work errors on already-done actions."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        # arc-bbb is done
-        result = run_arc("work", "arc-bbb", "Step 1", cwd=arc_dir_with_fixture)
+        # bon-bbb is done
+        result = run_bon("work", "bon-bbb", "Step 1", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
         assert "already complete" in result.stderr
@@ -299,30 +299,30 @@ class TestWorkDoneAction:
 class TestWorkErrors:
     """Test various error cases."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_not_found(self, arc_dir_with_fixture, monkeypatch):
-        """arc work errors when item not found."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_not_found(self, bon_dir_with_fixture, monkeypatch):
+        """bon work errors when item not found."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("work", "arc-nonexistent", cwd=arc_dir_with_fixture)
+        result = run_bon("work", "bon-nonexistent", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
         assert "not found" in result.stderr
 
     def test_work_not_initialized(self, tmp_path, monkeypatch):
-        """arc work errors when not initialized."""
+        """bon work errors when not initialized."""
         monkeypatch.chdir(tmp_path)
 
-        result = run_arc("work", "arc-aaa", cwd=tmp_path)
+        result = run_bon("work", "bon-aaa", cwd=tmp_path)
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
 
-    def test_work_no_args(self, arc_dir, monkeypatch):
-        """arc work with no args errors."""
-        monkeypatch.chdir(arc_dir)
+    def test_work_no_args(self, bon_dir, monkeypatch):
+        """bon work with no args errors."""
+        monkeypatch.chdir(bon_dir)
 
-        result = run_arc("work", cwd=arc_dir)
+        result = run_bon("work", cwd=bon_dir)
 
         assert result.returncode == 1
         assert "Usage:" in result.stderr
@@ -331,27 +331,27 @@ class TestWorkErrors:
 class TestWorkUpdatedAt:
     """Verify work sets updated_at timestamp."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_work_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
-        """arc work sets updated_at on the item."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_work_sets_updated_at(self, bon_dir_with_fixture, monkeypatch):
+        """bon work sets updated_at on the item."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        run_arc("work", "arc-ccc", "Step A", "Step B", cwd=arc_dir_with_fixture)
+        run_bon("work", "bon-ccc", "Step A", "Step B", cwd=bon_dir_with_fixture)
 
-        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        lines = (bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
         ccc = json.loads(lines[2])
         assert "updated_at" in ccc
         assert ISO_RE.match(ccc["updated_at"])
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
-    def test_work_clear_sets_updated_at(self, arc_dir_with_fixture, monkeypatch):
-        """arc work --clear sets updated_at on the item."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_work_clear_sets_updated_at(self, bon_dir_with_fixture, monkeypatch):
+        """bon work --clear sets updated_at on the item."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        run_arc("work", "--clear", cwd=arc_dir_with_fixture)
+        run_bon("work", "--clear", cwd=bon_dir_with_fixture)
 
-        lines = (arc_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
-        child = next(json.loads(line) for line in lines if json.loads(line)["id"] == "arc-child")
+        lines = (bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        child = next(json.loads(line) for line in lines if json.loads(line)["id"] == "bon-child")
         assert "updated_at" in child
         assert ISO_RE.match(child["updated_at"])
 
@@ -360,9 +360,9 @@ def _write_item_with_session(tmp_path, session_path, current=1):
     """Helper: create a bon dir with an action whose tactical points to session_path."""
     bon_dir = tmp_path / ".bon"
     bon_dir.mkdir()
-    (bon_dir / "prefix").write_text("arc")
+    (bon_dir / "prefix").write_text("bon")
     item = {
-        "id": "arc-child",
+        "id": "bon-child",
         "type": "action",
         "title": "Test action with steps",
         "brief": {"why": "Testing", "what": "1. Step one 2. Step two 3. Step three", "done": "Done"},
@@ -389,7 +389,7 @@ class TestWorkOrphanedSession:
         _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=1)
         monkeypatch.chdir(tmp_path)
 
-        result = run_arc("work", "arc-child", cwd=tmp_path)
+        result = run_bon("work", "bon-child", cwd=tmp_path)
 
         assert result.returncode == 0
         assert "Re-claimed" in result.stdout
@@ -404,7 +404,7 @@ class TestWorkOrphanedSession:
         _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=1)
         monkeypatch.chdir(tmp_path)
 
-        run_arc("work", "arc-child", cwd=tmp_path)
+        run_bon("work", "bon-child", cwd=tmp_path)
 
         lines = (tmp_path / ".bon" / "items.jsonl").read_text().strip().split("\n")
         item = json.loads(lines[0])
@@ -419,7 +419,7 @@ class TestWorkOrphanedSession:
         _write_item_with_session(tmp_path, str(other_worktree), current=1)
         monkeypatch.chdir(tmp_path)
 
-        result = run_arc("work", "arc-child", cwd=tmp_path)
+        result = run_bon("work", "bon-child", cwd=tmp_path)
 
         assert result.returncode == 1
         assert "active steps from another worktree" in result.stderr
@@ -429,7 +429,7 @@ class TestWorkOrphanedSession:
         _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=0)
         monkeypatch.chdir(tmp_path)
 
-        result = run_arc("work", "arc-child", cwd=tmp_path)
+        result = run_bon("work", "bon-child", cwd=tmp_path)
 
         assert result.returncode == 0
         assert "Re-claimed" in result.stdout
@@ -440,7 +440,7 @@ class TestWorkOrphanedSession:
         _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=1)
         monkeypatch.chdir(tmp_path)
 
-        run_arc("work", "arc-child", cwd=tmp_path)
+        run_bon("work", "bon-child", cwd=tmp_path)
 
         lines = (tmp_path / ".bon" / "items.jsonl").read_text().strip().split("\n")
         item = json.loads(lines[0])
@@ -451,7 +451,7 @@ class TestWorkOrphanedSession:
         _write_item_with_session(tmp_path, "/nonexistent/old/repo", current=2)
         monkeypatch.chdir(tmp_path)
 
-        result = run_arc("work", "arc-child", "--force", "Fresh A", "Fresh B", cwd=tmp_path)
+        result = run_bon("work", "bon-child", "--force", "Fresh A", "Fresh B", cwd=tmp_path)
 
         assert result.returncode == 0
         # Restarted, not re-claimed

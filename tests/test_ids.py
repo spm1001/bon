@@ -9,9 +9,9 @@ from bon.ids import generate_id, generate_unique_id, next_order
 class TestGenerateId:
     def test_format(self):
         """Generated ID has correct format."""
-        id = generate_id("arc")
+        id = generate_id("bon")
 
-        assert id.startswith("arc-")
+        assert id.startswith("bon-")
         suffix = id.split("-")[1]
         assert len(suffix) == 6  # 3 syllables, 2 chars each
 
@@ -23,7 +23,7 @@ class TestGenerateId:
 
     def test_pronounceable(self):
         """ID suffix follows consonant-vowel pattern."""
-        id = generate_id("arc")
+        id = generate_id("bon")
         suffix = id.split("-")[1]
 
         # Check each syllable (may be upper or lower case consonant)
@@ -37,21 +37,21 @@ class TestGenerateId:
 class TestGenerateUniqueId:
     def test_avoids_collision(self):
         """Generates ID not in existing set."""
-        existing = {"arc-bababa", "arc-cacaca"}
+        existing = {"bon-bababa", "bon-cacaca"}
 
-        new_id = generate_unique_id("arc", existing)
+        new_id = generate_unique_id("bon", existing)
 
         assert new_id not in existing
-        assert new_id.startswith("arc-")
+        assert new_id.startswith("bon-")
 
     def test_raises_after_max_attempts(self):
         """Raises RuntimeError if can't generate unique ID after 100 attempts."""
         # Mock generate_id to always return the same ID
-        with patch('bon.ids.generate_id', return_value='arc-bababa'):
-            existing = {"arc-bababa"}
+        with patch('bon.ids.generate_id', return_value='bon-bababa'):
+            existing = {"bon-bababa"}
 
             with pytest.raises(RuntimeError, match="Failed to generate unique ID after 100 attempts"):
-                generate_unique_id("arc", existing)
+                generate_unique_id("bon", existing)
 
 
 class TestNextOrder:
@@ -76,34 +76,34 @@ class TestNextOrder:
 
     def test_first_action_under_parent(self):
         """First action under parent gets order 1."""
-        items = [{"type": "outcome", "id": "arc-aaa"}]
+        items = [{"type": "outcome", "id": "bon-aaa"}]
 
-        order = next_order(items, "action", "arc-aaa")
+        order = next_order(items, "action", "bon-aaa")
 
         assert order == 1
 
     def test_subsequent_action_under_parent(self):
         """Subsequent action under same parent gets next order."""
         items = [
-            {"type": "outcome", "id": "arc-aaa"},
-            {"type": "action", "parent": "arc-aaa", "order": 1},
-            {"type": "action", "parent": "arc-aaa", "order": 2},
+            {"type": "outcome", "id": "bon-aaa"},
+            {"type": "action", "parent": "bon-aaa", "order": 1},
+            {"type": "action", "parent": "bon-aaa", "order": 2},
         ]
 
-        order = next_order(items, "action", "arc-aaa")
+        order = next_order(items, "action", "bon-aaa")
 
         assert order == 3
 
     def test_actions_under_different_parents_independent(self):
         """Actions under different parents have independent ordering."""
         items = [
-            {"type": "outcome", "id": "arc-aaa"},
-            {"type": "outcome", "id": "arc-bbb"},
-            {"type": "action", "parent": "arc-aaa", "order": 1},
-            {"type": "action", "parent": "arc-aaa", "order": 2},
+            {"type": "outcome", "id": "bon-aaa"},
+            {"type": "outcome", "id": "bon-bbb"},
+            {"type": "action", "parent": "bon-aaa", "order": 1},
+            {"type": "action", "parent": "bon-aaa", "order": 2},
         ]
 
-        order = next_order(items, "action", "arc-bbb")
+        order = next_order(items, "action", "bon-bbb")
 
         assert order == 1  # First action under bbb
 

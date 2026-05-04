@@ -1,1 +1,1 @@
-{"id":"arc-aaa","type":"outcome","title":"Outcome with tactical","brief":{"why":"w","what":"x","done":"d"},"status":"open","order":1,"tactical":{"steps":["do stuff"],"current":0},"created_at":"2026-01-01T00:00:00Z","created_by":"test"}
+{"id":"bon-aaa","type":"outcome","title":"Outcome with tactical","brief":{"why":"w","what":"x","done":"d"},"status":"open","order":1,"tactical":{"steps":["do stuff"],"current":0},"created_at":"2026-01-01T00:00:00Z","created_by":"test"}

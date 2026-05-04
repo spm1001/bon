@@ -1,21 +1,21 @@
-"""Tests for arc show command."""
+"""Tests for bon show command."""
 import pytest
-from conftest import run_arc
+from conftest import run_bon
 
 
 class TestShowOutcome:
-    """Test arc show for outcomes."""
+    """Test bon show for outcomes."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_show_outcome_with_actions(self, arc_dir_with_fixture, monkeypatch):
-        """arc show displays outcome with all its actions."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_show_outcome_with_actions(self, bon_dir_with_fixture, monkeypatch):
+        """bon show displays outcome with all its actions."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "arc-aaa", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "bon-aaa", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         # Check header
-        assert "○ User auth (arc-aaa)" in result.stdout
+        assert "○ User auth (bon-aaa)" in result.stdout
         assert "Type: outcome" in result.stdout
         assert "Status: open" in result.stdout
         assert "Created:" in result.stdout
@@ -27,94 +27,94 @@ class TestShowOutcome:
 
         # Check actions
         assert "Actions:" in result.stdout
-        assert "1. ✓ Add endpoint (arc-bbb)" in result.stdout
-        assert "2. ○ Add UI (arc-ccc)" in result.stdout
+        assert "1. ✓ Add endpoint (bon-bbb)" in result.stdout
+        assert "2. ○ Add UI (bon-ccc)" in result.stdout
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
-    def test_show_outcome_no_actions(self, arc_dir_with_fixture, monkeypatch):
-        """arc show displays outcome without actions section when empty."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_show_outcome_no_actions(self, bon_dir_with_fixture, monkeypatch):
+        """bon show displays outcome without actions section when empty."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "arc-aaa", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "bon-aaa", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
-        assert "○ User auth (arc-aaa)" in result.stdout
+        assert "○ User auth (bon-aaa)" in result.stdout
         assert "Actions:" not in result.stdout  # No actions section
 
 
 class TestShowAction:
-    """Test arc show for actions."""
+    """Test bon show for actions."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_show_action(self, arc_dir_with_fixture, monkeypatch):
-        """arc show displays action details."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_show_action(self, bon_dir_with_fixture, monkeypatch):
+        """bon show displays action details."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "arc-bbb", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "bon-bbb", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
-        assert "✓ Add endpoint (arc-bbb)" in result.stdout
+        assert "✓ Add endpoint (bon-bbb)" in result.stdout
         assert "Type: action" in result.stdout
         assert "Status: done" in result.stdout
         assert "Actions:" not in result.stdout  # Actions don't show nested actions
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["waiting_dependency"], indirect=True)
-    def test_show_waiting_action(self, arc_dir_with_fixture, monkeypatch):
-        """arc show displays waiting status."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["waiting_dependency"], indirect=True)
+    def test_show_waiting_action(self, bon_dir_with_fixture, monkeypatch):
+        """bon show displays waiting status."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "arc-bbb", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "bon-bbb", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
-        assert "Waiting for: arc-ccc" in result.stdout
+        assert "Waiting for: bon-ccc" in result.stdout
 
 
 class TestShowErrors:
-    """Test arc show error cases."""
+    """Test bon show error cases."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
-    def test_show_not_found(self, arc_dir_with_fixture, monkeypatch):
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_show_not_found(self, bon_dir_with_fixture, monkeypatch):
         """Error when item doesn't exist."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "arc-nonexistent", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "bon-nonexistent", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 1
-        assert "Item 'arc-nonexistent' not found" in result.stderr
+        assert "Item 'bon-nonexistent' not found" in result.stderr
 
     def test_show_not_initialized(self, tmp_path, monkeypatch):
         """Error when not initialized."""
         monkeypatch.chdir(tmp_path)
 
-        result = run_arc("show", "arc-aaa", cwd=tmp_path)
+        result = run_bon("show", "bon-aaa", cwd=tmp_path)
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
 
 
 class TestShowCurrent:
-    """Test arc show --current with active tactical steps."""
+    """Test bon show --current with active tactical steps."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["action_with_tactical"], indirect=True)
-    def test_show_current_with_active_tactical(self, arc_dir_with_fixture, monkeypatch):
-        """arc show --current outputs working line and tactical steps."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_show_current_with_active_tactical(self, bon_dir_with_fixture, monkeypatch):
+        """bon show --current outputs working line and tactical steps."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "--current", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "--current", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
-        assert "Working: Test action with steps (arc-child)" in result.stdout
+        assert "Working: Test action with steps (bon-child)" in result.stdout
         # Step 1 (index 0) completed, step 2 (index 1) current, step 3 pending
         assert "✓ 1. Step one" in result.stdout
         assert "→ 2. Step two [current]" in result.stdout
         assert "3. Step three" in result.stdout
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["outcome_with_actions"], indirect=True)
-    def test_show_current_no_active_tactical(self, arc_dir_with_fixture, monkeypatch):
-        """arc show --current silently exits when no tactical steps active."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["outcome_with_actions"], indirect=True)
+    def test_show_current_no_active_tactical(self, bon_dir_with_fixture, monkeypatch):
+        """bon show --current silently exits when no tactical steps active."""
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "--current", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "--current", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         assert result.stdout == ""
@@ -123,12 +123,12 @@ class TestShowCurrent:
 class TestShowPrefixTolerant:
     """Test prefix-tolerant ID matching."""
 
-    @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
-    def test_show_by_suffix(self, arc_dir_with_fixture, monkeypatch):
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_show_by_suffix(self, bon_dir_with_fixture, monkeypatch):
         """Can show item by suffix only."""
-        monkeypatch.chdir(arc_dir_with_fixture)
+        monkeypatch.chdir(bon_dir_with_fixture)
 
-        result = run_arc("show", "aaa", cwd=arc_dir_with_fixture)
+        result = run_bon("show", "aaa", cwd=bon_dir_with_fixture)
 
         assert result.returncode == 0
         assert "User auth" in result.stdout

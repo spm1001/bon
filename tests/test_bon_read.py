@@ -102,7 +102,7 @@ TACTICAL_ACTION = {
 
 
 class TestNoDataDirectory:
-    """When neither .bon/ nor .arc/ exists, script exits silently."""
+    """When neither .bon/ nor .bon/ exists, script exits silently."""
 
     @pytest.mark.parametrize("command", ["list", "ready", "current"])
     def test_exits_zero_no_output(self, tmp_path, command):
@@ -268,7 +268,7 @@ class TestListCommand:
         assert "Waiting action" in result.stdout
 
     def test_no_trailing_blank_line(self, tmp_path):
-        """Output must not end with a blank line (match arc CLI)."""
+        """Output must not end with a blank line (match bon CLI)."""
         data = make_jsonl(OPEN_OUTCOME, OPEN_ACTION)
         result = run_bon_read(tmp_path, data, "list")
         assert result.stdout != ""
@@ -318,7 +318,7 @@ class TestReadyCommand:
         assert not any("Done action" in l for l in lines)
 
     def test_no_trailing_blank_line(self, tmp_path):
-        """Output must not end with a blank line (match arc CLI)."""
+        """Output must not end with a blank line (match bon CLI)."""
         data = make_jsonl(OPEN_OUTCOME, OPEN_ACTION)
         result = run_bon_read(tmp_path, data, "ready")
         assert result.stdout != ""

@@ -25,27 +25,27 @@ def fixtures_dir():
 
 
 @pytest.fixture
-def arc_dir(tmp_path):
+def bon_dir(tmp_path):
     """Create temp dir with initialized .bon/."""
-    arc_path = tmp_path / ".bon"
-    arc_path.mkdir()
-    (arc_path / "items.jsonl").touch()
-    (arc_path / "prefix").write_text("arc")
+    bon_path = tmp_path / ".bon"
+    bon_path.mkdir()
+    (bon_path / "items.jsonl").touch()
+    (bon_path / "prefix").write_text("bon")
     return tmp_path
 
 
 @pytest.fixture
-def arc_dir_with_fixture(request, tmp_path, fixtures_dir):
+def bon_dir_with_fixture(request, tmp_path, fixtures_dir):
     """Load a specific fixture into .bon/.
 
     Usage:
-        @pytest.mark.parametrize("arc_dir_with_fixture", ["single_outcome"], indirect=True)
-        def test_something(arc_dir_with_fixture):
+        @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+        def test_something(bon_dir_with_fixture):
             ...
     """
     fixture_name = request.param
-    arc_path = tmp_path / ".bon"
-    arc_path.mkdir()
+    bon_path = tmp_path / ".bon"
+    bon_path.mkdir()
 
     fixture_file = fixtures_dir / f"{fixture_name}.jsonl"
     if fixture_file.exists():
@@ -53,13 +53,13 @@ def arc_dir_with_fixture(request, tmp_path, fixtures_dir):
     else:
         content = ""
 
-    (arc_path / "items.jsonl").write_text(content)
-    (arc_path / "prefix").write_text("arc")
+    (bon_path / "items.jsonl").write_text(content)
+    (bon_path / "prefix").write_text("bon")
     return tmp_path
 
 
-def run_arc(*args, cwd=None, env=None, input=None):
-    """Run arc CLI and return result."""
+def run_bon(*args, cwd=None, env=None, input=None):
+    """Run bon CLI and return result."""
     result = subprocess.run(
         [sys.executable, "-m", "bon.cli", *args],
         capture_output=True,

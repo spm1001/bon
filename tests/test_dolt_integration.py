@@ -103,7 +103,7 @@ class TestDoltIntegration:
         _, prefix = dolt_dir
         ts = now_iso()
         item = {
-            "id": f"{prefix}-arc",
+            "id": f"{prefix}-bon",
             "type": "outcome",
             "title": "Archived item",
             "status": "done",
@@ -116,16 +116,16 @@ class TestDoltIntegration:
         }
         append_archive([item])
         loaded = load_archive()
-        assert any(i["id"] == f"{prefix}-arc" for i in loaded)
+        assert any(i["id"] == f"{prefix}-bon" for i in loaded)
 
         # Remove from archive
-        removed = remove_from_archive(f"{prefix}-arc", prefix)
+        removed = remove_from_archive(f"{prefix}-bon", prefix)
         assert removed is not None
-        assert removed["id"] == f"{prefix}-arc"
+        assert removed["id"] == f"{prefix}-bon"
 
         # Verify removed
         loaded2 = load_archive()
-        assert not any(i["id"] == f"{prefix}-arc" for i in loaded2)
+        assert not any(i["id"] == f"{prefix}-bon" for i in loaded2)
 
     def test_tactical_roundtrip(self, dolt_dir):
         _, prefix = dolt_dir

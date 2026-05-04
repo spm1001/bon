@@ -9,7 +9,7 @@
 #   bon-read.sh current       # Active tactical steps
 #
 # Reads from .bon/items.jsonl in current directory.
-# Exits silently (exit 0) if no .bon/ or .arc/ directory — graceful no-op.
+# Exits silently (exit 0) if no .bon/ directory — graceful no-op.
 
 set -euo pipefail
 
@@ -29,11 +29,8 @@ if [ -f ".bon/backend" ] && grep -q dolt ".bon/backend"; then
     exit $?
 fi
 
-# Check .bon/ first, fall back to .arc/ (transition)
 if [ -f ".bon/items.jsonl" ]; then
     ITEMS=".bon/items.jsonl"
-elif [ -f ".arc/items.jsonl" ]; then
-    ITEMS=".arc/items.jsonl"
 else
     exit 0
 fi

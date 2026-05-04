@@ -40,7 +40,7 @@ _cached_backend: str | None = None
 
 
 def _data_dir() -> Path:
-    """Return the data directory as an absolute path (.bon/ preferred, .arc/ fallback).
+    """Return the data directory as an absolute path.
 
     Resolves to absolute on first call and caches, so CWD changes mid-process
     can't cause reads/writes to target the wrong directory.
@@ -50,14 +50,7 @@ def _data_dir() -> Path:
         return _cached_data_dir
 
     bon = Path(".bon").resolve()
-    if bon.is_dir():
-        _cached_data_dir = bon
-        return bon
-    arc = Path(".arc").resolve()
-    if arc.is_dir():
-        _cached_data_dir = arc
-        return arc
-    _cached_data_dir = bon  # default for new operations
+    _cached_data_dir = bon
     return bon
 
 
@@ -337,8 +330,8 @@ def now_iso() -> str:
 
 
 def check_initialized() -> None:
-    """Check if .bon/ or .arc/ is initialized. Exit with error if not."""
-    if not Path(".bon").is_dir() and not Path(".arc").is_dir():
+    """Check if .bon/ is initialized. Exit with error if not."""
+    if not Path(".bon").is_dir():
         error("Not initialized. Run `bon init` first.")
 
 

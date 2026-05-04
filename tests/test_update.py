@@ -1,10 +1,10 @@
-"""Tests for arc update command."""
+"""Tests for bon update command."""
 import shutil
 import subprocess
 
 import pytest
 
-from conftest import run_arc
+from conftest import run_bon
 
 
 def _bon_is_uv_tool() -> bool:
@@ -22,21 +22,21 @@ def _bon_is_uv_tool() -> bool:
 
 
 def test_update_shows_in_help():
-    """arc update should appear in help output."""
-    result = run_arc("--help")
+    """bon update should appear in help output."""
+    result = run_bon("--help")
     assert "update" in result.stdout
 
 
-def test_update_no_arc_dir_needed(tmp_path):
+def test_update_no_bon_dir_needed(tmp_path):
     """bon update should work without .bon/ directory (it's a meta-command)."""
-    result = run_arc("update", cwd=tmp_path)
+    result = run_bon("update", cwd=tmp_path)
     # Should not fail with "not initialized" error
     assert "Not a bon project" not in result.stderr
 
 
 @pytest.mark.skipif(not _bon_is_uv_tool(), reason="bon not installed as uv tool")
 def test_update_runs():
-    """arc update re-installs from source."""
-    result = run_arc("update")
+    """bon update re-installs from source."""
+    result = run_bon("update")
     assert result.returncode == 0
     assert "Current: bon" in result.stdout

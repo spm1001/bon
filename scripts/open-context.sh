@@ -118,10 +118,10 @@ BON_READY_OUTPUT=""
 BON_CURRENT_OUTPUT=""
 
 BON_BACKEND="none"
-if [ -d ".bon" ] || [ -d ".arc" ]; then
+if [ -d ".bon" ]; then
     if [ -f ".bon/backend" ] && [ "$(cat .bon/backend 2>/dev/null)" = "dolt" ]; then
         BON_BACKEND="dolt"
-    elif [ -f ".bon/items.jsonl" ] || [ -f ".arc/items.jsonl" ]; then
+    elif [ -f ".bon/items.jsonl" ]; then
         BON_BACKEND="jsonl"
     fi
 fi

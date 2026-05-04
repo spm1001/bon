@@ -682,7 +682,15 @@ def cmd_edit(args):
         edited["title"] = args.title
     if args.parent is not None:
         # Special value "none" clears parent (makes standalone)
-        edited["parent"] = None if args.parent.lower() == "none" else args.parent
+        if args.parent.lower() == "none":
+            edited["parent"] = None
+        else:
+            parent_item = find_by_id(items, args.parent, prefix)
+            if not parent_item:
+                error(f"Parent '{args.parent}' not found")
+            if parent_item["type"] != "outcome":
+                error(f"Parent must be an outcome, got {parent_item['type']}")
+            edited["parent"] = parent_item["id"]
     if args.why:
         edited["brief"]["why"] = args.why
     if args.how is not None:

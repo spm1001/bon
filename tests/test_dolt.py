@@ -113,7 +113,7 @@ class TestSaveItemsDolt:
 
 # ---------- dispatch: archive operations ----------
 
-class TestArchiveDolt:
+class TestBonhiveDolt:
     def test_load_archive_dispatches(self, tmp_path, monkeypatch):
         bon_dir = tmp_path / ".bon"
         bon_dir.mkdir()
