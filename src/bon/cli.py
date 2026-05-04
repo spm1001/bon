@@ -1231,12 +1231,19 @@ def cmd_migrate(args):
 
     if target == "dolt":
         # Verify Dolt is reachable before touching any state
-        from bon.dolt import verify_dolt_connection
+        from bon.dolt import check_prefix_collision, verify_dolt_connection
         verify_dolt_connection()
 
         # Migrate JSONL → Dolt: load from files, write to Dolt
         items = load_items()  # Still JSONL at this point
         archive = load_archive()
+
+        # Refuse if Dolt already has prefix-rows that aren't ours
+        # (would be silently DELETEd by truncate-and-reinsert)
+        prefix = load_prefix()
+        local_item_ids = {item["id"] for item in items}
+        local_archive_ids = {item["id"] for item in archive}
+        check_prefix_collision(prefix, local_item_ids, local_archive_ids)
 
         # Switch backend
         (bon_dir / "backend").write_text("dolt")

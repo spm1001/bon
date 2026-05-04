@@ -185,6 +185,49 @@ def verify_dolt_connection():
         cur.execute("SELECT 1")
 
 
+def check_prefix_collision(prefix: str, local_item_ids: set[str], local_archive_ids: set[str]) -> None:
+    """Refuse to migrate if Dolt has prefix-rows not present in our local data.
+
+    dolt_save_items and dolt_append_archive both DELETE all rows under the
+    current prefix before re-inserting. If two repos share a prefix, this
+    silently destroys the other repo's data. The check predicate is "foreign
+    IDs" (Dolt-but-not-local), not "any rows" — the latter would block the
+    legitimate JSONL→Dolt→JSONL→Dolt rollback-and-re-migrate flow.
+    """
+    conn = _get_connection()
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM items WHERE id LIKE %s", (f"{prefix}-%",))
+        existing_item_ids = {row["id"] for row in cur.fetchall()}
+        cur.execute("SELECT id FROM archive WHERE id LIKE %s", (f"{prefix}-%",))
+        existing_archive_ids = {row["id"] for row in cur.fetchall()}
+
+    foreign_items = existing_item_ids - local_item_ids
+    foreign_archive = existing_archive_ids - local_archive_ids
+
+    if not foreign_items and not foreign_archive:
+        return
+
+    lines = [
+        f"Refusing to migrate: Dolt already has rows with prefix '{prefix}' "
+        f"that are not in this repo's local data.",
+    ]
+    if foreign_items:
+        sample = ", ".join(sorted(foreign_items)[:5])
+        lines.append(f"  items: {len(foreign_items)} foreign of {len(existing_item_ids)} (e.g. {sample})")
+    if foreign_archive:
+        sample = ", ".join(sorted(foreign_archive)[:5])
+        lines.append(f"  archive: {len(foreign_archive)} foreign of {len(existing_archive_ids)} (e.g. {sample})")
+    lines.append("")
+    lines.append(f"These rows may belong to another repo using prefix '{prefix}',")
+    lines.append("OR they may be stale from a previous JSONL→Dolt→JSONL rollback")
+    lines.append("(if you deleted items locally before re-migrating, the originals linger in Dolt).")
+    lines.append("")
+    lines.append("Migrating would DELETE them. Resolve before retrying:")
+    lines.append("  - foreign repo: rename one repo's prefix")
+    lines.append(f"  - stale rollback: dolt sql -q \"DELETE FROM items WHERE id LIKE '{prefix}-%';\"")
+    error("\n".join(lines))
+
+
 # ---------- schema ----------
 
 _SCHEMA_SQL = [

@@ -39,6 +39,10 @@ systemctl --user start dolt-bon.service   # on hezza
 
 If a repo has both `.bon/backend=dolt` and a stale `items.jsonl`, the JSONL file is a pre-migration ghost — bon ignores it.
 
+## Discoverability
+
+`bon show ID --json` and `bon list --json` already pretty-print (indent=2). Pipe direct — no need to wrap in `python3 -m json.tool` or `json.dumps(d, indent=2)`.
+
 ## Session Lifecycle
 
 **Starting:** Hooks provide orientation. Draw-down from bon before writing code.

@@ -175,3 +175,82 @@ class TestDoltIntegration:
         loaded = load_items()
         for item in loaded:
             assert item["id"].startswith(f"{prefix}-")
+
+    def test_migrate_refuses_when_foreign_prefix_rows_exist(self, tmp_path, monkeypatch):
+        """JSONL→Dolt migration refuses when Dolt has foreign prefix-rows.
+
+        Reproduces the 2026-04-24 incident: two repos sharing a prefix,
+        second repo's migrate would silently DELETE first repo's items.
+        """
+        prefix = f"coll{uuid.uuid4().hex[:6]}"
+        ts = now_iso()
+
+        # Step 1: plant a "foreign" row in Dolt using save_items() from a
+        # throwaway Dolt-backed dir with this prefix.
+        repo_a = tmp_path / "repo_a"
+        bon_a = repo_a / ".bon"
+        bon_a.mkdir(parents=True)
+        (bon_a / "backend").write_text("dolt")
+        (bon_a / "prefix").write_text(prefix)
+        monkeypatch.chdir(repo_a)
+        _reset_data_dir()
+        _reset_backend()
+        save_items([{
+            "id": f"{prefix}-foreign",
+            "type": "outcome",
+            "title": "Foreign repo data",
+            "status": "open",
+            "brief": {"why": "foreign", "what": "foreign", "done": "foreign"},
+            "order": 1,
+            "created_at": ts,
+            "created_by": "other",
+        }])
+
+        try:
+            # Step 2: set up a JSONL repo with the same prefix and a DIFFERENT id.
+            repo_b = tmp_path / "repo_b"
+            bon_b = repo_b / ".bon"
+            bon_b.mkdir(parents=True)
+            (bon_b / "prefix").write_text(prefix)
+            (bon_b / "items.jsonl").write_text(
+                f'{{"id":"{prefix}-mine","type":"outcome","title":"my item",'
+                f'"brief":{{"why":"w","what":"x","done":"d"}},"status":"open","order":1,'
+                f'"created_at":"2026-01-01T00:00:00Z","created_by":"test"}}\n'
+            )
+            monkeypatch.chdir(repo_b)
+            _reset_data_dir()
+            _reset_backend()
+
+            from bon.cli import cmd_migrate
+            from bon.storage import BonError
+
+            class Args:
+                to = "dolt"
+
+            with pytest.raises(BonError, match="Refusing to migrate"):
+                cmd_migrate(Args())
+
+            # Foreign row must survive
+            from bon.dolt import _get_connection
+            conn = _get_connection()
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM items WHERE id = %s", (f"{prefix}-foreign",))
+                assert cur.fetchone() is not None, "Foreign row was destroyed!"
+
+            # Backend file must NOT have been switched in repo_b
+            assert not (bon_b / "backend").exists()
+            # JSONL must NOT have been renamed
+            assert (bon_b / "items.jsonl").exists()
+            assert not (bon_b / "items.jsonl.pre-dolt").exists()
+        finally:
+            # Cleanup: remove all rows for this prefix
+            from bon.dolt import _get_connection
+            conn = _get_connection()
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{prefix}-%",))
+                cur.execute("CALL DOLT_ADD('-A')")
+                cur.execute(
+                    "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
+                    (f"test cleanup {prefix}", "test <test@localhost>"),
+                )
+            conn.commit()

@@ -135,3 +135,76 @@ class TestMigrateDoltVerification:
         result = run_arc("migrate", "--to", "dolt", cwd=arc_dir)
         assert result.returncode == 0
         assert (arc_dir / ".bon" / "backend").read_text() == "dolt"
+
+
+class TestMigrateDoltPrefixCollision:
+    """Test that migrate --to dolt refuses when another repo's items already exist."""
+
+    def _stub_item(self, arc_dir):
+        (arc_dir / ".bon" / "items.jsonl").write_text(
+            '{"id":"arc-aaa","type":"outcome","title":"t","brief":{"why":"w","what":"x","done":"d"},'
+            '"status":"open","order":1,"created_at":"2026-01-01T00:00:00Z","created_by":"test"}\n'
+        )
+
+    def test_refuses_on_collision(self, arc_dir, monkeypatch):
+        """If Dolt has prefix-rows we don't own, migration is refused and no state is mutated."""
+        from bon.cli import cmd_migrate
+
+        monkeypatch.chdir(arc_dir)
+        _reset_data_dir()
+        _reset_backend()
+        self._stub_item(arc_dir)
+
+        class Args:
+            to = "dolt"
+
+        def fake_collision(prefix, local_item_ids, local_archive_ids):
+            from bon.storage import error
+            error(
+                f"Refusing to migrate: Dolt already has rows with prefix '{prefix}' "
+                f"that are not in this repo's local data."
+            )
+
+        with patch("bon.dolt.verify_dolt_connection"), \
+             patch("bon.dolt.check_prefix_collision", side_effect=fake_collision):
+            with pytest.raises(BonError, match="Refusing to migrate"):
+                cmd_migrate(Args())
+
+        # Backend file must NOT have been written
+        assert not (arc_dir / ".bon" / "backend").exists()
+        # JSONL must be untouched
+        assert (arc_dir / ".bon" / "items.jsonl").exists()
+        assert not (arc_dir / ".bon" / "items.jsonl.pre-dolt").exists()
+
+    def test_collision_check_called_with_local_ids(self, arc_dir, monkeypatch):
+        """Verify the helper receives our prefix and local IDs (so the foreign-vs-local subtraction is correct)."""
+        from bon.cli import cmd_migrate
+
+        monkeypatch.chdir(arc_dir)
+        _reset_data_dir()
+        _reset_backend()
+        self._stub_item(arc_dir)
+
+        class Args:
+            to = "dolt"
+
+        captured = {}
+
+        def capture(prefix, local_item_ids, local_archive_ids):
+            captured["prefix"] = prefix
+            captured["item_ids"] = local_item_ids
+            captured["archive_ids"] = local_archive_ids
+            # Don't raise — let the rest of the migration proceed (or fail later).
+            from bon.storage import error
+            error("stop here")  # halt before touching real Dolt
+
+        with patch("bon.dolt.verify_dolt_connection"), \
+             patch("bon.dolt.check_prefix_collision", side_effect=capture):
+            with pytest.raises(BonError, match="stop here"):
+                cmd_migrate(Args())
+
+        assert captured["prefix"] == "arc"
+        assert captured["item_ids"] == {"arc-aaa"}
+        assert captured["archive_ids"] == set()
+        # And nothing got written
+        assert not (arc_dir / ".bon" / "backend").exists()
