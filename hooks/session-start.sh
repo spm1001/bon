@@ -15,21 +15,11 @@ INPUT=$(cat)
 SOURCE=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null || echo "")
 
 # On resume, skip the full briefing — it's already in context.
-# Also delete any auto-handoff for this session (session isn't over, just reloading).
-if [ "$SOURCE" = "resume" ]; then
-    SESSION_ID=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('session_id',''))" 2>/dev/null || echo "")
-    if [ -n "$SESSION_ID" ]; then
-        SHORT_ID="${SESSION_ID:0:8}"
-        SEARCH=$(pwd -P)
-        while [ "$SEARCH" != "/" ]; do
-            if [ -d "$SEARCH/.bon/handoffs" ]; then
-                rm -f "$SEARCH/.bon/handoffs/"*"${SHORT_ID}.md" 2>/dev/null || true
-                break
-            fi
-            SEARCH=$(dirname "$SEARCH")
-        done
-    fi
-fi
+# (A resume-time rm of the session's auto-handoff used to live here. Auto-handoffs
+# were retired 2026-04-05 (2d451fe), so the only files the rm could still match
+# were deliberate /close handoffs — and harness bridge-syncs fire SessionStart
+# with source=resume on *closed* sessions, silently deleting committed handoffs.
+# Never delete handoffs on resume.)
 
 if [ "$SOURCE" != "resume" ]; then
     PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"

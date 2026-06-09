@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.23.1] - 2026-06-09
+
+### Fixed
+- Session-start hook no longer deletes handoffs on resume. The rm was added for auto-handoffs (retired 2026-04-05), then widened on 2026-04-06 to match dated `/close` handoffs too — so any resume of a closed session (including harness bridge-syncs, which fire SessionStart with source=resume) silently deleted the committed handoff from the working tree. Four handoffs in itv-slides-formatter were lost this way (all git-recoverable).
+
 ## [0.21.0] - 2026-04-16
 
 ### Changed
