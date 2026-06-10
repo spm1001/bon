@@ -185,6 +185,29 @@ def verify_dolt_connection():
         cur.execute("SELECT 1")
 
 
+@contextlib.contextmanager
+def _write_transaction(conn, describe: str):
+    """Commit on success, roll back explicitly on any failure.
+
+    Dolt's working set is shared across every project on the server — a
+    half-applied truncate-and-reinsert surviving a crashed command corrupts
+    all sessions' view, not just this one (observed 2026-06-07: a mid-batch
+    INSERT failure left 47 rows deleted but never reinserted). Relying on
+    rollback-on-disconnect is not sufficient; roll back before the process
+    dies so the working set is untouched.
+    """
+    try:
+        yield
+        conn.commit()
+    except Exception as e:
+        with contextlib.suppress(Exception):
+            conn.rollback()
+        error(
+            f"Dolt write failed during {describe} — rolled back, "
+            f"working set unchanged.\n  Detail: {e}"
+        )
+
+
 def check_prefix_collision(prefix: str, local_item_ids: set[str], local_archive_ids: set[str]) -> None:
     """Refuse to migrate if Dolt has prefix-rows not present in our local data.
 
@@ -239,7 +262,7 @@ _SCHEMA_SQL = [
         brief       JSON,
         parent      VARCHAR(64),
         `order`     INT DEFAULT 999,
-        waiting_for VARCHAR(500),
+        waiting_for TEXT,
         wait_note   TEXT,
         tactical    JSON,
         created_at  VARCHAR(30),
@@ -257,7 +280,7 @@ _SCHEMA_SQL = [
         brief       JSON,
         parent      VARCHAR(64),
         `order`     INT DEFAULT 999,
-        waiting_for VARCHAR(500),
+        waiting_for TEXT,
         wait_note   TEXT,
         tactical    JSON,
         created_at  VARCHAR(30),
@@ -285,6 +308,13 @@ def _ensure_schema(conn):
             cur.execute(f"SHOW COLUMNS FROM {table} LIKE 'wait_note'")
             if not cur.fetchone():
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN wait_note TEXT AFTER waiting_for")
+            # waiting_for was VARCHAR(500) until June 2026; as a JSON-serialised
+            # blocker list it can legitimately exceed that, and overflow used to
+            # abort a save mid-batch. Lossless widen, old clients unaffected.
+            cur.execute(f"SHOW COLUMNS FROM {table} LIKE 'waiting_for'")
+            col = cur.fetchone()
+            if col and "varchar" in str(col.get("Type", "")).lower():
+                cur.execute(f"ALTER TABLE {table} MODIFY COLUMN waiting_for TEXT")
     conn.commit()
 
 
@@ -298,6 +328,34 @@ _ITEM_COLUMNS = [
 ]
 
 _ARCHIVE_COLUMNS = _ITEM_COLUMNS + ["archived_at"]
+
+# VARCHAR limits mirroring _SCHEMA_SQL — checked before any write so an
+# oversized value fails with a named item and field instead of a pymysql
+# traceback halfway through a batch.
+_VARCHAR_LIMITS = {
+    "id": 64,
+    "type": 10,
+    "title": 500,
+    "status": 10,
+    "parent": 64,
+    "created_at": 30,
+    "created_by": 100,
+    "updated_at": 30,
+    "updated_by": 30,
+    "done_at": 30,
+    "archived_at": 30,
+}
+
+
+def _check_row_limits(row: dict) -> None:
+    """Raise BonError if any value exceeds its column's VARCHAR limit."""
+    for col, limit in _VARCHAR_LIMITS.items():
+        val = row.get(col)
+        if isinstance(val, str) and len(val) > limit:
+            error(
+                f"Value too long for '{col}' on {row.get('id', '<no id>')}: "
+                f"{len(val)} chars (column limit {limit}). Nothing was written."
+            )
 
 
 def _item_to_row(item: dict, columns: list[str] | None = None) -> dict:
@@ -405,31 +463,33 @@ def dolt_save_items(items: list[dict]) -> None:
         ids = ", ".join(sorted(duplicates))
         print(f"Warning: Deduplicated IDs on save: {ids}", file=sys.stderr)
 
-    with conn.cursor() as cur:
-        # Delete only this prefix's items
-        cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{prefix}-%",))
+    rows = [_item_to_row(item) for item in sorted(seen.values(), key=lambda i: i.get("id", ""))]
+    for row in rows:
+        _check_row_limits(row)
 
-        for item in sorted(seen.values(), key=lambda i: i.get("id", "")):
-            row = _item_to_row(item)
-            cols = list(row.keys())
-            placeholders = ", ".join(["%s"] * len(cols))
-            # Quote 'order' since it's a reserved word
-            col_names = ", ".join(f"`{c}`" for c in cols)
+    with _write_transaction(conn, "items save"):
+        with conn.cursor() as cur:
+            # Delete only this prefix's items
+            cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{prefix}-%",))
+
+            for row in rows:
+                cols = list(row.keys())
+                placeholders = ", ".join(["%s"] * len(cols))
+                # Quote 'order' since it's a reserved word
+                col_names = ", ".join(f"`{c}`" for c in cols)
+                cur.execute(
+                    f"INSERT INTO items ({col_names}) VALUES ({placeholders})",
+                    list(row.values()),
+                )
+
+            # Dolt commit
+            cmd_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "save"
+            author = f"{get_creator()} <bon@localhost>"
+            cur.execute("CALL DOLT_ADD('-A')")
             cur.execute(
-                f"INSERT INTO items ({col_names}) VALUES ({placeholders})",
-                list(row.values()),
+                "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
+                (f"bon {cmd_str}", author),
             )
-
-        # Dolt commit
-        cmd_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "save"
-        author = f"{get_creator()} <bon@localhost>"
-        cur.execute("CALL DOLT_ADD('-A')")
-        cur.execute(
-            "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
-            (f"bon {cmd_str}", author),
-        )
-
-    conn.commit()
 
 
 # ---------- archive operations ----------
@@ -462,28 +522,31 @@ def dolt_append_archive(items: list[dict]) -> None:
             seen[item_id] = item
 
     prefix = _dolt_load_prefix_local()
-    with conn.cursor() as cur:
-        # Replace all archive rows for this prefix
-        cur.execute("DELETE FROM archive WHERE id LIKE %s", (f"{prefix}-%",))
-        for item in sorted(seen.values(), key=lambda i: i.get("id", "")):
-            row = _item_to_row(item, _ARCHIVE_COLUMNS)
-            cols = list(row.keys())
-            placeholders = ", ".join(["%s"] * len(cols))
-            col_names = ", ".join(f"`{c}`" for c in cols)
+    rows = [_item_to_row(item, _ARCHIVE_COLUMNS)
+            for item in sorted(seen.values(), key=lambda i: i.get("id", ""))]
+    for row in rows:
+        _check_row_limits(row)
+
+    with _write_transaction(conn, "archive append"):
+        with conn.cursor() as cur:
+            # Replace all archive rows for this prefix
+            cur.execute("DELETE FROM archive WHERE id LIKE %s", (f"{prefix}-%",))
+            for row in rows:
+                cols = list(row.keys())
+                placeholders = ", ".join(["%s"] * len(cols))
+                col_names = ", ".join(f"`{c}`" for c in cols)
+                cur.execute(
+                    f"INSERT INTO archive ({col_names}) VALUES ({placeholders})",
+                    list(row.values()),
+                )
+
+            cmd_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "archive"
+            author = f"{get_creator()} <bon@localhost>"
+            cur.execute("CALL DOLT_ADD('-A')")
             cur.execute(
-                f"INSERT INTO archive ({col_names}) VALUES ({placeholders})",
-                list(row.values()),
+                "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
+                (f"bon {cmd_str}", author),
             )
-
-        cmd_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "archive"
-        author = f"{get_creator()} <bon@localhost>"
-        cur.execute("CALL DOLT_ADD('-A')")
-        cur.execute(
-            "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
-            (f"bon {cmd_str}", author),
-        )
-
-    conn.commit()
 
 
 def dolt_remove_from_archive(item_id: str, prefix: str | None = None) -> dict | None:
@@ -496,17 +559,16 @@ def dolt_remove_from_archive(item_id: str, prefix: str | None = None) -> dict | 
         return None
 
     conn = _get_connection()
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM archive WHERE id = %s", (item["id"],))
+    with _write_transaction(conn, f"archive removal of {item['id']}"):
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM archive WHERE id = %s", (item["id"],))
 
-        author = f"{get_creator()} <bon@localhost>"
-        cur.execute("CALL DOLT_ADD('-A')")
-        cur.execute(
-            "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
-            (f"bon reopen {item['id']}", author),
-        )
-
-    conn.commit()
+            author = f"{get_creator()} <bon@localhost>"
+            cur.execute("CALL DOLT_ADD('-A')")
+            cur.execute(
+                "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
+                (f"bon reopen {item['id']}", author),
+            )
     return item
 
 

@@ -413,3 +413,101 @@ class TestJsonlUnchanged:
 
         path = items_path()
         assert path.name == "items.jsonl"
+
+
+# ---------- write transaction & pre-flight limits ----------
+
+class TestWriteTransaction:
+    def test_commits_on_success(self):
+        from bon.dolt import _write_transaction
+        conn = MagicMock()
+        with _write_transaction(conn, "test"):
+            pass
+        conn.commit.assert_called_once()
+        conn.rollback.assert_not_called()
+
+    def test_rolls_back_and_raises_bon_error_on_failure(self):
+        from bon.dolt import _write_transaction
+        conn = MagicMock()
+        with pytest.raises(BonError, match="rolled back"):
+            with _write_transaction(conn, "items save"):
+                raise RuntimeError("mid-batch INSERT exploded")
+        conn.rollback.assert_called_once()
+        conn.commit.assert_not_called()
+
+    def test_rollback_failure_does_not_mask_original_error(self):
+        from bon.dolt import _write_transaction
+        conn = MagicMock()
+        conn.rollback.side_effect = RuntimeError("connection gone")
+        with pytest.raises(BonError, match="exploded"):
+            with _write_transaction(conn, "items save"):
+                raise RuntimeError("exploded")
+
+
+class TestCheckRowLimits:
+    def test_oversized_title_names_field_and_item(self):
+        from bon.dolt import _check_row_limits
+        with pytest.raises(BonError) as exc:
+            _check_row_limits({"id": "test-aaa", "title": "x" * 501})
+        assert "title" in str(exc.value)
+        assert "test-aaa" in str(exc.value)
+
+    def test_within_limits_passes(self):
+        from bon.dolt import _check_row_limits
+        # waiting_for is TEXT now — deliberately unbounded
+        _check_row_limits({
+            "id": "test-aaa",
+            "title": "x" * 500,
+            "waiting_for": "y" * 5000,
+        })
+
+    def test_non_string_values_ignored(self):
+        from bon.dolt import _check_row_limits
+        _check_row_limits({"id": "test-aaa", "order": 999999999, "title": None})
+
+
+class TestSaveItemsAtomicity:
+    def _item(self, suffix):
+        return {
+            "id": f"test-{suffix}",
+            "type": "action",
+            "title": f"atomicity {suffix}",
+            "status": "open",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "order": 1,
+            "created_at": "2026-06-10T20:00:00Z",
+            "created_by": "test",
+        }
+
+    def test_mid_batch_insert_failure_rolls_back(self):
+        from bon import dolt as dolt_mod
+        conn = MagicMock()
+        cur = MagicMock()
+        conn.cursor.return_value.__enter__.return_value = cur
+        inserts = {"count": 0}
+
+        def fail_second_insert(sql, params=None):
+            if sql.startswith("INSERT"):
+                inserts["count"] += 1
+                if inserts["count"] == 2:
+                    raise RuntimeError("Data too long for column")
+
+        cur.execute.side_effect = fail_second_insert
+        with patch.object(dolt_mod, "_get_connection", return_value=conn), \
+             patch.object(dolt_mod, "_dolt_load_prefix_local", return_value="test"):
+            with pytest.raises(BonError, match="rolled back"):
+                dolt_mod.dolt_save_items([self._item("aaa"), self._item("bbb")])
+        conn.rollback.assert_called_once()
+        conn.commit.assert_not_called()
+
+    def test_oversized_title_fails_before_any_sql(self):
+        from bon import dolt as dolt_mod
+        conn = MagicMock()
+        bad = self._item("aaa")
+        bad["title"] = "x" * 501
+        with patch.object(dolt_mod, "_get_connection", return_value=conn), \
+             patch.object(dolt_mod, "_dolt_load_prefix_local", return_value="test"):
+            with pytest.raises(BonError, match="title"):
+                dolt_mod.dolt_save_items([bad])
+        conn.cursor.assert_not_called()
+        conn.rollback.assert_not_called()

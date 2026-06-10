@@ -17,6 +17,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 from bon.storage import (
+    BonError,
     _reset_backend,
     _reset_data_dir,
     append_archive,
@@ -254,3 +255,60 @@ class TestDoltIntegration:
                     (f"test cleanup {prefix}", "test <test@localhost>"),
                 )
             conn.commit()
+
+
+class TestWriteAtomicity:
+    """Regression tests for the 2026-06-07 half-wipe (bon-mozove).
+
+    A mid-batch INSERT failure used to leave the shared working set with
+    rows deleted but not reinserted. These exercise the real server: the
+    failure must roll back, leaving committed rows untouched.
+    """
+
+    def _item(self, prefix, suffix, **overrides):
+        item = {
+            "id": f"{prefix}-{suffix}",
+            "type": "action",
+            "title": f"atomicity test {suffix}",
+            "status": "open",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "order": 1,
+            "created_at": now_iso(),
+            "created_by": "test",
+        }
+        item.update(overrides)
+        return item
+
+    def test_oversized_waiting_for_now_saves(self, dolt_dir):
+        """The original incident input — a ~700-char reason — now round-trips."""
+        _, prefix = dolt_dir
+        long_reason = "waiting because " + "x" * 700
+        save_items([self._item(prefix, "aaa", waiting_for=[long_reason])])
+        loaded = load_items()
+        assert len(loaded) == 1
+        assert loaded[0]["waiting_for"] == [long_reason]
+
+    def test_failed_write_leaves_committed_rows_unchanged(self, dolt_dir):
+        _, prefix = dolt_dir
+        good = [self._item(prefix, "aaa"), self._item(prefix, "bbb")]
+        save_items(good)
+
+        # Poison passes pre-flight (length checks) but fails at the DB
+        # layer: a non-numeric string into the INT `order` column.
+        poison = self._item(prefix, "ccc", order="not-a-number")
+        with pytest.raises(BonError, match="rolled back"):
+            save_items(good + [poison])
+
+        loaded = load_items()
+        assert sorted(i["id"] for i in loaded) == [f"{prefix}-aaa", f"{prefix}-bbb"]
+
+    def test_oversized_title_fails_clean_before_write(self, dolt_dir):
+        _, prefix = dolt_dir
+        save_items([self._item(prefix, "aaa")])
+
+        bad = self._item(prefix, "bbb", title="x" * 501)
+        with pytest.raises(BonError, match="title"):
+            save_items([self._item(prefix, "aaa"), bad])
+
+        loaded = load_items()
+        assert [i["id"] for i in loaded] == [f"{prefix}-aaa"]
