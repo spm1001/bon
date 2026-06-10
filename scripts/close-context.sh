@@ -65,6 +65,14 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "UNPUSHED=$UNPUSHED"
     [ -n "$LAST_MSG" ] && echo "LAST_COMMIT=$LAST_MSG"
     echo "GIT_EXISTS=true"
+    # A worktree session's branch (commits AND handoffs) vanishes with the
+    # worktree — surface it so /close escapes before declaring done
+    case "$(pwd -P)" in
+        *"/.claude/worktrees/"*)
+            echo "WORKTREE_SESSION=true"
+            echo "WORKTREE_RESCUE=push, merge, or PR this branch before ending the session — commits and handoffs here are deleted with the worktree"
+            ;;
+    esac
 else
     echo "GIT_EXISTS=false"
 fi
