@@ -1252,7 +1252,8 @@ def cmd_migrate(args):
         print(f"Already using {target} backend.")
         return
 
-    bon_dir = Path(".bon")
+    from bon.storage import _data_dir
+    bon_dir = _data_dir()
 
     if target == "dolt":
         # Verify Dolt is reachable before touching any state

@@ -39,19 +39,39 @@ _cached_data_dir: Path | None = None
 _cached_backend: str | None = None
 
 
+def _find_bon_dir() -> Path | None:
+    """Walk up from CWD to find an existing .bon directory.
+
+    Mirrors git rev-parse semantics: check each directory from CWD upward,
+    stopping at a .git boundary (a nested repo without its own board must
+    not adopt an outer repo's). At CWD any .bon directory counts; above it
+    only a real board does — one with a prefix file — so bare handoff
+    stashes like ~/.bon are never adopted on the way up.
+    """
+    cur = Path.cwd().resolve()
+    for directory in (cur, *cur.parents):
+        bon = directory / ".bon"
+        if bon.is_dir() and (directory == cur or (bon / "prefix").is_file()):
+            return bon
+        if (directory / ".git").exists():
+            return None
+    return None
+
+
 def _data_dir() -> Path:
     """Return the data directory as an absolute path.
 
-    Resolves to absolute on first call and caches, so CWD changes mid-process
-    can't cause reads/writes to target the wrong directory.
+    Walks up from CWD (stopping at a .git boundary) so subdirectory
+    sessions find their repo's board; falls back to ./.bon when no board
+    exists yet (pre-init). Caches on first call, so CWD changes
+    mid-process can't cause reads/writes to target the wrong directory.
     """
     global _cached_data_dir
     if _cached_data_dir is not None:
         return _cached_data_dir
 
-    bon = Path(".bon").resolve()
-    _cached_data_dir = bon
-    return bon
+    _cached_data_dir = _find_bon_dir() or Path(".bon").resolve()
+    return _cached_data_dir
 
 
 def _reset_data_dir() -> None:
@@ -332,8 +352,8 @@ def now_iso() -> str:
 
 
 def check_initialized() -> None:
-    """Check if .bon/ is initialized. Exit with error if not."""
-    if not Path(".bon").is_dir():
+    """Check if .bon/ is initialized here or in a parent (up to a .git boundary)."""
+    if not _data_dir().is_dir():
         error("Not initialized. Run `bon init` first.")
 
 
@@ -397,11 +417,17 @@ def apply_reparent(items: list[dict], edited: dict, old_parent: str | None, new_
 def get_session_identity() -> str:
     """Return the session identity for tactical steps.
 
-    In JSONL mode: os.path.realpath(os.getcwd())
+    Identity is the .bon root (the directory holding .bon), not the bare
+    CWD: walk-up discovery means every subdirectory of a project shares
+    the board, so they must also share the one-active-tactical claim —
+    otherwise two subdirs of one repo could claim two tacticals on the
+    same board. Pre-init (no .bon found) this degrades to CWD, matching
+    the old behavior.
+    In JSONL mode: realpath of the .bon root.
     In Dolt mode: hostname:realpath — prevents false conflicts when two
     machines have the same absolute path.
     """
-    path = os.path.realpath(os.getcwd())
+    path = os.path.realpath(_data_dir().parent)
     if _get_backend() == "dolt":
         import socket
         return f"{socket.gethostname()}:{path}"

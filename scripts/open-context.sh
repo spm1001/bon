@@ -117,30 +117,47 @@ BON_LIST_OUTPUT=""
 BON_READY_OUTPUT=""
 BON_CURRENT_OUTPUT=""
 
+# Walk up to the board root, mirroring the CLI's discovery: at CWD any
+# .bon counts; above it only one with a prefix file (skips bare handoff
+# stashes like ~/.bon); a .git boundary stops the walk so a nested repo
+# never adopts an outer repo's board.
 BON_BACKEND="none"
-if [ -d ".bon" ]; then
-    if [ -f ".bon/backend" ] && [ "$(cat .bon/backend 2>/dev/null)" = "dolt" ]; then
+BON_ROOT=""
+BWALK=$(pwd -P)
+BSTART="$BWALK"
+while [ "$BWALK" != "/" ]; do
+    if [ -d "$BWALK/.bon" ] && { [ "$BWALK" = "$BSTART" ] || [ -f "$BWALK/.bon/prefix" ]; }; then
+        BON_ROOT="$BWALK"
+        break
+    fi
+    [ -e "$BWALK/.git" ] && break
+    BWALK=$(dirname "$BWALK")
+done
+if [ -n "$BON_ROOT" ]; then
+    if [ -f "$BON_ROOT/.bon/backend" ] && [ "$(cat "$BON_ROOT/.bon/backend" 2>/dev/null)" = "dolt" ]; then
         BON_BACKEND="dolt"
-    elif [ -f ".bon/items.jsonl" ]; then
+    elif [ -f "$BON_ROOT/.bon/items.jsonl" ]; then
         BON_BACKEND="jsonl"
     fi
 fi
 
+# Invocations run from the board root: bon-read.sh reads .bon/ relative
+# to cwd, and older installed bon CLIs don't walk up.
 if [ "$BON_BACKEND" = "jsonl" ]; then
     if [ -x "$BON_READ" ]; then
-        BON_LIST_OUTPUT=$("$BON_READ" list 2>/dev/null || true)
-        BON_READY_OUTPUT=$("$BON_READ" ready 2>/dev/null || true)
-        BON_CURRENT_OUTPUT=$("$BON_READ" current 2>/dev/null || true)
+        BON_LIST_OUTPUT=$(cd "$BON_ROOT" && "$BON_READ" list 2>/dev/null || true)
+        BON_READY_OUTPUT=$(cd "$BON_ROOT" && "$BON_READ" ready 2>/dev/null || true)
+        BON_CURRENT_OUTPUT=$(cd "$BON_ROOT" && "$BON_READ" current 2>/dev/null || true)
     elif command -v bon &>/dev/null; then
-        BON_LIST_OUTPUT=$(bon list 2>/dev/null || true)
-        BON_READY_OUTPUT=$(bon list --ready 2>/dev/null || true)
-        BON_CURRENT_OUTPUT=$(bon show --current 2>/dev/null || true)
+        BON_LIST_OUTPUT=$(cd "$BON_ROOT" && bon list 2>/dev/null || true)
+        BON_READY_OUTPUT=$(cd "$BON_ROOT" && bon list --ready 2>/dev/null || true)
+        BON_CURRENT_OUTPUT=$(cd "$BON_ROOT" && bon show --current 2>/dev/null || true)
     fi
 elif [ "$BON_BACKEND" = "dolt" ]; then
     if command -v bon &>/dev/null; then
-        BON_LIST_OUTPUT=$(bon list 2>&1 || true)
-        BON_READY_OUTPUT=$(bon list --ready 2>&1 || true)
-        BON_CURRENT_OUTPUT=$(bon show --current 2>/dev/null || true)
+        BON_LIST_OUTPUT=$(cd "$BON_ROOT" && bon list 2>&1 || true)
+        BON_READY_OUTPUT=$(cd "$BON_ROOT" && bon list --ready 2>&1 || true)
+        BON_CURRENT_OUTPUT=$(cd "$BON_ROOT" && bon show --current 2>/dev/null || true)
         if echo "$BON_LIST_OUTPUT" | grep -q "Cannot connect"; then
             BON_DOLT_ERROR="$BON_LIST_OUTPUT"
             BON_LIST_OUTPUT=""

@@ -48,7 +48,7 @@ echo ""
 
 # === GIT STATUS ===
 echo "=== GIT ==="
-if [ -e ".git" ]; then
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     DIRTY=$(git status --porcelain 2>/dev/null || true)
     UNPUSHED=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo "0")
     LAST_MSG=$(git log -1 --format='%s' 2>/dev/null || echo "")
@@ -72,13 +72,30 @@ fi
 # === BON STATUS (default tracker) ===
 echo ""
 echo "=== BON ==="
-if [ -d ".bon" ]; then
+# Walk up to the board root, mirroring the CLI's discovery: at CWD any
+# .bon counts; above it only one with a prefix file (skips bare handoff
+# stashes like ~/.bon); a .git boundary stops the walk so a nested repo
+# never adopts an outer repo's board.
+BON_ROOT=""
+BWALK=$(pwd -P)
+BSTART="$BWALK"
+while [ "$BWALK" != "/" ]; do
+    if [ -d "$BWALK/.bon" ] && { [ "$BWALK" = "$BSTART" ] || [ -f "$BWALK/.bon/prefix" ]; }; then
+        BON_ROOT="$BWALK"
+        break
+    fi
+    [ -e "$BWALK/.git" ] && break
+    BWALK=$(dirname "$BWALK")
+done
+
+if [ -n "$BON_ROOT" ]; then
     # Find bon CLI - check PATH first, then known location
-    BON_CMD=$(command -v bon 2>/dev/null || echo "$HOME/Repos/bon/.venv/bin/bon")
+    BON_CMD=$(command -v bon 2>/dev/null || echo "$HOME/repos/spm1001/bon/.venv/bin/bon")
 
     if [ -x "$BON_CMD" ]; then
         # Bon doesn't track in_progress, but we can show open and waiting items
-        OPEN_OUTPUT=$("$BON_CMD" list 2>/dev/null || true)
+        # (run from the board root: the current CLI walks up itself, older ones don't)
+        OPEN_OUTPUT=$(cd "$BON_ROOT" && "$BON_CMD" list 2>/dev/null || true)
         OPEN_COUNT=$(echo "$OPEN_OUTPUT" | grep -c "^○" 2>/dev/null) || OPEN_COUNT=0
         WAITING_COUNT=$(echo "$OPEN_OUTPUT" | grep -c "^⏳" 2>/dev/null) || WAITING_COUNT=0
 
