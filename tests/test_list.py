@@ -229,3 +229,63 @@ Standalone:
         ids = {json.loads(line)["id"] for line in result.stdout.strip().split("\n")}
         # First outcome (bon-aaa) and its child (bon-ccc); no other outcomes or standalones
         assert ids == {"bon-aaa", "bon-ccc"}
+
+
+class TestDoneOutcomeWithOpenChildren:
+    """bon-kegewe: open children of done outcomes must stay board-visible."""
+
+    def _seed(self, bon_dir):
+        import json
+        items = [
+            {"id": "bon-parent", "type": "outcome", "title": "Done parent",
+             "brief": {"why": "w", "what": "x", "done": "d"}, "status": "done",
+             "order": 1, "created_at": "2026-06-10T20:00:00Z", "created_by": "t",
+             "done_at": "2026-06-10T20:30:00Z"},
+            {"id": "bon-straggler", "type": "action", "title": "Open straggler",
+             "brief": {"why": "w", "what": "x", "done": "d"}, "status": "open",
+             "parent": "bon-parent", "order": 1,
+             "created_at": "2026-06-10T20:00:00Z", "created_by": "t"},
+        ]
+        path = bon_dir / ".bon" / "items.jsonl"
+        path.write_text("".join(json.dumps(i) + "\n" for i in items))
+
+    def test_list_shows_done_parent_with_open_child(self, bon_dir):
+        self._seed(bon_dir)
+        result = run_bon("list", cwd=bon_dir)
+        assert "Open straggler" in result.stdout
+        assert "Done parent" in result.stdout
+
+    def test_list_ready_shows_open_child(self, bon_dir):
+        self._seed(bon_dir)
+        result = run_bon("list", "--ready", cwd=bon_dir)
+        assert "Open straggler" in result.stdout
+
+    def test_list_json_shows_open_child(self, bon_dir):
+        import json
+        self._seed(bon_dir)
+        result = run_bon("list", "--json", cwd=bon_dir)
+        data = json.loads(result.stdout)
+        assert any(o["id"] == "bon-parent" for o in data["outcomes"])
+        parent = next(o for o in data["outcomes"] if o["id"] == "bon-parent")
+        assert any(a["id"] == "bon-straggler" for a in parent["actions"])
+
+    def test_fully_done_outcome_still_hidden(self, bon_dir):
+        self._seed(bon_dir)
+        path = bon_dir / ".bon" / "items.jsonl"
+        content = path.read_text().replace(
+            '"status": "open", "parent": "bon-parent"',
+            '"status": "done", "parent": "bon-parent"')
+        path.write_text(content)
+        result = run_bon("list", cwd=bon_dir)
+        assert "Done parent" not in result.stdout
+
+    def test_done_on_outcome_with_open_children_warns(self, bon_dir):
+        self._seed(bon_dir)
+        path = bon_dir / ".bon" / "items.jsonl"
+        content = path.read_text().replace(
+            '"status": "done", "order": 1', '"status": "open", "order": 1')
+        path.write_text(content)
+        result = run_bon("done", "bon-parent", cwd=bon_dir)
+        assert result.returncode == 0
+        assert "1 open action(s) remain" in result.stderr
+        assert "bon-straggler" in result.stderr

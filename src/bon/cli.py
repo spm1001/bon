@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from bon.display import _normalize_brief, format_hierarchical, format_json, format_jsonl, format_tactical
+from bon.queries import open_child_parent_ids
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from bon.storage import (
     KNOWN_VERBS,
@@ -43,23 +44,29 @@ def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
     """Filter items based on mode for output.
 
     Used by --json and --jsonl to respect filter flags.
+    Done outcomes with open children count as board-visible (bon-kegewe).
     """
+    open_parents = open_child_parent_ids(items)
+
+    def board_visible(outcome):
+        return outcome["status"] == "open" or outcome["id"] in open_parents
+
     if filter_mode == "ready":
-        # Open outcomes + ready and done actions (done shown for context)
-        outcomes = [i for i in items if i["type"] == "outcome" and i["status"] == "open"]
+        # Visible outcomes + ready and done actions (done shown for context)
+        outcomes = [i for i in items if i["type"] == "outcome" and board_visible(i)]
         actions = [i for i in items if i["type"] == "action" and
                    (i["status"] == "done" or (i["status"] == "open" and not i.get("waiting_for")))]
         return outcomes + actions
     elif filter_mode == "waiting":
-        # Open outcomes + waiting actions only
-        outcomes = [i for i in items if i["type"] == "outcome" and i["status"] == "open"]
+        # Visible outcomes + waiting actions only
+        outcomes = [i for i in items if i["type"] == "outcome" and board_visible(i)]
         actions = [i for i in items if i["type"] == "action" and i.get("waiting_for")]
         return outcomes + actions
     elif filter_mode == "all":
         return items
     else:
-        # Default: open outcomes and all their actions
-        outcomes = [i for i in items if i["type"] == "outcome" and i["status"] == "open"]
+        # Default: visible outcomes and all their actions
+        outcomes = [i for i in items if i["type"] == "outcome" and board_visible(i)]
         outcome_ids = {o["id"] for o in outcomes}
         actions = [i for i in items if i["type"] == "action" and
                    (i.get("parent") in outcome_ids or (not i.get("parent") and i["status"] == "open"))]
@@ -478,6 +485,17 @@ def cmd_done(args):
                 unblocked.append(other["id"])
 
     save_items(items)
+
+    # Closing an outcome over open children is allowed but never silent —
+    # they stay visible on the board awaiting explicit triage (bon-kegewe)
+    if item["type"] == "outcome":
+        open_children = [i for i in items
+                         if i.get("parent") == item["id"] and i["status"] == "open"]
+        if open_children:
+            ids = ", ".join(c["id"] for c in open_children)
+            warn(f"{len(open_children)} open action(s) remain under this outcome "
+                 f"and stay visible on the board: {ids}")
+
     if getattr(args, 'quiet', False):
         print(item['id'])
     else:

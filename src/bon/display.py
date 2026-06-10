@@ -2,7 +2,7 @@
 import json
 
 from bon.ids import DEFAULT_ORDER
-from bon.queries import filter_ready, filter_waiting
+from bon.queries import filter_ready, filter_waiting, open_child_parent_ids
 
 # Optional brief fields with their default values for JSON output.
 # Required fields (why, what, done) are always present; optional ones
@@ -112,9 +112,13 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
     lines = []
     include_done_outcomes = filter_mode == "all"
 
-    # Get outcomes sorted by order
+    # Get outcomes sorted by order. Done outcomes with open children stay
+    # visible — their stragglers are still board work (bon-kegewe).
+    open_parents = open_child_parent_ids(items)
     outcomes = sorted(
-        [i for i in items if i["type"] == "outcome" and (include_done_outcomes or i["status"] == "open")],
+        [i for i in items if i["type"] == "outcome" and (
+            include_done_outcomes or i["status"] == "open" or i["id"] in open_parents
+        )],
         key=lambda x: x.get("order", DEFAULT_ORDER)
     )
 
