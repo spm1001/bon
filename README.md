@@ -205,6 +205,17 @@ bon migrate --to jsonl                         # and back
 
 Dolt connection is configured via env vars (`BON_DOLT_HOST`, `BON_DOLT_PORT`, `BON_DOLT_DATABASE`, `BON_DOLT_USER`, `BON_DOLT_PASSWORD`) or `~/.config/bon/dolt.toml`. All Dolt code is lazily imported — JSONL users never load pymysql.
 
+### Git-track all of `.bon/`
+
+Commit the whole `.bon/` directory — including `prefix` and `backend`. They are
+project identity, not machine state: the only machine-local piece of Dolt config
+is `~/.config/bon/dolt.toml`, which already lives outside the repo. Repos that
+gitignore `.bon/` (wholesale or just the markers) produce a nasty trap: a fresh
+clone silently presents an empty default board instead of the real backlog.
+Bon detects that shape and refuses with a reconnect recipe — `bon init
+--prefix <prefix> --backend dolt` completes the missing markers without
+touching anything else — but tracked markers mean clones just work.
+
 ### Running the Dolt Server
 
 Bon expects a running Dolt SQL server. The quickest way is a systemd user service:

@@ -51,11 +51,24 @@ def _find_bon_dir() -> Path | None:
     cur = Path.cwd().resolve()
     for directory in (cur, *cur.parents):
         bon = directory / ".bon"
-        if bon.is_dir() and (directory == cur or (bon / "prefix").is_file()):
-            return bon
+        if bon.is_dir():
+            if directory == cur or (bon / "prefix").is_file():
+                return bon
+            # A cloned repo can carry knowledge files while its local
+            # markers were gitignored — adopt it so check_initialized can
+            # name the real problem instead of "Not initialized".
+            if (directory / ".git").exists() and _looks_like_cloned_board(bon):
+                return bon
         if (directory / ".git").exists():
             return None
     return None
+
+
+def _looks_like_cloned_board(bon: Path) -> bool:
+    """True when a .bon has git-tracked knowledge files but no prefix marker."""
+    if (bon / "prefix").is_file():
+        return False
+    return (bon / "handoffs").is_dir() or (bon / "understanding.md").is_file()
 
 
 def _data_dir() -> Path:
@@ -353,8 +366,21 @@ def now_iso() -> str:
 
 def check_initialized() -> None:
     """Check if .bon/ is initialized here or in a parent (up to a .git boundary)."""
-    if not _data_dir().is_dir():
+    data = _data_dir()
+    if not data.is_dir():
         error("Not initialized. Run `bon init` first.")
+    if _looks_like_cloned_board(data):
+        error(
+            f"{data} has bon knowledge files (handoffs/understanding) but no local\n"
+            "state markers (.bon/prefix, .bon/backend) — this looks like a fresh clone\n"
+            "of a repo that gitignores them. The board data is safe; it lives in the\n"
+            "Dolt server (or the origin's items.jsonl), not here. Reconnect from\n"
+            f"{data.parent} with:\n"
+            "  bon init --prefix <prefix> --backend dolt\n"
+            "(non-destructive — completes the missing markers, touches nothing else).\n"
+            "Better still: commit .bon/prefix and .bon/backend in the origin repo;\n"
+            "the machine-local part of Dolt config is ~/.config/bon/dolt.toml."
+        )
 
 
 def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):

@@ -78,22 +78,39 @@ LATEST_FILE=""
 LATEST_PURPOSE=""
 LATEST_STR=""
 
+# Rank by the date in the handoff header ("# Handoff — YYYY-MM-DD"), with
+# mtime only breaking same-day ties: a fresh clone flattens every mtime to
+# checkout time, so mtime-first picks an arbitrary (often ancient) handoff.
+# Emits "sortkey|path"; header-less files rank by mtime alone at the bottom.
 find_latest_in() {
-    local dir="$1"
-    [ -d "$dir" ] && ls -t "$dir"/*.md 2>/dev/null | head -1 || true
+    local dir="$1" best_key="" best_file="" f d mt key
+    [ -d "$dir" ] || return 0
+    for f in "$dir"/*.md; do
+        [ -e "$f" ] || continue
+        d=$(sed -n 's/^# Handoff — \([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/p' "$f" 2>/dev/null | head -1)
+        [ -z "$d" ] && d="0000-00-00"
+        mt=$(file_mtime "$f")
+        key=$(printf '%s.%012d' "$d" "$mt")
+        if [ -z "$best_key" ] || [ "$key" \> "$best_key" ]; then
+            best_key="$key"
+            best_file="$f"
+        fi
+    done
+    [ -n "$best_file" ] && echo "${best_key}|${best_file}"
 }
 
 CANDIDATE_BON=$(find_latest_in "$BON_HANDOFF_DIR")
 CANDIDATE_GLOBAL=$(find_latest_in "$GLOBAL_BON_DIR")
 
-# Pick the most recent candidate by mtime
-BEST_MTIME=0
+# Pick the better of the two locations by the same key
+BEST_KEY=""
 for CANDIDATE in "$CANDIDATE_BON" "$CANDIDATE_GLOBAL"; do
     if [ -n "$CANDIDATE" ]; then
-        MT=$(file_mtime "$CANDIDATE")
-        if [ "$MT" -gt "$BEST_MTIME" ]; then
-            BEST_MTIME=$MT
-            LATEST_FILE="$CANDIDATE"
+        KEY="${CANDIDATE%%|*}"
+        FILE="${CANDIDATE#*|}"
+        if [ -z "$BEST_KEY" ] || [ "$KEY" \> "$BEST_KEY" ]; then
+            BEST_KEY="$KEY"
+            LATEST_FILE="$FILE"
         fi
     fi
 done

@@ -29,14 +29,26 @@ def test_init_custom_prefix(tmp_path, monkeypatch):
 
 
 def test_init_already_exists(tmp_path, monkeypatch):
-    """bon init when .bon/ exists errors."""
+    """bon init when an initialized .bon/ (has prefix) exists errors."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".bon").mkdir()
+    (tmp_path / ".bon" / "prefix").write_text("x")
 
     result = run_bon("init", cwd=tmp_path)
 
     assert result.returncode == 1
     assert ".bon/ already exists" in result.stderr
+
+
+def test_init_completes_markerless_bon(tmp_path, monkeypatch):
+    """bon init on a .bon without prefix completes it (cloned-repo reconnect)."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".bon").mkdir()
+
+    result = run_bon("init", "--prefix", "abc", cwd=tmp_path)
+
+    assert result.returncode == 0
+    assert "Reconnected" in result.stdout
 
 
 def test_init_prefix_no_trailing_newline(tmp_path, monkeypatch):

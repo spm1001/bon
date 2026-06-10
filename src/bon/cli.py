@@ -111,18 +111,27 @@ def cmd_init(args):
         error(f"Unknown backend '{backend}'. Use 'jsonl' or 'dolt'.")
 
     bon_dir = Path(".bon")
+    completing = False
     if bon_dir.exists():
-        error(".bon/ already exists.")
+        if (bon_dir / "prefix").is_file():
+            error(".bon/ already exists.")
+        # A .bon without a prefix is a fresh clone whose local markers were
+        # gitignored — complete it rather than refuse (the reconnect path
+        # check_initialized recommends). Existing files are untouched.
+        completing = True
+    else:
+        bon_dir.mkdir()
 
-    bon_dir.mkdir()
     (bon_dir / "prefix").write_text(prefix)  # No trailing newline
 
+    verb = "Reconnected" if completing else "Initialized"
     if backend == "dolt":
         (bon_dir / "backend").write_text("dolt")
-        print(f"Initialized .bon/ with prefix '{prefix}' (backend: dolt)")
+        print(f"{verb} .bon/ with prefix '{prefix}' (backend: dolt)")
     else:
-        (bon_dir / "items.jsonl").touch()
-        print(f"Initialized .bon/ with prefix '{prefix}'")
+        if not (bon_dir / "items.jsonl").exists():
+            (bon_dir / "items.jsonl").touch()
+        print(f"{verb} .bon/ with prefix '{prefix}'")
 
 
 def prompt_brief() -> dict:
