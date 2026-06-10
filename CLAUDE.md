@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 19 commands, ~2300 LOC core (+470 optional Dolt module), 418 tests.
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 19 commands, ~2300 LOC core (+470 optional Dolt module), 478 tests.
 
 ## Quick Commands
 
@@ -156,7 +156,7 @@ bon new "Quick fix" --why w --what x --done d -q   # Flags (stubs only)
 | Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
 | Changing schema fields | bon-read.sh reads items.jsonl directly with jq |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
-| Stale global install after code changes | `uv tool install` reuses cached wheels. After changing bon code: `uv cache clean bon --force && uv tool install ~/Repos/bon --force --reinstall` |
+| Stale global install after code changes | `uv tool install` reuses cached wheels. After changing bon code: `uv cache clean bon && uv tool install ~/repos/spm1001/bon --force --reinstall --with pymysql` |
 | Calling `items_path()` in Dolt mode | Raises `BonError`. Check `_get_backend()` first, or use `load_items()`/`save_items()` which dispatch automatically. |
 | Dolt backend without pymysql | `BonError` with install instructions. Install: `pip install bon[dolt]` |
 | Session identity differs per backend | Use `get_session_identity()` not `os.path.realpath(os.getcwd())`. Dolt mode prefixes with hostname. |

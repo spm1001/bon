@@ -5,7 +5,7 @@ It shows what Claude actually sees at each stage — hook outputs, skill instruc
 bon state transitions — not the scripts that produce them.
 
 For the source scripts, see the plugin cache:
-`~/.claude/plugins/cache/batterie-de-savoir/bon/<version>/`
+`~/.claude/plugins/cache/batterie/bon/<version>/`
 
 ---
 

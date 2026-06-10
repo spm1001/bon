@@ -5,7 +5,7 @@ what Claude actually sees at each stage (hook outputs, skill behavior, bon state
 transitions, handoff artifacts).
 
 For source scripts, see the plugin cache:
-`~/.claude/plugins/cache/batterie-de-savoir/bon/<version>/`
+`~/.claude/plugins/cache/batterie/bon/<version>/`
 
 Previous versions of this folder contained numbered snapshot copies of every
 script and skill. Those drifted immediately and have been replaced by the
