@@ -996,18 +996,35 @@ def parse_steps_from_what(what: str) -> list[str] | None:
     Looks for patterns like "1. step" or "1) step".
     Normalizes newlines to spaces first to prevent garbled steps
     from multiline --what values.
+    Markers must count 1, 2, 3… in order: a "N." or "N)" that isn't the
+    next expected number is inline content (e.g. a cross-reference like
+    "(step 3)"), not a step boundary. "step N)" never splits, even when
+    N is the next expected number — but "step N." does, since a step can
+    legitimately end with the word "step".
     Returns None if no numbered list found.
     """
     # Normalize: collapse newlines and extra whitespace to single spaces
     normalized = ' '.join(what.split())
     # Step number must be at start or after whitespace (prevents matching "v2.0")
     # Delimiter (. or )) must be followed by whitespace
-    # Lookahead requires whitespace before next step number AND after delimiter
-    pattern = r'(?:^|(?<=\s))(\d+)[.)]\s+(.+?)(?=\s+\d+[.)]\s|$)'
-    matches = re.findall(pattern, normalized)
-    if not matches:
+    marker = re.compile(r'(?:^|(?<=\s))(\d+)([.)])\s+')
+    boundaries = []
+    expected = 1
+    for m in marker.finditer(normalized):
+        if int(m.group(1)) != expected:
+            continue
+        if m.group(2) == ")" and re.search(r'[Ss]tep\s$', normalized[:m.start()]):
+            continue
+        boundaries.append((m.start(), m.end()))
+        expected += 1
+    if not boundaries:
         return None
-    steps = [m[1].strip() for m in matches if m[1].strip()]
+    steps = []
+    for i, (_, end) in enumerate(boundaries):
+        text_end = boundaries[i + 1][0] if i + 1 < len(boundaries) else len(normalized)
+        text = normalized[end:text_end].strip()
+        if text:
+            steps.append(text)
     return steps if steps else None
 
 

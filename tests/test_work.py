@@ -56,6 +56,53 @@ class TestParseStepsFromWhat:
         result = parse_steps_from_what("Setup: 1. Config 2. Test 3. Deploy")
         assert result == ["Config", "Test", "Deploy"]
 
+    def test_inline_step_reference_not_split(self):
+        # bon-narato: "(step 3)" inside a step is a cross-reference, not a boundary
+        from bon.cli import parse_steps_from_what
+        result = parse_steps_from_what(
+            "1. Sync dotfiles — the keychain symlink (step 3) keeps agy in NATIVE "
+            "keychain mode 2. Pull repos 3. Recreate the keychain symlink 4. Verify"
+        )
+        assert result == [
+            "Sync dotfiles — the keychain symlink (step 3) keeps agy in NATIVE keychain mode",
+            "Pull repos",
+            "Recreate the keychain symlink",
+            "Verify",
+        ]
+
+    def test_step_reference_to_next_expected_not_split(self):
+        # "step 2)" where 2 IS the next expected number still must not split
+        from bon.cli import parse_steps_from_what
+        result = parse_steps_from_what(
+            "1. Create the config (step 2) reads it on boot 2. Wire up the reader"
+        )
+        assert result == [
+            "Create the config (step 2) reads it on boot",
+            "Wire up the reader",
+        ]
+
+    def test_out_of_sequence_number_not_split(self):
+        from bon.cli import parse_steps_from_what
+        result = parse_steps_from_what("1. Check ports 80 and 443) stay open 2. Deploy")
+        assert result == ["Check ports 80 and 443) stay open", "Deploy"]
+
+    def test_ten_steps_with_inline_reference(self):
+        # Reconstruction of the cornichon bon-vafape --what (the original
+        # item predates the Dolt era and is gone): 10 steps, inline
+        # "(step 3)" in step 1, must extract to exactly 10.
+        from bon.cli import parse_steps_from_what
+        what = (
+            "1. Sync the dotfiles — the keychain symlink (step 3) keeps agy in "
+            "NATIVE keychain mode on the Mac 2. Pull all repos 3. Recreate the "
+            "keychain symlink 4. Install the launchd agent 5. Verify agy auth "
+            "6. Run the smoke test 7. Check tailscale status 8. Update the "
+            "roster 9. Document the recipe 10. Close out the bon"
+        )
+        result = parse_steps_from_what(what)
+        assert len(result) == 10
+        assert result[0].endswith("on the Mac")
+        assert result[9] == "Close out the bon"
+
 
 class TestWorkParseWhat:
     """Test parsing steps from --what field."""
