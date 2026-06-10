@@ -219,3 +219,35 @@ class TestDonePrefixTolerant:
 
         assert result.returncode == 0
         assert "Done: bon-aaa" in result.stdout
+
+
+class TestAlreadyDoneNote:
+    """bon-civelu: a --note on an already-done item attaches instead of vanishing."""
+
+    def _seed(self, bon_dir, with_note=False):
+        import json
+        item = {"id": "bon-gone", "type": "action", "title": "Closed elsewhere",
+                "brief": {"why": "w", "what": "x", "done": "d"}, "status": "done",
+                "order": 1, "created_at": "2026-06-10T20:00:00Z", "created_by": "t",
+                "done_at": "2026-06-10T20:30:00Z"}
+        if with_note:
+            item["done_note"] = "the original note"
+        (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+
+    def test_note_attaches_when_absent(self, bon_dir):
+        import json
+        self._seed(bon_dir)
+        result = run_bon("done", "bon-gone", "--note", "late attribution", cwd=bon_dir)
+        assert result.returncode == 0
+        assert "note attached" in result.stdout
+        stored = json.loads((bon_dir / ".bon" / "items.jsonl").read_text())
+        assert stored["done_note"] == "late attribution"
+
+    def test_existing_note_not_overwritten(self, bon_dir):
+        import json
+        self._seed(bon_dir, with_note=True)
+        result = run_bon("done", "bon-gone", "--note", "usurper", cwd=bon_dir)
+        assert result.returncode == 0
+        assert "note attached" not in result.stdout
+        stored = json.loads((bon_dir / ".bon" / "items.jsonl").read_text())
+        assert stored["done_note"] == "the original note"

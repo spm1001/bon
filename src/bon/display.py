@@ -134,9 +134,11 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
         standalone_budget = None
 
     for outcome in outcomes:
-        # Outcome line
+        # Outcome line (outcomes can wait too — render it like actions do)
         status_icon = "✓" if outcome["status"] == "done" else "○"
-        lines.append(f"{status_icon} {outcome['title']} ({outcome['id']})")
+        wf = outcome.get("waiting_for")
+        waiting_suffix = f" ⏳ {', '.join(wf)}" if wf else ""
+        lines.append(f"{status_icon} {outcome['title']} ({outcome['id']}){waiting_suffix}")
 
         # Get actions for this outcome
         all_actions = sorted(

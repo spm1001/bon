@@ -117,6 +117,8 @@ User picks direction. Then **draw-down** before touching code.
 
 A hook injects the current tactical step into every prompt. When you see a `<user-prompt-submit-hook>` mentioning bon tactical, work on the current step and run `bon step` when complete.
 
+**The injected tactical may belong to another live session.** Session identity is CWD-keyed, so a parallel session in the same repo (a bg fork, a second roster session, a dispatched agent) sees — and is invited to advance — a tactical it didn't claim. If the injected step doesn't match work you've been asked to do, leave it alone: it's another Claude's thread, and stepping it desynchronises their bookkeeping (observed 2026-06-10: an email-dispatched session finished a tester's tactical and closed an item under them).
+
 ---
 
 ## The Draw-Up Pattern

@@ -97,7 +97,9 @@ if [ -n "$BON_ROOT" ]; then
         # (run from the board root: the current CLI walks up itself, older ones don't)
         OPEN_OUTPUT=$(cd "$BON_ROOT" && "$BON_CMD" list 2>/dev/null || true)
         OPEN_COUNT=$(echo "$OPEN_OUTPUT" | grep -c "^○" 2>/dev/null) || OPEN_COUNT=0
-        WAITING_COUNT=$(echo "$OPEN_OUTPUT" | grep -c "^⏳" 2>/dev/null) || WAITING_COUNT=0
+        # ⏳ is a mid-line suffix on waiting items (never line-start),
+        # on outcomes and actions alike — count lines containing it
+        WAITING_COUNT=$(echo "$OPEN_OUTPUT" | grep -c "⏳" 2>/dev/null) || WAITING_COUNT=0
 
         echo "OPEN_COUNT=$OPEN_COUNT"
         echo "WAITING_COUNT=$WAITING_COUNT"

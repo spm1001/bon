@@ -469,7 +469,16 @@ def cmd_done(args):
         error(f"Item '{args.id}' not found")
 
     if item["status"] == "done":
-        print(f"Already done: {item['id']}")
+        # Don't silently discard a note — when another session (or an
+        # earlier command in this chain) already closed the item, the
+        # note is usually the valuable part (bon-civelu oddity 2)
+        note = getattr(args, "note", None)
+        if note and not item.get("done_note"):
+            item["done_note"] = note
+            save_items(items)
+            print(f"Already done: {item['id']} (note attached)")
+        else:
+            print(f"Already done: {item['id']}")
         return
 
     # Mark as done

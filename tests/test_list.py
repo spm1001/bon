@@ -289,3 +289,17 @@ class TestDoneOutcomeWithOpenChildren:
         assert result.returncode == 0
         assert "1 open action(s) remain" in result.stderr
         assert "bon-straggler" in result.stderr
+
+
+class TestWaitingOutcomeDisplay:
+    """bon-civelu: outcomes with waiting_for must render the ⏳ suffix."""
+
+    def test_waiting_outcome_shows_hourglass(self, bon_dir):
+        import json
+        item = {"id": "bon-wout", "type": "outcome", "title": "Waiting outcome",
+                "brief": {"why": "w", "what": "x", "done": "d"}, "status": "open",
+                "waiting_for": ["bon-blocker"], "order": 1,
+                "created_at": "2026-06-10T20:00:00Z", "created_by": "t"}
+        (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+        result = run_bon("list", cwd=bon_dir)
+        assert "⏳ bon-blocker" in result.stdout
