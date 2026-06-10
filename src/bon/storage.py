@@ -297,6 +297,8 @@ def get_creator() -> str:
     if bon_user := os.environ.get("BON_USER"):
         name = bon_user
     elif arc_user := os.environ.get("ARC_USER"):
+        # Deprecated old-codename fallback — remove this branch in v0.30+
+        warn("ARC_USER is deprecated, use BON_USER (will be removed in v0.30+)")
         name = arc_user
 
     # Git user name

@@ -287,3 +287,23 @@ class TestNowIso:
         # Should be parseable
         from datetime import datetime
         datetime.fromisoformat(result.replace("Z", "+00:00"))
+
+
+class TestArcUserDeprecation:
+    def test_arc_user_still_resolves_but_warns(self, monkeypatch, capsys):
+        import bon.storage as storage
+        monkeypatch.setattr(storage, "_creator_cache", None)
+        monkeypatch.delenv("BON_USER", raising=False)
+        monkeypatch.setenv("ARC_USER", "legacy-user")
+        name = storage.get_creator()
+        assert "legacy-user" in name
+        assert "ARC_USER is deprecated" in capsys.readouterr().err
+
+    def test_bon_user_does_not_warn(self, monkeypatch, capsys):
+        import bon.storage as storage
+        monkeypatch.setattr(storage, "_creator_cache", None)
+        monkeypatch.setenv("BON_USER", "current-user")
+        monkeypatch.setenv("ARC_USER", "legacy-user")
+        name = storage.get_creator()
+        assert "current-user" in name
+        assert "deprecated" not in capsys.readouterr().err
