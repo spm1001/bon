@@ -1,8 +1,12 @@
 # /// script
 # requires-python = ">=3.9"
 # ///
-"""Audit survey — recursively scans all .bon/ directories under ~/Repos and
-produces a JSON summary of open items with full briefs and age flags.
+"""Audit survey — recursively scans all .bon/ directories under the scan
+roots and produces a JSON summary of open items with full briefs and age flags.
+
+Default roots: whichever of ~/repos, ~/Repos, ~/notes exist (deduped by
+realpath — on case-insensitive APFS the first two are the same directory).
+REPOS_DIR env var overrides with a single root; --roots overrides both.
 
 Supports both JSONL and Dolt backends. Dolt repos are read via `bon list --jsonl`.
 
@@ -11,6 +15,7 @@ Built for the /audit skill. For human-readable overviews, use bon-survey.py.
 Usage:
     uv run --script audit_survey.py              # JSON to stdout
     uv run --script audit_survey.py --repos trousse passe  # Filter to specific repos
+    uv run --script audit_survey.py --roots ~/repos ~/notes  # Explicit roots
 """
 
 import json
@@ -115,73 +120,120 @@ def item_record(item: dict) -> dict:
     return record
 
 
-def repo_label(repo_path: Path, repos_dir: Path) -> str:
-    """Derive a human-readable repo label relative to ~/Repos."""
+def repo_label(repo_path: Path, root: Path) -> str:
+    """Derive a human-readable repo label relative to its scan root."""
     try:
-        return str(repo_path.relative_to(repos_dir))
+        label = str(repo_path.relative_to(root))
     except ValueError:
         return repo_path.name
+    # A board at the root itself (e.g. ~/notes/.bon) labels as the root's name
+    return root.name if label == "." else label
 
 
-def discover_bon_dirs(repos_dir: Path) -> list[Path]:
-    """Recursively find all .bon/ directories under repos_dir."""
-    return sorted(repos_dir.rglob(".bon"))
+def discover_bon_dirs(root: Path) -> list[Path]:
+    """Recursively find all .bon/ directories under root."""
+    return sorted(root.rglob(".bon"))
 
 
-def survey(repos_dir: Path, repo_filter: list[str] | None = None) -> list[dict]:
-    """Recursively scan repos and return structured audit data."""
+def default_roots() -> list[Path]:
+    """Existing scan roots, deduped by realpath (Mac's ~/Repos == ~/repos)."""
+    candidates = [Path.home() / "repos", Path.home() / "Repos", Path.home() / "notes"]
+    seen, roots = set(), []
+    for c in candidates:
+        if c.is_dir():
+            rp = c.resolve()
+            if rp not in seen:
+                seen.add(rp)
+                roots.append(rp)
+    return roots
+
+
+def survey(roots: list[Path], repo_filter: list[str] | None = None) -> tuple[list[dict], int]:
+    """Scan all roots and return (structured audit data, boards discovered)."""
     results = []
+    seen_dirs: set[Path] = set()
+    boards_found = 0
 
-    for bon_dir in discover_bon_dirs(repos_dir):
-        if not bon_dir.is_dir():
-            continue
-        # Skip nested .bon inside node_modules, .git, etc.
-        parts = bon_dir.parts
-        if any(p.startswith(".") and p != ".bon" for p in parts):
-            continue
-        if "node_modules" in parts:
-            continue
+    for root in roots:
+        for bon_dir in discover_bon_dirs(root):
+            if not bon_dir.is_dir():
+                continue
+            real = bon_dir.resolve()
+            if real in seen_dirs:
+                continue
+            seen_dirs.add(real)
+            # Skip nested .bon inside node_modules, .git, etc.
+            parts = bon_dir.parts
+            if any(p.startswith(".") and p != ".bon" for p in parts):
+                continue
+            if "node_modules" in parts:
+                continue
 
-        repo_path = bon_dir.parent
-        label = repo_label(repo_path, repos_dir)
+            boards_found += 1
+            repo_path = bon_dir.parent
+            label = repo_label(repo_path, root)
 
-        if repo_filter and not any(f in label for f in repo_filter):
-            continue
+            if repo_filter and not any(f in label for f in repo_filter):
+                continue
 
-        items = load_items(bon_dir, repo_path)
-        open_items = [i for i in items if i.get("status") == "open"]
+            items = load_items(bon_dir, repo_path)
+            open_items = [i for i in items if i.get("status") == "open"]
 
-        if not open_items:
-            continue
+            if not open_items:
+                continue
 
-        outcomes = [item_record(i) for i in open_items if i["type"] == "outcome"]
-        actions = [item_record(i) for i in open_items if i["type"] == "action"]
+            outcomes = [item_record(i) for i in open_items if i["type"] == "outcome"]
+            actions = [item_record(i) for i in open_items if i["type"] == "action"]
 
-        results.append({
-            "repo": label,
-            "repo_path": str(repo_path),
-            "open_count": len(open_items),
-            "outcomes": outcomes,
-            "actions": actions,
-        })
+            results.append({
+                "repo": label,
+                "repo_path": str(repo_path),
+                "open_count": len(open_items),
+                "outcomes": outcomes,
+                "actions": actions,
+            })
 
     results.sort(key=lambda r: r["open_count"], reverse=True)
-    return results
+    return results, boards_found
 
 
 def main():
-    repos_dir = Path(os.environ.get("REPOS_DIR", Path.home() / "Repos"))
+    # Root priority: --roots flag > REPOS_DIR env > defaults
+    if "--roots" in sys.argv:
+        idx = sys.argv.index("--roots")
+        vals = []
+        for a in sys.argv[idx + 1:]:
+            if a.startswith("--"):
+                break
+            vals.append(a)
+        roots = [Path(v).expanduser() for v in vals]
+    elif os.environ.get("REPOS_DIR"):
+        roots = [Path(os.environ["REPOS_DIR"])]
+    else:
+        roots = default_roots()
 
     # Parse --repos filter
     repo_filter = None
     if "--repos" in sys.argv:
         idx = sys.argv.index("--repos")
-        repo_filter = sys.argv[idx + 1:]
+        repo_filter = []
+        for a in sys.argv[idx + 1:]:
+            if a.startswith("--"):
+                break
+            repo_filter.append(a)
 
-    results = survey(repos_dir, repo_filter)
+    results, boards_found = survey(roots, repo_filter)
+
+    if boards_found == 0:
+        print(
+            f"Warning: no .bon directories found under: "
+            f"{', '.join(str(r) for r in roots)}",
+            file=sys.stderr,
+        )
 
     total = sum(r["open_count"] for r in results)
     output = {
+        "roots": [str(r) for r in roots],
         "total_open": total,
         "repos_with_open": len(results),
         "repos": results,
