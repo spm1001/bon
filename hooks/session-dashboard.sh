@@ -147,21 +147,66 @@ TURN=$((PREV_TURN + 1))
 # --- Hostname ---
 HOST=$(hostname -s 2>/dev/null || echo "unknown")
 
-# --- Context window size ---
-# Read from the statusline sidecar file, which statusline.sh writes on every
-# render with the real value from CC (handles 200k vs 1M transparently).
-# Walk the process tree to find the CC PID: hook → bash → claude.
-ppid_comm=$(ps -o comm= -p $PPID 2>/dev/null | tr -d ' ')
-if [ "$ppid_comm" = "claude" ]; then
-    cc_pid=$PPID
-else
-    cc_pid=$(ps -o ppid= -p $PPID 2>/dev/null | tr -d ' ')
+# --- Transcript signals: model + real input tokens ---
+# Read before the window calculation — the inference below needs both when
+# the statusline sidecar is missing.
+_reverse() { if command -v tac &>/dev/null; then tac "$1"; else tail -r "$1"; fi; }
+TOTAL_IN=0
+MODEL=""
+if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+    # `|| true` on these pipelines: head -1 exits early, tac/jq then take
+    # SIGPIPE (141) on any transcript bigger than the pipe buffer — under
+    # set -e + pipefail that fires the ERR trap and kills the whole hook.
+    MODEL=$(_reverse "$TRANSCRIPT" \
+        | jq -r 'select(.type == "assistant" and .message.model != null) | .message.model' \
+        2>/dev/null | head -1 || true)
+    USAGE=$(_reverse "$TRANSCRIPT" \
+        | jq -r 'select(.type == "assistant" and .message.usage != null)
+                  | .message.usage
+                  | "\(.input_tokens // 0) \(.cache_creation_input_tokens // 0) \(.cache_read_input_tokens // 0)"' \
+        2>/dev/null \
+        | head -1 || true)
+    if [ -n "$USAGE" ]; then
+        read -r INPUT CACHE_CREATE CACHE_READ <<< "$USAGE"
+        TOTAL_IN=$(( ${INPUT:-0} + ${CACHE_CREATE:-0} + ${CACHE_READ:-0} ))
+    fi
 fi
-CTX_FILE="/tmp/.claude-ctx-${cc_pid:-$$}"
-if [ -f "$CTX_FILE" ]; then
-    MAX_TOKENS=$(cat "$CTX_FILE")
+
+# --- Context window size ---
+# Preferred source: the statusline sidecar (/tmp/.claude-ctx-{pid}), written
+# by statusline.sh on each render with the real value from CC. Find it by
+# probing ancestor PIDs for the file itself rather than matching comm names —
+# daemon-claimed sessions run under a versioned binary name ("2.1.173"),
+# not "claude", so comm matching misses them.
+cc_pid=""
+_cand=$PPID
+for _ in 1 2 3; do
+    if [ -z "$_cand" ] || [ "$_cand" = "1" ]; then break; fi
+    if [ -f "/tmp/.claude-ctx-${_cand}" ]; then cc_pid=$_cand; break; fi
+    _cand=$(ps -o ppid= -p "$_cand" 2>/dev/null | tr -d ' ')
+done
+if [ -n "$cc_pid" ]; then
+    MAX_TOKENS=$(cat "/tmp/.claude-ctx-${cc_pid}")
+elif [ -n "${CLAUDE_CONTEXT_WINDOW:-}" ]; then
+    MAX_TOKENS="$CLAUDE_CONTEXT_WINDOW"
 else
-    MAX_TOKENS="${CLAUDE_CONTEXT_WINDOW:-200000}"
+    # No sidecar — true for every bg session (no statusline render). Infer:
+    # a fable/[1m] model implies a 1M window; real input beyond 200k proves
+    # 1M regardless of model string. On a genuine turn 1 the transcript has
+    # no assistant entry yet, so fall back to the configured default model
+    # (settings.json) — self-corrects from turn 2 via the transcript.
+    # Bare 200k only as last resort.
+    if [ -z "$MODEL" ]; then
+        MODEL=$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
+    fi
+    case "$MODEL" in
+        *fable*|*"[1m]"*) MAX_TOKENS=1000000 ;;
+        *) if [ "$TOTAL_IN" -gt 200000 ] 2>/dev/null; then
+               MAX_TOKENS=1000000
+           else
+               MAX_TOKENS=200000
+           fi ;;
+    esac
 fi
 CURRENT_WINDOW=${MAX_TOKENS:-200000}
 
@@ -172,23 +217,10 @@ CURRENT_WINDOW=${MAX_TOKENS:-200000}
 FREE_PCT=""
 USED_PCT_INT=0
 CTX_PART=""
-if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
-    _reverse() { if command -v tac &>/dev/null; then tac "$1"; else tail -r "$1"; fi; }
-    USAGE=$(_reverse "$TRANSCRIPT" \
-        | jq -r 'select(.type == "assistant" and .message.usage != null)
-                  | .message.usage
-                  | "\(.input_tokens // 0) \(.cache_creation_input_tokens // 0) \(.cache_read_input_tokens // 0)"' \
-        2>/dev/null \
-        | head -1)
-    if [ -n "$USAGE" ]; then
-        read -r INPUT CACHE_CREATE CACHE_READ <<< "$USAGE"
-        TOTAL_IN=$(( INPUT + CACHE_CREATE + CACHE_READ ))
-        if [ "$TOTAL_IN" -gt 0 ] 2>/dev/null; then
-            FREE_PCT=$(awk "BEGIN { printf \"%d\", 100 - ($TOTAL_IN / $MAX_TOKENS * 100) }")
-            USED_PCT_INT=$(awk "BEGIN { printf \"%d\", $TOTAL_IN / $MAX_TOKENS * 100 }")
-            CTX_PART="${FREE_PCT}% free"
-        fi
-    fi
+if [ "$TOTAL_IN" -gt 0 ] 2>/dev/null; then
+    FREE_PCT=$(awk "BEGIN { printf \"%d\", 100 - ($TOTAL_IN / $MAX_TOKENS * 100) }")
+    USED_PCT_INT=$(awk "BEGIN { printf \"%d\", $TOTAL_IN / $MAX_TOKENS * 100 }")
+    CTX_PART="${FREE_PCT}% free"
 fi
 
 # --- Uncommitted files ---
@@ -233,7 +265,7 @@ LAST_TS=""
 if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
     LAST_TS=$(_reverse "$TRANSCRIPT" \
         | jq -r 'select(.type == "assistant") | .timestamp // empty' 2>/dev/null \
-        | head -1)
+        | head -1 || true)
 fi
 
 # --- Compaction detection ---
@@ -355,6 +387,9 @@ if [ "$HOOK_START_NS" -gt 0 ] 2>/dev/null && [ "$HOOK_END_NS" -gt 0 ] 2>/dev/nul
 fi
 
 # Emit — CC injects this as a <system-reminder>
-# Escape quotes and newlines for JSON
+# Escape quotes and newlines for JSON. The payload must nest under
+# hookSpecificOutput (matching bon-tactical.sh) — current CC silently
+# ignores the legacy top-level {"hookEventName": ...} shape, which is
+# how this hook went mute around 2026-06-09 without erroring.
 OUTPUT_ESCAPED=$(echo -e "$OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip())[1:-1])")
-printf '{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}\n' "$OUTPUT_ESCAPED"
+printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}\n' "$OUTPUT_ESCAPED"

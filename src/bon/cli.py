@@ -1225,10 +1225,11 @@ def cmd_step(args):
         if worked:
             last = max(worked, key=lambda i: i.get("updated_at", ""))
             error(
-                f"No steps in progress. Last worked: {last['id']} ({last['title']})\n"
+                f"No steps in progress for this session ({session}).\n"
+                f"Last worked: {last['id']} ({last['title']})\n"
                 f"Run `bon work {last['id']}` to resume"
             )
-        error("No steps in progress. Run `bon work <id>` first")
+        error(f"No steps in progress for this session ({session}). Run `bon work <id>` first")
 
     tactical = active["tactical"]
     current = tactical["current"]

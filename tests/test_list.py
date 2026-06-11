@@ -145,6 +145,15 @@ class TestListNotInitialized:
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
 
+    def test_not_initialized_names_searched_directory(self, tmp_path, monkeypatch):
+        """The error names the cwd the walk-up searched from."""
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("list", cwd=tmp_path)
+
+        assert result.returncode == 1
+        assert str(tmp_path.resolve()) in result.stderr
+
 
 class TestListLimit:
     """Test bon list --limit N truncates to first N top-level items."""

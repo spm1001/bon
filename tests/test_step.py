@@ -118,6 +118,8 @@ class TestStepNoTacticalErrors:
         assert result.returncode == 1
         assert "No steps in progress" in result.stderr
         assert "bon work <id>" in result.stderr
+        # cwd-echo: the error names the session identity it searched as
+        assert str(bon_dir_with_fixture.resolve()) in result.stderr
 
     @pytest.mark.parametrize("bon_dir_with_fixture", ["action_previously_worked"], indirect=True)
     def test_step_suggests_last_worked(self, bon_dir_with_fixture, monkeypatch):

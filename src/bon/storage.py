@@ -368,7 +368,11 @@ def check_initialized() -> None:
     """Check if .bon/ is initialized here or in a parent (up to a .git boundary)."""
     data = _data_dir()
     if not data.is_dir():
-        error("Not initialized. Run `bon init` first.")
+        error(
+            f"Not initialized: no .bon/ found from {data.parent} upward\n"
+            "(the search stops at a .git boundary). Run `bon init` here, or cd\n"
+            "into a directory whose repo has a board."
+        )
     if _looks_like_cloned_board(data):
         error(
             f"{data} has bon knowledge files (handoffs/understanding) but no local\n"

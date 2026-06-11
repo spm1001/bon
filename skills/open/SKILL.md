@@ -238,8 +238,9 @@ bon step --skip "reason"     # Skip current step
 bon step --no-complete       # Final step: don't auto-complete
 bon edit ID --title/--why/--how/--what/--done/--order  # Edit fields
 bon edit ID --how ""         # Clear how field
+bon edit ID --parent NEW     # Move action to another outcome ('none' = standalone)
 bon convert ID               # Action → outcome, or outcome → standalone action
-bon convert ID --outcome P   # Outcome → action under P
+bon convert ID --outcome P   # Outcome → action under P (demote + re-home in one move)
 bon status                   # Overview counts
 ```
 
@@ -284,6 +285,7 @@ All commands support `--json` for output. `bon new` reads JSON from piped stdin 
 | `bon work OUTCOME_ID` | Pick an action | `work` is for actions only |
 | `bon step` (at session start) | `bon show --current` first | Check for active tactical |
 | `bon done ID --resolution "text"` | `bon done ID --note "text"` | `--resolution` doesn't exist |
+| Recreate item under new outcome | `bon edit ID --parent NEW` | Re-parenting is one edit, not a copy-and-close dance |
 
 ### Shell Escaping
 
