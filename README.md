@@ -102,6 +102,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `work ID [STEPS...] [--status\|--clear\|--force]` | Manage tactical steps for an action |
 | `step` | Complete current step, advance to next |
 | `convert ID [--outcome P] [--force]` | Convert outcome↔action |
+| `move ID --to REPO` | Move item to another repo's board (new ID there, source closed with cross-reference) |
 | `archive [IDs...] [--all]` | Move done items to archive.jsonl |
 | `log [-n N]` | Show recent activity (creations, completions, archives) |
 | `reopen ID` | Reopen a completed or archived item |

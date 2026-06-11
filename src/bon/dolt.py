@@ -408,13 +408,13 @@ def _row_to_item(row: dict) -> dict:
 
 # ---------- items operations ----------
 
-def dolt_load_items() -> list[dict]:
-    """Load all items for the current project prefix from Dolt.
+def dolt_load_items(prefix: str | None = None) -> list[dict]:
+    """Load all items for a project prefix from Dolt (default: current repo's).
 
     Deduplicates by ID (same contract as JSONL load_items).
     """
     conn = _get_connection()
-    prefix = _dolt_load_prefix_local()
+    prefix = prefix or _dolt_load_prefix_local()
 
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM items WHERE id LIKE %s", (f"{prefix}-%",))
@@ -438,14 +438,14 @@ def dolt_load_items() -> list[dict]:
     return list(seen.values())
 
 
-def dolt_save_items(items: list[dict]) -> None:
+def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
     """Save items to Dolt with truncate-and-reinsert within a transaction.
 
-    Only touches rows matching the current prefix. Other projects' items
-    are untouched. Produces a Dolt commit.
+    Only touches rows matching the given prefix (default: current repo's).
+    Other projects' items are untouched. Produces a Dolt commit.
     """
     conn = _get_connection()
-    prefix = _dolt_load_prefix_local()
+    prefix = prefix or _dolt_load_prefix_local()
 
     # Deduplicate (same contract as JSONL save_items)
     seen: dict[str, dict] = {}
@@ -494,10 +494,10 @@ def dolt_save_items(items: list[dict]) -> None:
 
 # ---------- archive operations ----------
 
-def dolt_load_archive() -> list[dict]:
-    """Load archived items for the current project prefix from Dolt."""
+def dolt_load_archive(prefix: str | None = None) -> list[dict]:
+    """Load archived items for a project prefix from Dolt (default: current repo's)."""
     conn = _get_connection()
-    prefix = _dolt_load_prefix_local()
+    prefix = prefix or _dolt_load_prefix_local()
 
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM archive WHERE id LIKE %s", (f"{prefix}-%",))

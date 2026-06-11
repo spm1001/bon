@@ -241,6 +241,9 @@ bon edit ID --how ""         # Clear how field
 bon edit ID --parent NEW     # Move action to another outcome ('none' = standalone)
 bon convert ID               # Action → outcome, or outcome → standalone action
 bon convert ID --outcome P   # Outcome → action under P (demote + re-home in one move)
+bon move ID --to REPO        # Move to another repo's board (path or ~/repos name);
+                             # filed where you're cd'd ≠ where it belongs — move is cheap
+
 bon status                   # Overview counts
 ```
 

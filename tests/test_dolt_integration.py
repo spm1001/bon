@@ -312,3 +312,87 @@ class TestWriteAtomicity:
 
         loaded = load_items()
         assert [i["id"] for i in loaded] == [f"{prefix}-aaa"]
+
+
+class TestDoltMove:
+    """Cross-prefix move within the shared Dolt database (bon move)."""
+
+    def test_move_between_dolt_boards(self, tmp_path, monkeypatch):
+        import subprocess
+        import sys
+
+        def make_dolt_board(name):
+            root = tmp_path / name
+            bon = root / ".bon"
+            bon.mkdir(parents=True)
+            (bon / "backend").write_text("dolt")
+            prefix = f"test{uuid.uuid4().hex[:6]}"
+            (bon / "prefix").write_text(prefix)
+            return root, prefix
+
+        src_root, src_prefix = make_dolt_board("source")
+        tgt_root, tgt_prefix = make_dolt_board("target")
+
+        try:
+            # Seed the source board via the library
+            monkeypatch.chdir(src_root)
+            _reset_data_dir()
+            _reset_backend()
+            save_items([{
+                "id": f"{src_prefix}-mova",
+                "type": "action",
+                "title": "Dolt move test",
+                "status": "open",
+                "brief": {"why": "original why", "what": "x", "done": "d"},
+                "parent": None,
+                "order": 1,
+                "created_at": now_iso(),
+                "created_by": "test",
+                "waiting_for": None,
+            }])
+
+            # Move via the real CLI
+            result = subprocess.run(
+                [sys.executable, "-m", "bon.cli", "move",
+                 f"{src_prefix}-mova", "--to", str(tgt_root), "-q"],
+                capture_output=True, text=True, cwd=src_root,
+            )
+            assert result.returncode == 0, f"stderr: {result.stderr}"
+            new_id = result.stdout.strip()
+            assert new_id.startswith(f"{tgt_prefix}-")
+
+            # Target board sees the new item with provenance
+            monkeypatch.chdir(tgt_root)
+            _reset_data_dir()
+            _reset_backend()
+            t_items = load_items()
+            new = next(i for i in t_items if i["id"] == new_id)
+            assert new["title"] == "Dolt move test"
+            assert new["status"] == "open"
+            assert f"[Moved from {src_prefix}-mova" in new["brief"]["why"]
+
+            # Source closed with cross-reference
+            monkeypatch.chdir(src_root)
+            _reset_data_dir()
+            _reset_backend()
+            s_items = load_items()
+            src = next(i for i in s_items if i["id"] == f"{src_prefix}-mova")
+            assert src["status"] == "done"
+            assert src["updated_by"] == "moved"
+            assert src["done_note"].startswith(f"Moved to {new_id}")
+        finally:
+            try:
+                from bon.dolt import _get_connection
+                conn = _get_connection()
+                with conn.cursor() as cur:
+                    for p in (src_prefix, tgt_prefix):
+                        cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{p}-%",))
+                        cur.execute("DELETE FROM archive WHERE id LIKE %s", (f"{p}-%",))
+                    cur.execute("CALL DOLT_ADD('-A')")
+                    cur.execute(
+                        "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
+                        (f"test cleanup move {src_prefix}/{tgt_prefix}", "test <test@localhost>"),
+                    )
+                conn.commit()
+            except Exception:
+                pass  # Best-effort cleanup

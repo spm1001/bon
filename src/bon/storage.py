@@ -12,6 +12,7 @@ from bon.ids import get_siblings
 KNOWN_VERBS = frozenset({
     "edited", "waited", "unwaited", "worked", "stepped",
     "cleared", "archived", "converted", "reopened", "reclaimed",
+    "moved",
 })
 
 
@@ -156,7 +157,11 @@ def load_items() -> list[dict]:
         from bon.dolt import dolt_load_items
         return _normalise_waiting_for(dolt_load_items())
 
-    path = _data_dir() / "items.jsonl"
+    return _load_items_jsonl(_data_dir() / "items.jsonl")
+
+
+def _load_items_jsonl(path: Path) -> list[dict]:
+    """Parse, validate, and dedup a specific items.jsonl file."""
     if not path.exists():
         return []
 
@@ -241,6 +246,11 @@ def save_items(items: list[dict]) -> None:
         from bon.dolt import dolt_save_items
         return dolt_save_items(items)
 
+    _save_items_jsonl(_data_dir() / "items.jsonl", items)
+
+
+def _save_items_jsonl(path: Path, items: list[dict]) -> None:
+    """Dedup and atomically write items to a specific items.jsonl file."""
     seen: dict[str, dict] = {}
     duplicates: set[str] = set()
     for item in items:
@@ -256,7 +266,6 @@ def save_items(items: list[dict]) -> None:
         ids = ", ".join(sorted(duplicates))
         print(f"Warning: Deduplicated IDs on save: {ids}", file=sys.stderr)
 
-    path = _data_dir() / "items.jsonl"
     tmp = path.with_suffix(".tmp")
 
     with open(tmp, "w") as f:
@@ -385,6 +394,62 @@ def check_initialized() -> None:
             "Better still: commit .bon/prefix and .bon/backend in the origin repo;\n"
             "the machine-local part of Dolt config is ~/.config/bon/dolt.toml."
         )
+
+
+# ---------- cross-repo board access (bon move) ----------
+
+def target_board(root: Path) -> dict:
+    """Resolve another repo's board without touching this process's caches.
+
+    Returns {"root", "dir", "prefix", "backend"}. Raises BonError when the
+    target has no initialized board (no .bon/ or no prefix marker).
+    """
+    root = Path(root).expanduser().resolve()
+    bon = root / ".bon"
+    if not bon.is_dir() or not (bon / "prefix").is_file():
+        raise BonError(
+            f"Target not initialized: no .bon/ board with a prefix at {root}.\n"
+            "Run `bon init` there first."
+        )
+    prefix = (bon / "prefix").read_text().strip()
+    backend_file = bon / "backend"
+    backend = backend_file.read_text().strip().lower() if backend_file.is_file() else "jsonl"
+    return {"root": root, "dir": bon, "prefix": prefix, "backend": backend}
+
+
+def load_items_at(board: dict) -> list[dict]:
+    """Load items from another repo's board (both backends)."""
+    if board["backend"] == "dolt":
+        from bon.dolt import dolt_load_items
+        return _normalise_waiting_for(dolt_load_items(prefix=board["prefix"]))
+    return _load_items_jsonl(board["dir"] / "items.jsonl")
+
+
+def save_items_at(board: dict, items: list[dict]) -> None:
+    """Save items to another repo's board (both backends)."""
+    if board["backend"] == "dolt":
+        from bon.dolt import dolt_save_items
+        return dolt_save_items(items, prefix=board["prefix"])
+    _save_items_jsonl(board["dir"] / "items.jsonl", items)
+
+
+def archive_ids_at(board: dict) -> set[str]:
+    """Archived item IDs in another repo's board, for unique-ID generation."""
+    if board["backend"] == "dolt":
+        from bon.dolt import dolt_load_archive
+        return {i["id"] for i in dolt_load_archive(prefix=board["prefix"]) if i.get("id")}
+    ids: set[str] = set()
+    path = board["dir"] / "archive.jsonl"
+    if path.exists():
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ids.add(json.loads(line)["id"])
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+    return ids
 
 
 def apply_reorder(items: list[dict], edited: dict, old_order: int, new_order: int):

@@ -14,10 +14,13 @@ from bon.storage import (
     KNOWN_VERBS,
     BonError,
     ValidationError,
+    _data_dir,
     _get_backend,
+    _tactical_is_active,
     append_archive,
     apply_reorder,
     apply_reparent,
+    archive_ids_at,
     check_initialized,
     error,
     find_active_tactical,
@@ -30,10 +33,13 @@ from bon.storage import (
     items_path,
     load_archive,
     load_items,
+    load_items_at,
     load_prefix,
     now_iso,
     remove_from_archive,
     save_items,
+    save_items_at,
+    target_board,
     validate_item,
     validate_tactical,
     warn,
@@ -835,6 +841,123 @@ def cmd_convert(args):
     item["updated_by"] = "converted"
     save_items(items)
     print(f"Converted {item['id']} to {item['type']}")
+
+
+def _resolve_target_repo(to: str) -> Path:
+    """Resolve `--to`: a path (absolute, relative, or ~) or a bare repo name.
+
+    Bare names resolve under ~/repos/*/NAME (the owner-bucket layout);
+    anything containing a slash, or starting with ~ or ., is taken as a path.
+    """
+    if "/" in to or to.startswith(("~", ".")):
+        p = Path(to).expanduser().resolve()
+        if not p.is_dir():
+            error(f"Target path does not exist: {p}")
+        return p
+    matches = sorted(d for d in Path.home().glob(f"repos/*/{to}") if d.is_dir())
+    if not matches:
+        error(f"No repo named '{to}' under ~/repos/*/ — pass a path instead")
+    if len(matches) > 1:
+        listing = "\n  ".join(str(m) for m in matches)
+        error(f"Ambiguous repo name '{to}':\n  {listing}\nPass the full path.")
+    return matches[0]
+
+
+def cmd_move(args):
+    """Move an item to another repo's board: new ID there, source closed with a cross-reference."""
+    check_initialized()
+    items = load_items()
+    prefix = load_prefix()
+
+    item = find_by_id(items, args.id, prefix)
+    if not item:
+        error(f"Item '{args.id}' not found")
+    if item["status"] == "done":
+        error(f"{item['id']} is already done — nothing to move")
+
+    children = [i for i in items if i.get("parent") == item["id"]]
+    if children:
+        error(
+            f"{item['id']} has {len(children)} child item(s) — moving it would strand them here.\n"
+            "Move or close the children first (or `bon convert` them to standalone)."
+        )
+
+    target_root = _resolve_target_repo(args.to)
+    board = target_board(target_root)
+    source_dir = _data_dir()
+    if board["dir"] == Path(source_dir):
+        error("Target is this repo — nothing to move")
+
+    t_items = load_items_at(board)
+    existing = {i["id"] for i in t_items} | archive_ids_at(board)
+    new_id = generate_unique_id(board["prefix"], existing)
+
+    # Provenance rides in the brief (visible wherever the item is read);
+    # the source's done_note carries the forward link.
+    source_name = Path(source_dir).parent.name
+    provenance = [f"Moved from {item['id']} ({source_name})"]
+    if item.get("parent"):
+        parent_item = find_by_id(items, item["parent"], prefix)
+        parent_desc = f" '{parent_item['title']}'" if parent_item else ""
+        provenance.append(f"was under {item['parent']}{parent_desc}")
+        warn(f"Parent {item['parent']} stays here — {new_id} files as standalone in the target")
+    blockers = item.get("waiting_for") or []
+    if blockers:
+        provenance.append(f"was waiting for {', '.join(blockers)}")
+        warn(f"Blocker link(s) {', '.join(blockers)} dropped — waits don't cross repos")
+    if _tactical_is_active(item):
+        warn("Tactical progress is not carried over")
+
+    brief = dict(item.get("brief") or {})
+    brief["why"] = ((brief.get("why") or "").rstrip() + f"\n[{'; '.join(provenance)}]").strip()
+
+    new_item = {
+        "id": new_id,
+        "type": item["type"],
+        "title": item["title"],
+        "brief": brief,
+        "status": "open",
+        "order": next_order(t_items, item["type"], None),
+        "created_at": now_iso(),
+        "created_by": get_creator(),
+    }
+    if item["type"] == "action":
+        new_item["parent"] = None
+        new_item["waiting_for"] = None
+
+    # Target first: if the source close then fails, the item exists in both
+    # places with the source still open — recoverable, nothing lost.
+    t_items.append(new_item)
+    save_items_at(board, t_items)
+
+    item["status"] = "done"
+    item["done_at"] = now_iso()
+    item["done_note"] = f"Moved to {new_id} ({board['root']})"
+    item["updated_at"] = now_iso()
+    item["updated_by"] = "moved"
+    item.pop("tactical", None)
+
+    # Unblock waiters (same cascade as cmd_done) — but the work moved rather
+    # than finished, so name each one for a manual re-link decision.
+    unblocked = []
+    for other in items:
+        other_blockers = other.get("waiting_for") or []
+        if item["id"] in other_blockers:
+            other_blockers = [b for b in other_blockers if b != item["id"]]
+            other["waiting_for"] = other_blockers if other_blockers else None
+            if not other["waiting_for"]:
+                other.pop("wait_note", None)
+                unblocked.append(other["id"])
+    save_items(items)
+
+    if getattr(args, "quiet", False):
+        print(new_id)
+        return
+    print(f"Moved: {item['id']} → {new_id}")
+    print(f"Target: {board['root']} (prefix '{board['prefix']}')")
+    print(f"Source closed: {item['done_note']}")
+    if unblocked:
+        print(f"Unblocked here: {', '.join(unblocked)} — re-link manually if they still depend on the moved work")
 
 
 def cmd_archive(args):
@@ -1646,6 +1769,14 @@ def main():
     convert_parser.add_argument("--force", "-f", action="store_true",
                                 help="Allow converting outcome with children (makes them standalone)")
     convert_parser.set_defaults(func=cmd_convert)
+
+    # move
+    move_parser = subparsers.add_parser("move", help="Move an item to another repo's board")
+    move_parser.add_argument("id", help="Item ID to move")
+    move_parser.add_argument("--to", required=True, metavar="REPO",
+                             help="Target repo: a path, or a bare repo name resolved under ~/repos/*/")
+    move_parser.add_argument("--quiet", "-q", action="store_true", help="Print only the new ID")
+    move_parser.set_defaults(func=cmd_move)
 
     # archive
     archive_parser = subparsers.add_parser("archive", help="Archive done items")
