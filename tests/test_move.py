@@ -82,6 +82,8 @@ class TestMoveRoundTrip:
 
         assert result.returncode == 0, f"stderr: {result.stderr}"
         assert "Moved: src-mova → tgt-" in result.stdout
+        # JSONL targets aren't auto-committed — the move must say so
+        assert "commit" in result.stderr
 
         moved = [i for i in read_items(target).values() if i["id"].startswith("tgt-")]
         assert len(moved) == 1

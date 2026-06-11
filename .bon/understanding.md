@@ -1,6 +1,6 @@
 # Bon — Understanding
 
-Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. ~2,300 lines of core source plus a 470-line optional Dolt module. 478 tests. Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
+Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. ~2,850 lines of core source plus a 600-line optional Dolt module. 503 tests (10 opt-in Dolt integration). Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
 
 ## The data model
 
@@ -35,7 +35,7 @@ Every command follows the same pattern: `check_initialized()` → `load_items()`
 
 ## Storage backends
 
-**Dolt is the universal backend.** As of April 2026, all 20 repos share a single Dolt database on hezza. JSONL support remains in the code (and `bon migrate --to jsonl` works for rollback), but no repo uses it in production. Every `.bon/` directory has a `backend` file containing "dolt".
+**Dolt is the majority backend, not the universal one.** The April 2026 migration moved the then-existing repos to a single shared Dolt database on hezza (~19 boards carry `backend=dolt`), but boards created since then default to JSONL and stay there — a 2026-06-11 sweep found 12+ implicit-JSONL boards including active ones (cornichon, ~/notes, carnet, dragram, bestiary, piano, several itv/ repos). Code paths, scripts, and new verbs must treat both backends as live production. A `.bon/` with no `backend` file is JSONL. Cross-repo writes to JSONL boards (e.g. `bon move`) leave the target repo's items.jsonl uncommitted — the CLI warns about this.
 
 **How Dolt works:** MySQL-compatible database with git semantics. Items scoped by prefix — all projects share one database, filtered by `id LIKE prefix-%`. Each write produces a Dolt commit. Requires `pymysql` (`pip install bon[dolt]`). Connection via env vars or `~/.config/bon/dolt.toml`.
 

@@ -929,6 +929,11 @@ def cmd_move(args):
     # places with the source still open — recoverable, nothing lost.
     t_items.append(new_item)
     save_items_at(board, t_items)
+    if board["backend"] != "dolt":
+        warn(
+            f"Target board is JSONL — commit {board['dir'] / 'items.jsonl'} "
+            "in the target repo, or the move only exists on this machine"
+        )
 
     item["status"] = "done"
     item["done_at"] = now_iso()
