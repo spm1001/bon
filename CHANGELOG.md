@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.25.1] - 2026-06-11
+
+### Fixed
+- Packaging: top-level `scripts/` (close-context.sh, open-context.sh, bon-read.sh) now ships in the marketplace package again. The batterie assembler's lean copy-list dropped it at the 2026-06-10 cutover, so `/close` couldn't find close-context.sh and the session-start hook silently skipped open-context.sh (fail-open `[ -x ]` + `|| true`). Fix is in batterie's assemble.sh; this bump propagates it.
+
 ## [0.23.1] - 2026-06-09
 
 ### Fixed
