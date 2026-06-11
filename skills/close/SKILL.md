@@ -52,6 +52,24 @@ If the script isn't found, diagnose with `find ~/.claude/plugins/cache -name "cl
 
 The script outputs TIME, GIT, BON, LOCATION context, plus two values you'll need in Act: **HANDOFF_DIR** and **SESSION_ID**.
 
+### Board health: outcomes with no actions
+
+Outcomes created mid-session often haven't been broken down yet — a long
+mind-sweep session once produced six of them, each a title with no path to
+done. Spot them while you still have the context to break them down:
+
+```bash
+bon list --json | python3 -c "
+import json, sys
+for o in json.load(sys.stdin)['outcomes']:
+    if o['status'] == 'open' and not o['actions']:
+        print(o['id'], '—', o['title'])
+"
+```
+
+Carry anything that surfaces into the Reflect proposal: break it down now,
+file a first action, or confirm it's intentionally still a sketch.
+
 Before continuing, check where you are: compare `pwd -P` with the Working directory in your system prompt. If they differ, `cd` back. If the session started in a folder called 'scratch' or 'chat' but the work belongs elsewhere, note the target repo — you'll route the handoff there in Act.
 
 If CWD has no `.git/` directory but contains code files (`.py`, `.ts`, etc.), suggest: "This directory has code but isn't a repo — `/scaffold` can wrap proper structure around it (adopt mode)." Don't auto-invoke; just surface the option.
@@ -65,6 +83,7 @@ This is the heart of /close. You're reviewing the session — what to finish now
 1. **What did we miss?** — Things we should have done but didn't: docs we should have updated, decisions we should have documented, tests we should have written, assumptions we should have verified
 2. **What could we have done better?** — Better can be many things, but for us it's about being more elegant, more maintainable, more robust, more consistent and yes, more creative.
 3. **What could go wrong in future?** — Race conditions, silent failures, fragile dependencies, implicit knowledge not written down, non-obvious relationships between files
+4. **Did the ground move under the cold-start docs?** — If this session changed architecture, substrate, constraints, or a tool's command surface, CLAUDE.md was written for the world before the change. Working sessions live in understanding.md and rarely re-read CLAUDE.md, so it drifts most at exactly these boundaries. Sweep the whole file (opening description, tables, counts, anti-patterns) against current reality. A mid-session "I updated CLAUDE.md" is usually a partial fix — the paragraph you touched is right while a table three sections down still describes the old world; trust the sweep, not the memory of the edit.
 
 These questions work best when answered with genuine honesty — what you actually noticed, not what sounds thorough. Share your knowledge.
 
@@ -129,6 +148,8 @@ Propose these to the user:
 >
 > **Bons to file for next:** [list of future work with an explanation of what's at stake]
 >
+> **Empty outcomes:** [only when Orient flagged any — per outcome: break down now, file a first action, or confirm it's intentionally a sketch]
+>
 > **Insight to capture for the future:** [one dense paragraph to contribute]
 >
 > What do you think?"
@@ -179,16 +200,25 @@ format: fond-v1
 [What worked, what didn't, process observations.
 Include anything the user added or emphasised during review.]
 
+### Uncertain
+- [Optional — hypotheses you couldn't verify, questions still open.
+Risks are known dangers; this is honest doubt. Omit when empty.]
+
 ### Risks
 - [What could go wrong with what we did, what could they trip up on?]
 
 ### Opportunities
-- [Directions for next session, what's the next piece of the puzzle? Include bon IDs where relevant]
+- [Directions for next session, what's the next piece of the puzzle? Include bon IDs where relevant.
+This list IS the baton — the next session's hook surfaces it as "Suggested".
+Don't write a separate Suggested section; that duplication is format drift.]
 
 ## For Claudes to come
 
 [Knowledge that transcends the next session, written to stand alone.
-This is what /open synthesizes into understanding.md 
+This is what /open synthesizes into understanding.md — repo, craft, and
+architecture knowledge belongs here. Knowledge about Claude's own functional
+patterns or working conditions routes to self.md directly instead of through
+the handoff; if a lesson is genuinely both, split it rather than double-filing.
 The test: would future Claudes benefit from knowing this?
 If nothing qualifies, omit this section — filler dilutes understanding.md over time.]
 ```
