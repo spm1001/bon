@@ -189,6 +189,7 @@ bon migrate --to jsonl                     # Back to JSONL
 | Change storage format | `storage.py` |
 | Dolt backend logic | `dolt.py` |
 | Update Claude integration | `skills/open/SKILL.md` |
+| Docket/rite boundary (probe, query surface, ownership) | `docs/CONTRACT.md` |
 | Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
 | Test bon-read.sh | `tests/test_bon_read.py` |
 
