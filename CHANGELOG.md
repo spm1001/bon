@@ -2,8 +2,26 @@
 
 ## [0.26.3] - 2026-06-17
 
+### Changed
+- CLAUDE.md Key Files table now points at `docs/CONTRACT.md` (the docket/rite boundary). This one-line edit rode in with the 0.26.2 work but without its own version bump, so it tripped the batterie assembler's content ratchet and blocked the **entire marketplace publish** from ~06-13 until this bump cleared it. (The Cowork web-service docs added under `docs/` in the same window — GUI mock + research note — are **not** vendored by the assembler's copy-list, so despite appearances they were never the drift.)
+
+## [0.26.2] - 2026-06-11
+
+### Fixed
+- `bon move` to a JSONL-backed target board now warns when the move leaves the target repo's board uncommitted. Documentation counts trued up.
+
+## [0.26.1] - 2026-06-11
+
 ### Added
-- `docs/`: Cowork session deliverables for the web-service roadmap — a single-file HTML GUI mock and the cited web-service research note (connector reachability, auth posture, transport). Vendored content; this bump satisfies the batterie assembler's version ratchet, which had been blocking the whole marketplace publish since ~06-13.
+- `/close` gains an empty-outcome check and a CLAUDE.md-drift question; fond-v1 handoff spec tightened (bon-capibo, bon-hofati, bon-solifa).
+
+## [0.26.0] - 2026-06-11
+
+### Added
+- `bon move` verb — relocate an item to another repo's board (cross-repo re-homing).
+
+### Fixed
+- Three field reports: cwd-echo error messages, `edit --parent` documentation, and dashboard window inference.
 
 ## [0.25.1] - 2026-06-11
 
