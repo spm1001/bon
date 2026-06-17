@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.26.3] - 2026-06-17
+
+### Added
+- `docs/`: Cowork session deliverables for the web-service roadmap — a single-file HTML GUI mock and the cited web-service research note (connector reachability, auth posture, transport). Vendored content; this bump satisfies the batterie assembler's version ratchet, which had been blocking the whole marketplace publish since ~06-13.
+
 ## [0.25.1] - 2026-06-11
 
 ### Fixed
