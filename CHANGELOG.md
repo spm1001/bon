@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.26.4] - 2026-06-17
+
+### Fixed
+- `ensure-bon.sh` auto-update is now diagnosable **and** actually applies plugin.json-only bumps (bon-babuse). Three changes: (1) installs use `--no-cache` — without it, a bump touching only `plugin.json`/CLAUDE.md leaves `src/` byte-identical (bon's version is dynamic from plugin.json), so uv silently reuses the cached build and the version never moves; `uv cache clean bon` does **not** clear that build. (2) install stderr is captured to `~/.cache/bon/auto-update.log`. (3) both failure branches now point to that log and print the manual `--no-cache` recovery command. CLAUDE.md's stale-install gotcha recipe corrected to match. The lock-resilience half of babuse's brief was deliberately deferred — its premise was unverified, and the captured log now makes a genuine lock failure self-revealing.
+
 ## [0.26.3] - 2026-06-17
 
 ### Changed

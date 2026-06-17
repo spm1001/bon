@@ -6,6 +6,10 @@ export PATH="$HOME/.local/bin:$PATH"
 FIXED=""
 ISSUES=""
 
+# Capture auto-update output so failures are diagnosable, not silent (bon-babuse).
+UPDATE_LOG="$HOME/.cache/bon/auto-update.log"
+mkdir -p "$(dirname "$UPDATE_LOG")" 2>/dev/null
+
 # --- Instruction shard ---
 # Symlink into ~/.claude/rules/ so always-on rules load every session.
 # Idempotent — ln -sf overwrites stale symlinks from old plugin versions.
@@ -25,10 +29,10 @@ fi
 
 # Check 1: CLI missing → auto-install
 if ! command -v bon &>/dev/null; then
-    if uv tool install "$INSTALL_SRC" --force --reinstall >/dev/null 2>&1; then
+    if uv tool install "$INSTALL_SRC" --force --reinstall --no-cache >"$UPDATE_LOG" 2>&1; then
         FIXED="${FIXED}• bon CLI installed\n"
     else
-        ISSUES="${ISSUES}• bon CLI not found and auto-install failed. Run manually:\n\n  uv tool install \"$INSTALL_SRC\"\n"
+        ISSUES="${ISSUES}• bon CLI not found and auto-install failed (full error: ${UPDATE_LOG}). Run manually:\n\n  uv tool install \"$INSTALL_SRC\" --force --reinstall --no-cache\n"
     fi
 fi
 
@@ -40,10 +44,10 @@ if [ -z "$ISSUES" ] && command -v bon &>/dev/null; then
         if [ -n "$INSTALLED" ] && [ -n "$EXPECTED" ] && [ "$INSTALLED" != "$EXPECTED" ]; then
             CLI_BEHIND=$(python3 -c "print(tuple(int(x) for x in '$INSTALLED'.split('.')) < tuple(int(x) for x in '$EXPECTED'.split('.')))" 2>/dev/null || true)
             if [ "$CLI_BEHIND" = "True" ]; then
-                if uv tool install "$INSTALL_SRC" --force --reinstall >/dev/null 2>&1; then
+                if uv tool install "$INSTALL_SRC" --force --reinstall --no-cache >"$UPDATE_LOG" 2>&1; then
                     FIXED="${FIXED}• bon CLI updated: v${INSTALLED} → v${EXPECTED}\n"
                 else
-                    ISSUES="${ISSUES}• bon CLI is v${INSTALLED} but plugin is v${EXPECTED}. Auto-update failed.\n"
+                    ISSUES="${ISSUES}• bon CLI is v${INSTALLED} but plugin is v${EXPECTED}. Auto-update failed (full error: ${UPDATE_LOG}). Run manually:\n\n  uv tool install \"$INSTALL_SRC\" --force --reinstall --no-cache\n"
                 fi
             fi
         fi
