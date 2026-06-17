@@ -1,4 +1,6 @@
 """Tests for bon show command."""
+import json
+
 import pytest
 from conftest import run_bon
 
@@ -132,3 +134,39 @@ class TestShowPrefixTolerant:
 
         assert result.returncode == 0
         assert "User auth" in result.stdout
+
+
+class TestShowJsonUpdatedAt:
+    """updated_at is non-null in --json even for never-edited items (bon-jejuge)."""
+
+    def test_never_edited_item_reports_updated_at_equal_created_at(self, bon_dir):
+        new = run_bon(
+            "new", "Fresh outcome",
+            "--why", "w", "--what", "x", "--done", "d", "-q",
+            cwd=bon_dir,
+        )
+        item_id = new.stdout.strip()
+
+        result = run_bon("show", item_id, "--json", cwd=bon_dir)
+
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["created_at"], "created_at must be set on creation"
+        assert data["updated_at"] == data["created_at"], (
+            "a never-edited item must report updated_at == created_at, not null"
+        )
+
+    def test_edited_item_keeps_its_real_updated_at(self, bon_dir):
+        new = run_bon(
+            "new", "Fresh outcome",
+            "--why", "w", "--what", "x", "--done", "d", "-q",
+            cwd=bon_dir,
+        )
+        item_id = new.stdout.strip()
+        run_bon("edit", item_id, "--title", "Edited title", cwd=bon_dir)
+
+        result = run_bon("show", item_id, "--json", cwd=bon_dir)
+
+        data = json.loads(result.stdout)
+        # The edit stamps a fresh updated_at; normalization must not clobber it.
+        assert data["updated_at"] >= data["created_at"]

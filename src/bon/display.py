@@ -11,18 +11,24 @@ OPTIONAL_BRIEF_FIELDS = {"how": None}
 
 
 def _normalize_brief(item: dict) -> dict:
-    """Return a copy of item with optional brief fields guaranteed present.
+    """Return a copy of item with optional fields guaranteed present for JSON.
 
     Used at the JSON output boundary so consumers get a consistent shape
-    without polluting stored data with nulls.
+    without polluting stored data with nulls:
+    - optional brief fields (how) default to None
+    - updated_at defaults to created_at for never-edited items, so consumers
+      can recency-sort / date-slice without a None guard (bon-jejuge). bon only
+      stamps updated_at on the first edit; computing the default on read fixes
+      every item — new and existing — without a stored-data backfill.
     """
-    if "brief" not in item:
-        return item
     item = dict(item)
-    item["brief"] = dict(item["brief"])
-    for field, default in OPTIONAL_BRIEF_FIELDS.items():
-        if field not in item["brief"]:
-            item["brief"][field] = default
+    if not item.get("updated_at") and item.get("created_at"):
+        item["updated_at"] = item["created_at"]
+    if "brief" in item:
+        item["brief"] = dict(item["brief"])
+        for field, default in OPTIONAL_BRIEF_FIELDS.items():
+            if field not in item["brief"]:
+                item["brief"][field] = default
     return item
 
 

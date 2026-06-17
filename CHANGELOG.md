@@ -4,6 +4,7 @@
 
 ### Fixed
 - `ensure-bon.sh` auto-update is now diagnosable **and** actually applies plugin.json-only bumps (bon-babuse). Three changes: (1) installs use `--no-cache` — without it, a bump touching only `plugin.json`/CLAUDE.md leaves `src/` byte-identical (bon's version is dynamic from plugin.json), so uv silently reuses the cached build and the version never moves; `uv cache clean bon` does **not** clear that build. (2) install stderr is captured to `~/.cache/bon/auto-update.log`. (3) both failure branches now point to that log and print the manual `--no-cache` recovery command. CLAUDE.md's stale-install gotcha recipe corrected to match. The lock-resilience half of babuse's brief was deliberately deferred — its premise was unverified, and the captured log now makes a genuine lock failure self-revealing.
+- `bon list --json` / `bon show --json` / `--jsonl` now return a non-null `updated_at` for never-edited items, defaulted to `created_at` (bon-jejuge). bon only stamps `updated_at` on first edit; the default is computed at the JSON output boundary (`_normalize_brief`), so every item — new and existing — is covered with no stored-data backfill and no change to human `bon show` output. Consumers can recency-sort / date-slice without a None guard. (Raw `items.jsonl` readers that bypass the CLI are unaffected and should guard or use the CLI.)
 
 ## [0.26.3] - 2026-06-17
 
