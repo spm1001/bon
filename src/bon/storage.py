@@ -72,6 +72,30 @@ def _looks_like_cloned_board(bon: Path) -> bool:
     return (bon / "handoffs").is_dir() or (bon / "understanding.md").is_file()
 
 
+def _derive_prefix_from_items(items_file: Path) -> str | None:
+    """Best-effort board prefix from item IDs (the token before the first '-').
+
+    A board's items all share its prefix, so the first parseable id suffices.
+    Returns None when the file is unreadable or has no usable id.
+    """
+    try:
+        with items_file.open() as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                item_id = item.get("id", "")
+                if "-" in item_id:
+                    return item_id.split("-", 1)[0]
+    except OSError:
+        return None
+    return None
+
+
 def _data_dir() -> Path:
     """Return the data directory as an absolute path.
 
@@ -383,11 +407,28 @@ def check_initialized() -> None:
             "into a directory whose repo has a board."
         )
     if _looks_like_cloned_board(data):
+        items_file = data / "items.jsonl"
+        if items_file.is_file():
+            # A live items.jsonl with no prefix marker is a JSONL board whose
+            # marker was lost — NOT a clone, NOT a Dolt board. The data is right
+            # here; restore the marker. Do not reconnect to Dolt: that would flip
+            # a live JSONL board and orphan this file (bon-zageme).
+            derived = _derive_prefix_from_items(items_file)
+            prefix_hint = derived or "<prefix>"
+            error(
+                f"{data} has a live items.jsonl but no .bon/prefix marker.\n"
+                "This is a JSONL board whose prefix marker was lost — the data is\n"
+                "right here, not in Dolt. Restore the marker (non-destructive —\n"
+                f"completes the marker, touches nothing else) from {data.parent}:\n"
+                f"  bon init --prefix {prefix_hint}\n"
+                "(prefix derived from the item IDs in items.jsonl). Then commit\n"
+                ".bon/prefix in the origin repo so it can't go missing again."
+            )
         error(
-            f"{data} has bon knowledge files (handoffs/understanding) but no local\n"
-            "state markers (.bon/prefix, .bon/backend) — this looks like a fresh clone\n"
-            "of a repo that gitignores them. The board data is safe; it lives in the\n"
-            "Dolt server (or the origin's items.jsonl), not here. Reconnect from\n"
+            f"{data} has bon knowledge files (handoffs/understanding) and no\n"
+            "items.jsonl or .bon/prefix marker — this looks like a fresh clone of a\n"
+            "repo that gitignores its markers. The board data is safe; it lives in\n"
+            "the Dolt server (or the origin's items.jsonl), not here. Reconnect from\n"
             f"{data.parent} with:\n"
             "  bon init --prefix <prefix> --backend dolt\n"
             "(non-destructive — completes the missing markers, touches nothing else).\n"

@@ -166,3 +166,20 @@ class TestClonedBoardDetection:
         result = run_bon("init", "--prefix", "y", cwd=tmp_path)
         assert result.returncode != 0
         assert "already exists" in result.stderr
+
+    def test_jsonl_present_missing_prefix_suggests_restore_not_dolt(self, tmp_path):
+        # bon-zageme: a JSONL board that merely lost its prefix marker must NOT
+        # be told to reconnect to Dolt — following that would flip a live board
+        # and orphan its items.jsonl. (The jsonl-absent variant — genuine fresh
+        # clone, Dolt advice correct — is locked by test_cloned_shape_fails_loudly.)
+        self._make_cloned_shape(tmp_path)
+        line = '{"id":"plg-aaa","type":"outcome","title":"T","brief":{"why":"w","what":"x","done":"d"},"status":"open","order":1,"created_at":"2026-06-10T20:00:00Z","created_by":"t"}\n'
+        (tmp_path / ".bon" / "items.jsonl").write_text(line)
+        result = run_bon("list", cwd=tmp_path)
+        assert result.returncode != 0
+        # Correct advice: restore the prefix marker with the prefix derived from IDs
+        assert "bon init --prefix plg" in result.stderr
+        assert "items.jsonl" in result.stderr
+        # Must NOT give the Dolt-reconnect / fresh-clone advice
+        assert "--backend dolt" not in result.stderr
+        assert "fresh clone" not in result.stderr
