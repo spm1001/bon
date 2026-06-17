@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>bon · docket — GUI face mock</title>
+<style>
+  /* ---------- tokens ---------- */
+  :root {
+    --bg: #faf9f5;
+    --panel: #ffffff;
+    --ink: #211f1a;
+    --muted: #8b857a;
+    --faint: #b5afa3;
+    --line: #e9e5db;
+    --ready: #2f6f4f;
+    --ready-bg: #eef5f0;
+    --wait: #a8842f;
+    --wait-bg: #faf4e6;
+    --done: #9aa39b;
+    --flash: #fff3c4;
+    --sheet-shadow: 0 -8px 40px rgba(40,35,20,.18);
+    --o1: #4a6fa5; --o2: #2f6f4f; --o3: #8a5a83; --oX: #8b857a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #191813; --panel: #211f1a; --ink: #ece8df; --muted: #968f81;
+      --faint: #6b6557; --line: #322f27; --ready: #7fbf9c; --ready-bg: #20302a;
+      --wait: #d4b066; --wait-bg: #322b1c; --done: #6b7268; --flash: #4a4120;
+      --o1: #7d9cc4; --o2: #7fbf9c; --o3: #b687ae; --oX: #968f81;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 90px;
+  }
+  button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; padding: 0; }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 30; background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 14px 0;
+  }
+  .masthead { display: flex; align-items: baseline; gap: 10px; max-width: 680px; margin: 0 auto; }
+  .masthead h1 { font-size: 17px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
+  .masthead h1 span { color: var(--muted); font-weight: 400; }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-left: auto; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ready); animation: pulse 2.2s infinite; }
+  .dot.paused { background: var(--wait); animation: none; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+
+  .tabs { display: flex; gap: 2px; max-width: 680px; margin: 8px auto 0; }
+  .tabs button {
+    padding: 7px 14px 9px; font-size: 13.5px; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
+  .tabs .hint { margin-left: auto; align-self: center; font-size: 11.5px; color: var(--faint); padding-right: 4px; }
+
+  /* ---------- ticker ---------- */
+  .ticker {
+    max-width: 680px; margin: 0 auto; padding: 7px 14px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--muted); cursor: pointer;
+  }
+  .ticker .verb { font-weight: 600; color: var(--ink); }
+  .ticker .when { margin-left: auto; flex-shrink: 0; color: var(--faint); }
+  .tickerwrap { border-bottom: 1px solid var(--line); background: var(--panel); }
+  .eventlog { max-width: 680px; margin: 0 auto; padding: 2px 14px 10px; display: none; }
+  .eventlog.open { display: block; }
+  .eventlog div { font-size: 12px; color: var(--muted); padding: 3px 0; border-top: 1px dotted var(--line); }
+  .eventlog div b { color: var(--ink); font-weight: 600; }
+  .feedctl { font-size: 11.5px; color: var(--faint); text-decoration: underline; margin-right: 10px; }
+
+  /* ---------- board shell ---------- */
+  main { max-width: 680px; margin: 0 auto; padding: 10px 14px 30px; }
+
+  .quickadd { display: flex; gap: 8px; margin: 6px 0 16px; }
+  .quickadd input {
+    flex: 1; font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; outline: none;
+  }
+  .quickadd input::placeholder { color: var(--faint); }
+  .quickadd input:focus { border-color: var(--muted); }
+  .quickadd button {
+    padding: 8px 14px; border-radius: 8px; background: var(--ink); color: var(--bg);
+    font-size: 13.5px; font-weight: 600;
+  }
+
+  /* ---------- variant A: ledger ---------- */
+  .ogroup { margin-bottom: 22px; }
+  .ohead { display: flex; align-items: baseline; gap: 8px; cursor: pointer; padding: 4px 0; }
+  .ohead .chev { color: var(--faint); font-size: 11px; width: 12px; transition: transform .15s; display: inline-block; }
+  .ogroup.closed .chev { transform: rotate(-90deg); }
+  .ohead h2 { font-size: 15px; font-weight: 650; margin: 0; flex: 1; letter-spacing: -.01em; }
+  .ohead h2:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+  .ohead .tally { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .obar { height: 3px; border-radius: 2px; background: var(--line); margin: 4px 0 6px 20px; overflow: hidden; }
+  .obar i { display: block; height: 100%; border-radius: 2px; transition: width .6s ease; }
+  .ogroup.closed .obar, .ogroup.closed .arows { display: none; }
+
+  .arow {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 7px 2px 7px 20px; border-radius: 8px;
+  }
+  .arow:hover { background: var(--panel); }
+  .arow .title { flex: 1; cursor: pointer; }
+  .arow .title:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+  .arow.done .title { color: var(--done); text-decoration: line-through; text-decoration-color: var(--line); }
+  .arow.done .title:hover { text-decoration: line-through underline; }
+  .arow .id { font-size: 11px; color: var(--faint); font-family: ui-monospace, "SF Mono", Menlo, monospace; padding-top: 3px; white-space: nowrap; }
+  .arow .meta { font-size: 11.5px; margin-top: 1px; }
+  .arow .meta.wait { color: var(--wait); }
+  .arow .meta.steps { color: var(--muted); }
+
+  .tick {
+    width: 19px; height: 19px; border-radius: 6px; border: 1.5px solid var(--faint);
+    flex-shrink: 0; margin-top: 2px; position: relative; transition: all .15s;
+  }
+  .tick:hover { border-color: var(--ready); background: var(--ready-bg); }
+  .arow.ready .tick { border-color: var(--ready); }
+  .arow.waiting .tick { border-style: dashed; opacity: .55; }
+  .arow.done .tick { background: var(--done); border-color: var(--done); }
+  .arow.done .tick::after { content: "✓"; position: absolute; inset: 0; color: var(--bg); font-size: 13px; line-height: 19px; text-align: center; }
+
+  .standalone-h { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin: 26px 0 4px; }
+
+  /* ---------- variant B: lanes ---------- */
+  .lanes { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 0 12px; }
+  .lane { min-width: 250px; width: 250px; flex-shrink: 0; scroll-snap-align: start; }
+  .lane h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px 2px; display: flex; gap: 6px; align-items: baseline; }
+  .lane h3 .n { color: var(--faint); font-weight: 400; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+  }
+  .card:hover { border-color: var(--muted); }
+  .card .chip { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .03em; padding: 1px 7px; border-radius: 99px; margin-bottom: 6px; color: var(--bg); }
+  .card .t { line-height: 1.35; }
+  .card.done .t { color: var(--done); text-decoration: line-through; text-decoration-color: var(--line); }
+  .card .why { font-size: 12px; color: var(--muted); margin-top: 5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .foot { display: flex; align-items: center; margin-top: 8px; gap: 8px; }
+  .card .foot .id { font-size: 10.5px; color: var(--faint); font-family: ui-monospace, Menlo, monospace; }
+  .card .foot .meta { font-size: 11px; color: var(--wait); }
+  .card .doneb { margin-left: auto; font-size: 11.5px; color: var(--ready); font-weight: 600; opacity: 0; transition: opacity .12s; }
+  .card:hover .doneb { opacity: 1; }
+
+  /* ---------- variant C: focus ---------- */
+  .focus-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 14px;
+  }
+  .focus-card .o { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+  .focus-card .o .swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; align-self: center; }
+  .focus-card .o .tally { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--faint); }
+  .focus-card .next { display: flex; gap: 12px; align-items: flex-start; margin-top: 10px; }
+  .focus-card .next .t { flex: 1; font-size: 16.5px; font-weight: 600; letter-spacing: -.01em; line-height: 1.3; cursor: pointer; }
+  .focus-card .next .t:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+  .focus-card .nada { margin-top: 10px; font-size: 13.5px; color: var(--wait); }
+  .focus-card .nada.alldone { color: var(--done); }
+  .bigtick {
+    width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid var(--ready);
+    flex-shrink: 0; transition: all .15s;
+  }
+  .bigtick:hover { background: var(--ready-bg); }
+
+  /* ---------- drill-in ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(25,22,15,.35); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; z-index: 50; background: var(--panel);
+    left: 0; right: 0; bottom: 0; max-height: 88vh; border-radius: 18px 18px 0 0;
+    box-shadow: var(--sheet-shadow);
+    transform: translateY(105%); transition: transform .25s cubic-bezier(.3,.9,.3,1);
+    overflow-y: auto; padding: 10px 22px 40px;
+  }
+  .sheet.open { transform: translateY(0); }
+  @media (min-width: 720px) {
+    .sheet {
+      left: auto; top: 0; bottom: 0; width: 420px; max-height: none;
+      border-radius: 0; transform: translateX(105%);
+      border-left: 1px solid var(--line); box-shadow: -10px 0 40px rgba(40,35,20,.12);
+    }
+    .sheet.open { transform: translateX(0); }
+  }
+  .grab { width: 36px; height: 4px; border-radius: 2px; background: var(--line); margin: 4px auto 14px; }
+  @media (min-width: 720px) { .grab { display: none; } }
+  .sheet .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); display: flex; align-items: center; gap: 8px; }
+  .sheet .kind .id { font-family: ui-monospace, Menlo, monospace; text-transform: none; letter-spacing: 0; }
+  .sheet .kind .x { margin-left: auto; font-size: 20px; color: var(--faint); line-height: 1; padding: 4px; }
+  .sheet h2 { font-size: 21px; line-height: 1.25; letter-spacing: -.015em; margin: 10px 0 2px; font-weight: 650; }
+  .sheet .crumb { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+  .sheet .crumb b { cursor: pointer; }
+
+  .brief { margin-top: 18px; }
+  .brief .why {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 17.5px; line-height: 1.5; color: var(--ink);
+  }
+  .brief .how { margin-top: 14px; font-size: 14px; color: var(--muted); line-height: 1.55; }
+  .brief .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--faint); margin: 18px 0 4px; }
+  .brief ol { margin: 4px 0 0; padding-left: 22px; }
+  .brief ol li { margin-bottom: 5px; }
+  .brief ol li.struck { color: var(--done); text-decoration: line-through; text-decoration-color: var(--line); }
+  .brief ol li.now { font-weight: 600; }
+  .brief ol li.now::after { content: " ←"; color: var(--ready); }
+  .brief .donebox {
+    margin-top: 18px; padding: 12px 14px; border-radius: 10px;
+    background: var(--ready-bg); border: 1px solid color-mix(in srgb, var(--ready) 25%, transparent);
+    font-size: 14px; line-height: 1.5;
+  }
+  .brief .donebox .label { margin: 0 0 4px; color: var(--ready); }
+  [data-edit] { border-radius: 6px; padding: 2px 4px; margin: -2px -4px; cursor: text; }
+  [data-edit]:hover { background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
+  [data-edit]:focus { outline: none; background: var(--bg); box-shadow: 0 0 0 1.5px var(--muted); }
+  .editnote { font-size: 11px; color: var(--faint); margin-top: 22px; }
+
+  .sheet .wait-banner { margin-top: 14px; font-size: 13px; color: var(--wait); background: var(--wait-bg); border-radius: 8px; padding: 9px 12px; }
+  .sheet .wait-banner b { cursor: pointer; }
+
+  .doneform { margin-top: 24px; border-top: 1px solid var(--line); padding-top: 16px; }
+  .doneform input {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; outline: none; margin-bottom: 10px;
+  }
+  .doneform input::placeholder { color: var(--faint); }
+  .doneform .commit {
+    width: 100%; padding: 10px; border-radius: 9px; background: var(--ready); color: #fff;
+    font-weight: 650; font-size: 14.5px;
+  }
+  .doneform .commit:disabled { background: var(--line); color: var(--faint); cursor: default; }
+  .doneform .already { text-align: center; color: var(--done); font-size: 14px; padding: 6px; }
+
+  /* ---------- toasts & flashes ---------- */
+  #toasts { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: center; width: max-content; max-width: 92vw; }
+  .toast {
+    background: var(--ink); color: var(--bg); font-size: 13px; padding: 9px 16px;
+    border-radius: 99px; box-shadow: 0 4px 18px rgba(0,0,0,.25);
+    animation: toastin .25s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 92vw;
+  }
+  @keyframes toastin { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+  .flashbg { animation: flashbg 1.8s ease; }
+  @keyframes flashbg { 0% { background: var(--flash) } 100% { background: transparent } }
+
+  .footer-note { max-width: 680px; margin: 30px auto 0; padding: 0 14px; font-size: 11.5px; color: var(--faint); line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="masthead">
+    <h1>bon <span>· docket</span></h1>
+    <div class="live"><span class="dot" id="livedot"></span><span id="livelabel">live</span></div>
+  </div>
+  <nav class="tabs">
+    <button data-v="ledger" class="on">Ledger</button>
+    <button data-v="lanes">Lanes</button>
+    <button data-v="focus">Focus</button>
+    <span class="hint">three sketches, same docket</span>
+  </nav>
+</header>
+
+<div class="tickerwrap">
+  <div class="ticker" id="ticker" title="tap for event log">
+    <span class="dot" style="width:6px;height:6px"></span>
+    <span id="tickertext">connected to docket feed — replaying from last-event-id…</span>
+    <span class="when" id="tickerwhen"></span>
+  </div>
+  <div class="eventlog" id="eventlog">
+    <div style="border:none;padding-bottom:6px">
+      <button class="feedctl" id="pausebtn">pause feed</button>
+      <button class="feedctl" id="replaybtn">replay demo</button>
+    </div>
+  </div>
+</div>
+
+<main id="board"></main>
+
+<p class="footer-note">
+  Mock only — nothing persists, the “feed” is scripted. Steer verbs exposed: <b>done</b> (with note),
+  <b>new</b> (quick-add), <b>edit</b> (tap any brief field in the drill-in). Everything else is read.
+  The GUI face is contractually barred from verbs the MCP doesn’t have.
+</p>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   Fake docket — shapes match `list --json`:
+   {outcomes:[{...,actions:[...]}], standalone:[...]}
+   ========================================================= */
+const DOCKET = {
+  outcomes: [
+    {
+      id: "bon-welogi", type: "outcome", status: "open", parent: null, order: 1,
+      title: "The board answers from anywhere: contract verbs served over a web MCP",
+      brief: {
+        why: "The shared board is invisible or read-only from every surface except Claude Code. Each vehicle re-derives state from files, and Sameer can’t steer from his phone. The docket should answer wherever the question is asked.",
+        how: "One writer, one change feed; SSE push for the human face, pull for agents. Funnel for reachability, OAuth for the door.",
+        what: "1. Settle scoping 2. Stand up MCP 3. Auth 4. Cut Cowork over 5. Verify from two surfaces",
+        done: "A non-CC surface reads and writes the board through the MCP using only contract verbs."
+      },
+      actions: [
+        { id: "bon-tasvel", type: "action", status: "open", parent: "bon-welogi", order: 1,
+          title: "Connector scoping settled: funnel vs proxy decision recorded",
+          brief: {
+            why: "Anthropic’s cloud must reach the docket; hezza is tailnet-private. The bridge choice shapes the auth design, so it gets decided first and written down.",
+            what: "1. Confirm connector terms against current docs 2. Pick funnel or proxy 3. Record in understanding.md",
+            done: "A dated decision note names the bridge and the auth posture it implies." } },
+        { id: "bon-kifroda", type: "action", status: "open", parent: "bon-welogi", order: 2,
+          waiting_for: ["bon-tasvel"],
+          title: "MCP face stands: contract verbs served over streamable HTTP",
+          brief: {
+            why: "Agents are pull-native; they read fresh state at each tool call. The MCP face is just the contract verbs with a network in front.",
+            how: "FastMCP, one process, /mcp endpoint; custom routes reserved for the GUI face.",
+            what: "1. list & show 2. new, done, edit 3. Inspector run green",
+            done: "MCP Inspector lists the edge-tier verbs and a round-trip new→done works." } },
+        { id: "bon-mizfra", type: "action", status: "open", parent: "bon-welogi", order: 3,
+          waiting_for: ["bon-kifroda"],
+          title: "Auth chosen and wired: the door has a lock Claude can open",
+          brief: {
+            why: "Authless over funnel means anyone who finds the URL can write to the board. Real briefs need OAuth; the connector terms decide which flavour.",
+            what: "1. DCR provider in 2. Connect from claude.ai 3. Revoke & reconnect drill",
+            done: "claude.ai completes the OAuth dance and an unauthenticated curl gets 401." } },
+        { id: "bon-parvu", type: "action", status: "open", parent: "bon-welogi", order: 4,
+          waiting_for: ["bon-mizfra"],
+          title: "Cowork reads the board through the connector",
+          brief: {
+            why: "Cowork is the operational surface; the day it stops shelling out and starts speaking verbs, the split has paid for itself.",
+            what: "1. Add custom connector 2. bon:open against MCP 3. Mint one ticket from Cowork",
+            done: "A ticket minted from a Cowork session appears in a CC session without a git pull." } }
+      ]
+    },
+    {
+      id: "bon-sorhet", type: "outcome", status: "open", parent: null, order: 2,
+      title: "A human window that updates itself: the GUI face earns trust",
+      brief: {
+        why: "A stale GUI is an untrusted GUI. If Sameer has to refresh to believe it, he’ll stop looking, and the board stops being shared truth.",
+        how: "Same verbs as the MCP face, plus an SSE change feed. The GUI may never grow a verb the MCP lacks.",
+        what: "1. Board view 2. SSE feed with replay 3. Brief drill-in 4. Phone pass",
+        done: "Two windows open side by side; a mutation in one appears in the other without a refresh."
+      },
+      actions: [
+        { id: "bon-lumen", type: "action", status: "open", parent: "bon-sorhet", order: 1,
+          title: "Board renders the hierarchy in one glance",
+          tactical: { steps: ["Outcome groups with tallies", "Ready/waiting/done states legible", "Standalone section"], current: 1 },
+          brief: {
+            why: "The board is read a hundred times for every write. Scannability is the product.",
+            what: "1. Groups & tallies 2. State styling 3. Standalone strip",
+            done: "A stranger can say what’s ready without being taught the legend." } },
+        { id: "bon-drosse", type: "action", status: "open", parent: "bon-sorhet", order: 2,
+          waiting_for: ["bon-lumen"],
+          title: "SSE feed pushes changes, replays cleanly after a drop",
+          brief: {
+            why: "Phones sleep and trains have tunnels. Last-event-id replay is what makes liveness honest rather than lucky.",
+            how: "Monotonic ids on the change feed; EventSource reconnects and replays the gap.",
+            what: "1. id-stamped events 2. Replay query 3. Kill-the-server test",
+            done: "Kill the connection mid-session; on reconnect the board catches up with no refresh." } },
+        { id: "bon-quill", type: "action", status: "open", parent: "bon-sorhet", order: 3,
+          title: "The brief reads beautifully on a phone",
+          brief: {
+            why: "The brief is the soul of bon. If why/how/what/done renders like a form, the GUI teaches people to skip it.",
+            what: "1. Typographic pass 2. Drill-in on 380px 3. Edit-in-place that doesn’t fight thumbs",
+            done: "Reading a brief on the phone feels like reading, not like inspecting JSON." } }
+      ]
+    },
+    {
+      id: "bon-ferlan", type: "outcome", status: "open", parent: null, order: 3,
+      title: "Knowledge files stay files: the ownership rule holds under load",
+      brief: {
+        why: "Tickets are service-state; handoffs and understanding docs are plain files. The boundary is only real if it survives the first deploy that tempts us to blur it.",
+        what: "1. Round-trip handoffs 2. Verify understanding.md untouched 3. Write the rule into the contract tests",
+        done: "A service deploy and a docket migration both complete with knowledge files byte-identical."
+      },
+      actions: [
+        { id: "bon-okapi", type: "action", status: "open", parent: "bon-ferlan", order: 1,
+          title: "Handoffs round-trip untouched through a service deploy",
+          brief: {
+            why: "The first casualty of a new service is usually some file it decided it owned. Prove the handoffs aren’t service-state before anything ships.",
+            what: "1. Checksum handoffs 2. Deploy + migrate 3. Checksum again",
+            done: "Checksums identical before and after; the test lives in CI." } },
+        { id: "bon-vetch", type: "action", status: "open", parent: "bon-ferlan", order: 2,
+          waiting_for: ["bon-okapi"],
+          title: "Understanding docs verified plain-file after cutover",
+          brief: {
+            why: "understanding.md is the frame future Claudes inherit. It must remain greppable, diffable, and boring.",
+            what: "1. Cutover 2. grep/diff drill from a fresh clone",
+            done: "A fresh clone reads understanding.md with no service running." } }
+      ]
+    }
+  ],
+  standalone: [
+    { id: "bon-pliers", type: "action", status: "open", parent: null, order: 1,
+      title: "Mandoline codebook for the Q2 tracker ingested clean",
+      brief: {
+        why: "The survey dump has opaque columns (S1, Q4r3) and the analysis season starts Monday. Self-documenting tables or bust.",
+        what: "1. Codebook in 2. Enrich descriptions 3. Profile the table",
+        done: "Every column in BQ carries a human description; profile shows no orphan codes." } },
+    { id: "bon-anseau", type: "action", status: "open", parent: null, order: 2,
+      title: "Garde-manger surfaces the hezza docket session on demand",
+      brief: {
+        why: "The docket/rite split was decided in one rich session. If memory can’t find it, the next Claude relitigates it.",
+        what: "1. Index the session 2. Search drill: ‘two faces’ finds it",
+        done: "Searching ‘two faces’ returns the hezza session in the top three hits." } }
+  ]
+};
+
+/* ---------- palette per outcome ---------- */
+const HUES = { "bon-welogi": "var(--o1)", "bon-sorhet": "var(--o2)", "bon-ferlan": "var(--o3)", _: "var(--oX)" };
+const hue = id => HUES[id] || HUES._;
+
+/* =========================================================
+   State helpers
+   ========================================================= */
+let variant = "ledger";
+const collapsed = new Set();
+let openItemId = null;
+
+function allItems() {
+  const out = [];
+  for (const o of DOCKET.outcomes) { out.push(o); for (const a of o.actions) out.push(a); }
+  for (const s of DOCKET.standalone) out.push(s);
+  return out;
+}
+function byId(id) { return allItems().find(i => i.id === id); }
+function isReady(a) {
+  if (a.status !== "open") return false;
+  if (!a.waiting_for || !a.waiting_for.length) return true;
+  return a.waiting_for.every(w => { const b = byId(w); return !b || b.status === "done"; });
+}
+function stateOf(a) { return a.status === "done" ? "done" : (isReady(a) ? "ready" : "waiting"); }
+function blockerNames(a) { return (a.waiting_for || []).filter(w => { const b = byId(w); return b && b.status !== "done"; }); }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function parseWhat(w) {
+  if (!w) return [];
+  const parts = w.split(/\s*\d+\.\s+/).filter(Boolean);
+  return parts.length > 1 ? parts : [w];
+}
+
+/* =========================================================
+   Rendering
+   ========================================================= */
+const board = document.getElementById("board");
+
+function render() {
+  const fns = { ledger: renderLedger, lanes: renderLanes, focus: renderFocus };
+  board.innerHTML = quickAddHtml() + fns[variant]();
+  wireBoard();
+}
+
+function quickAddHtml() {
+  return `<div class="quickadd">
+    <input id="qa" placeholder="Quick-add a standalone action… (title, then enter)" autocomplete="off">
+    <button id="qabtn">new</button>
+  </div>`;
+}
+
+/* ----- A: Ledger ----- */
+function renderLedger() {
+  let h = "";
+  for (const o of DOCKET.outcomes) {
+    const total = o.actions.length, doneN = o.actions.filter(a => a.status === "done").length;
+    const cls = collapsed.has(o.id) ? "ogroup closed" : "ogroup";
+    h += `<section class="${cls}" data-group="${o.id}">
+      <div class="ohead" data-collapse="${o.id}">
+        <span class="chev">▾</span>
+        <h2 data-open="${o.id}">${esc(o.title)}</h2>
+        <span class="tally">${doneN}/${total}</span>
+      </div>
+      <div class="obar"><i style="width:${total ? (100 * doneN / total) : 0}%;background:${hue(o.id)}"></i></div>
+      <div class="arows">${o.actions.map(rowHtml).join("")}</div>
+    </section>`;
+  }
+  h += `<div class="standalone-h">Standalone</div>` + DOCKET.standalone.map(rowHtml).join("");
+  return h;
+}
+function rowHtml(a) {
+  const st = stateOf(a);
+  let meta = "";
+  if (st === "waiting") meta = `<div class="meta wait">waiting for ${blockerNames(a).map(esc).join(", ")}</div>`;
+  else if (a.tactical) meta = `<div class="meta steps">step ${a.tactical.current + 1}/${a.tactical.steps.length}: ${esc(a.tactical.steps[a.tactical.current])}</div>`;
+  return `<div class="arow ${st}" data-row="${a.id}">
+    <button class="tick" data-done="${a.id}" title="${st === "done" ? "done" : "mark done"}"></button>
+    <div class="title" data-open="${a.id}">${esc(a.title)}${meta}</div>
+    <span class="id">${a.id.slice(4)}</span>
+  </div>`;
+}
+
+/* ----- B: Lanes ----- */
+function renderLanes() {
+  const acts = allItems().filter(i => i.type === "action");
+  const lanes = [
+    ["Ready", acts.filter(a => stateOf(a) === "ready")],
+    ["Waiting", acts.filter(a => stateOf(a) === "waiting")],
+    ["Done", acts.filter(a => stateOf(a) === "done")]
+  ];
+  return `<div class="lanes">` + lanes.map(([name, items]) => `
+    <div class="lane"><h3>${name} <span class="n">${items.length}</span></h3>
+      ${items.map(cardHtml).join("") || `<div style="color:var(--faint);font-size:12.5px;padding:6px 2px">nothing here</div>`}
+    </div>`).join("") + `</div>`;
+}
+function cardHtml(a) {
+  const st = stateOf(a);
+  const parent = a.parent ? byId(a.parent) : null;
+  const chipTxt = parent ? parent.title.split(":")[0] : "standalone";
+  let meta = st === "waiting" ? `<span class="meta">⏳ ${blockerNames(a).map(esc).join(", ")}</span>` : "";
+  return `<div class="card ${st}" data-row="${a.id}" data-open="${a.id}">
+    <span class="chip" style="background:${hue(a.parent || "_")}">${esc(chipTxt)}</span>
+    <div class="t">${esc(a.title)}</div>
+    <div class="why">${esc(a.brief.why || "")}</div>
+    <div class="foot"><span class="id">${a.id.slice(4)}</span>${meta}
+      ${st === "ready" ? `<button class="doneb" data-done="${a.id}">done ✓</button>` : ""}</div>
+  </div>`;
+}
+
+/* ----- C: Focus ----- */
+function renderFocus() {
+  let h = "";
+  for (const o of DOCKET.outcomes) {
+    const total = o.actions.length, doneN = o.actions.filter(a => a.status === "done").length;
+    const next = o.actions.find(a => stateOf(a) === "ready");
+    const allDone = doneN === total;
+    h += `<div class="focus-card">
+      <div class="o" data-open="${o.id}">
+        <span class="swatch" style="background:${hue(o.id)}"></span>
+        ${esc(o.title)}
+        <span class="tally">${doneN}/${total}</span>
+      </div>
+      ${next
+        ? `<div class="next">
+             <button class="bigtick" data-done="${next.id}" title="mark done"></button>
+             <div class="t" data-open="${next.id}">${esc(next.title)}</div>
+           </div>`
+        : (allDone
+          ? `<div class="nada alldone">all actions done — is the outcome achieved?</div>`
+          : `<div class="nada">nothing ready — waiting on ${esc((o.actions.filter(a=>stateOf(a)==="waiting").map(a=>blockerNames(a)).flat())[0] || "…")}</div>`)}
+    </div>`;
+  }
+  const readySolo = DOCKET.standalone.filter(a => stateOf(a) === "ready");
+  if (readySolo.length) {
+    h += `<div class="standalone-h">Standalone, ready</div>`;
+    h += readySolo.map(a => `<div class="focus-card"><div class="next" style="margin-top:0">
+        <button class="bigtick" data-done="${a.id}"></button>
+        <div class="t" data-open="${a.id}">${esc(a.title)}</div></div></div>`).join("");
+  }
+  return h;
+}
+
+/* =========================================================
+   Drill-in sheet
+   ========================================================= */
+const sheet = document.getElementById("sheet");
+const scrim = document.getElementById("scrim");
+
+function openSheet(id) {
+  openItemId = id;
+  renderSheet();
+  sheet.classList.add("open"); scrim.classList.add("open");
+}
+function closeSheet() {
+  openItemId = null;
+  sheet.classList.remove("open"); scrim.classList.remove("open");
+}
+scrim.addEventListener("click", closeSheet);
+
+function renderSheet() {
+  const it = byId(openItemId);
+  if (!it) { closeSheet(); return; }
+  const st = it.type === "action" ? stateOf(it) : it.status;
+  const parent = it.parent ? byId(it.parent) : null;
+  const b = it.brief || {};
+  const steps = parseWhat(b.what);
+
+  let tacticalHtml = "";
+  if (it.tactical) {
+    tacticalHtml = `<div class="label">Steps (tactical)</div><ol>` +
+      it.tactical.steps.map((s, i) =>
+        `<li class="${i < it.tactical.current ? "struck" : (i === it.tactical.current ? "now" : "")}">${esc(s)}</li>`).join("") + `</ol>`;
+  }
+
+  sheet.innerHTML = `
+    <div class="grab"></div>
+    <div class="kind">
+      <span>${it.type}${st !== "open" ? " · " + st : ""}</span>
+      <span class="id">${it.id}</span>
+      <button class="x" id="sheetclose" title="close">×</button>
+    </div>
+    ${parent ? `<div class="crumb">part of <b data-open="${parent.id}" style="color:${hue(parent.id)}">${esc(parent.title)}</b></div>` : ""}
+    <h2 data-edit="title" contenteditable="false">${esc(it.title)}</h2>
+    ${st === "waiting" ? `<div class="wait-banner">Waiting for ${blockerNames(it).map(w => `<b data-open="${w}">${esc(w)}</b>`).join(", ")} — done is disabled until it clears.</div>` : ""}
+    <div class="brief">
+      <div class="why" data-edit="why">${esc(b.why || "—")}</div>
+      ${b.how ? `<div class="label">How</div><div class="how" data-edit="how">${esc(b.how)}</div>` : ""}
+      ${steps.length ? `<div class="label">What</div><ol>${steps.map(s => `<li>${esc(s.trim())}</li>`).join("")}</ol>` : ""}
+      ${tacticalHtml}
+      ${b.done ? `<div class="donebox"><div class="label">Done means</div><span data-edit="done">${esc(b.done)}</span></div>` : ""}
+    </div>
+    ${it.type === "action" ? `
+      <div class="doneform">
+        ${st === "done"
+          ? `<div class="already">✓ closed</div>`
+          : `<input id="donenote" placeholder="Optional note — lands on the change feed" autocomplete="off">
+             <button class="commit" id="commitdone" ${st === "waiting" ? "disabled" : ""}>
+               ${st === "waiting" ? "blocked — clear the wait first" : "Done ✓"}</button>`}
+      </div>` : ""}
+    <div class="editnote">Tap any brief field to edit in place — saves on blur as <code>edit ${it.id}</code>.</div>
+  `;
+
+  sheet.querySelector("#sheetclose").addEventListener("click", closeSheet);
+  sheet.querySelectorAll("[data-open]").forEach(el =>
+    el.addEventListener("click", e => { e.stopPropagation(); openSheet(el.dataset.open); }));
+  const commit = sheet.querySelector("#commitdone");
+  if (commit) commit.addEventListener("click", () => {
+    const note = sheet.querySelector("#donenote").value.trim();
+    markDone(it.id, "you", note);
+    renderSheet();
+  });
+
+  // edit-in-place
+  sheet.querySelectorAll("[data-edit]").forEach(el => {
+    el.addEventListener("click", () => {
+      if (el.isContentEditable) return;
+      el.contentEditable = "plaintext-only" in document.body ? "plaintext-only" : "true";
+      el.focus();
+      document.execCommand && document.execCommand("selectAll", false, null);
+      window.getSelection().collapseToEnd();
+    });
+    el.addEventListener("blur", () => {
+      if (!el.isContentEditable) return;
+      el.contentEditable = "false";
+      const field = el.dataset.edit, val = el.textContent.trim();
+      if (field === "title") { if (val && val !== it.title) { it.title = val; toast(`edit ${it.id} — title amended`); render(); } }
+      else if (it.brief && val !== it.brief[field]) { it.brief[field] = val; toast(`edit ${it.id} — ${field} amended`); }
+    });
+    el.addEventListener("keydown", e => { if (e.key === "Enter" && el.dataset.edit === "title") { e.preventDefault(); el.blur(); } });
+  });
+}
+
+/* =========================================================
+   Verbs (mock mutations — all feed-shaped)
+   ========================================================= */
+function markDone(id, actor, note) {
+  const it = byId(id);
+  if (!it || it.status === "done") return;
+  if (it.type === "action" && !isReady(it)) { toast(`${id} is waiting — clear the blocker first`); return; }
+  const unblocked = allItems().filter(a => a.waiting_for?.includes(id) && stateOf(a) === "waiting");
+  it.status = "done";
+  feedEvent({ verb: "done", item: id, actor, note });
+  render(); flashRow(id);
+  const nowReady = unblocked.filter(a => stateOf(a) === "ready");
+  nowReady.forEach(a => { flashRow(a.id); feedEvent({ verb: "ready", item: a.id, actor: "docket", quiet: true }); });
+  if (openItemId === id) renderSheet();
+}
+
+let mintCount = 0;
+function quickAdd(title) {
+  const id = "bon-new" + (++mintCount);
+  DOCKET.standalone.push({ id, type: "action", status: "open", parent: null,
+    order: DOCKET.standalone.length + 1, brief: { why: "Minted from the GUI — brief to be filled in.", what: "", done: "" }, title });
+  feedEvent({ verb: "new", item: id, actor: "you" });
+  render(); flashRow(id);
+}
+
+/* =========================================================
+   The fake SSE feed — the feel-question
+   ========================================================= */
+const EVENTS = [];
+let paused = false, demoTimers = [], demoStep = 0;
+
+const VERB_GLYPH = { done: "✓", new: "+", edit: "✎", step: "→", ready: "◌" };
+function feedEvent(ev) {
+  ev.ts = new Date(); ev.id = EVENTS.length + 1;
+  EVENTS.push(ev);
+  const who = ev.actor === "you" ? "you" : ev.actor;
+  let text;
+  if (ev.verb === "done") text = `<span class="verb">${who}</span> closed <span class="verb">${ev.item}</span> ✓${ev.note ? " — “" + esc(ev.note) + "”" : ""}`;
+  else if (ev.verb === "new") text = `<span class="verb">${who}</span> minted <span class="verb">${ev.item}</span>`;
+  else if (ev.verb === "edit") text = `<span class="verb">${who}</span> amended the ${ev.field} on <span class="verb">${ev.item}</span> ✎`;
+  else if (ev.verb === "step") text = `<span class="verb">${who}</span> advanced a step on <span class="verb">${ev.item}</span> →`;
+  else if (ev.verb === "ready") text = `<span class="verb">${ev.item}</span> became ready ◌`;
+  document.getElementById("tickertext").innerHTML = text;
+  document.getElementById("tickerwhen").textContent = "just now";
+  if (!ev.quiet && ev.actor !== "you") toast(stripTags(text));
+  logEvent(text, ev.ts);
+}
+function stripTags(h) { const d = document.createElement("div"); d.innerHTML = h; return d.textContent; }
+function logEvent(html, ts) {
+  const log = document.getElementById("eventlog");
+  const row = document.createElement("div");
+  row.innerHTML = `${html} <span style="color:var(--faint)">· ${ts.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>`;
+  log.insertBefore(row, log.children[1] || null);
+}
+
+/* scripted remote actors */
+const DEMO = [
+  [6000, () => { remoteDone("bon-okapi", "clever-gallant-wright", "round-trip test green on hezza"); }],
+  [14000, () => { remoteEdit("bon-kifroda", "how", "FastMCP, one process; MCP at /mcp, GUI routes as siblings. Inspector before Claude."); }],
+  [22000, () => { remoteMint("bon-tindel", "bon-welogi", "Connector registered in Sameer’s claude.ai",
+      { why: "The terms allow it; now prove it end-to-end with a real account.", what: "1. Add connector 2. OAuth dance 3. First list call", done: "claude.ai shows the docket’s tools in the connector list." }); }],
+  [30000, () => { remoteStep("bon-lumen", "clever-gallant-wright"); }],
+  [40000, () => { remoteDone("bon-pliers", "gueridon", "codebook ingested, 0 orphan codes"); }],
+  [50000, () => { document.getElementById("tickertext").innerHTML = "feed idle — this is the whole demo; <u>replay</u> in the event log"; }]
+];
+function remoteDone(id, actor, note) { markDone(id, actor, note); }
+function remoteEdit(id, field, val) {
+  const it = byId(id); if (!it) return;
+  it.brief[field] = val;
+  feedEvent({ verb: "edit", item: id, actor: "hezza-cc", field });
+  if (openItemId === id) renderSheet(); else flashRow(id);
+}
+function remoteMint(id, parentId, title, brief) {
+  const parent = byId(parentId); if (!parent) return;
+  parent.actions.push({ id, type: "action", status: "open", parent: parentId, order: parent.actions.length + 1, title, brief });
+  feedEvent({ verb: "new", item: id, actor: "aboyeur" });
+  render(); flashRow(id);
+}
+function remoteStep(id, actor) {
+  const it = byId(id); if (!it || !it.tactical) return;
+  if (it.tactical.current < it.tactical.steps.length - 1) it.tactical.current++;
+  feedEvent({ verb: "step", item: id, actor });
+  render(); flashRow(id);
+  if (openItemId === id) renderSheet();
+}
+
+function startDemo() {
+  stopDemo();
+  demoTimers = DEMO.map(([t, fn]) => setTimeout(() => { if (!paused) fn(); }, t));
+}
+function stopDemo() { demoTimers.forEach(clearTimeout); demoTimers = []; }
+
+/* =========================================================
+   UI plumbing
+   ========================================================= */
+function flashRow(id) {
+  requestAnimationFrame(() => {
+    const el = document.querySelector(`[data-row="${id}"]`);
+    if (el) { el.classList.remove("flashbg"); void el.offsetWidth; el.classList.add("flashbg"); }
+  });
+}
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.getElementById("toasts").appendChild(t);
+  setTimeout(() => { t.style.transition = "opacity .4s"; t.style.opacity = "0"; setTimeout(() => t.remove(), 450); }, 3400);
+}
+
+function wireBoard() {
+  board.querySelectorAll("[data-open]").forEach(el =>
+    el.addEventListener("click", e => { e.stopPropagation(); openSheet(el.dataset.open); }));
+  board.querySelectorAll("[data-done]").forEach(el =>
+    el.addEventListener("click", e => {
+      e.stopPropagation();
+      const id = el.dataset.done, it = byId(id);
+      if (it.status === "done") { toast(`${id} is already closed`); return; }
+      if (!isReady(it)) { openSheet(id); return; }
+      openSheet(id); // done always routes through drill-in so the note is offered
+      setTimeout(() => sheet.querySelector("#donenote")?.focus(), 300);
+    }));
+  board.querySelectorAll("[data-collapse]").forEach(el =>
+    el.addEventListener("click", e => {
+      if (e.target.closest("[data-open]")) return;
+      const id = el.dataset.collapse;
+      collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
+      render();
+    }));
+  const qa = document.getElementById("qa");
+  const submit = () => { const v = qa.value.trim(); if (v) { quickAdd(v); qa.value = ""; } };
+  qa.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+  document.getElementById("qabtn").addEventListener("click", submit);
+}
+
+document.querySelectorAll(".tabs button").forEach(b =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on"); variant = b.dataset.v; render();
+  }));
+
+document.getElementById("ticker").addEventListener("click", () =>
+  document.getElementById("eventlog").classList.toggle("open"));
+document.getElementById("pausebtn").addEventListener("click", e => {
+  e.stopPropagation();
+  paused = !paused;
+  document.getElementById("livedot").classList.toggle("paused", paused);
+  document.getElementById("livelabel").textContent = paused ? "paused" : "live";
+  e.target.textContent = paused ? "resume feed" : "pause feed";
+});
+document.getElementById("replaybtn").addEventListener("click", e => {
+  e.stopPropagation(); location.reload();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheet(); });
+
+/* age the ticker timestamp */
+setInterval(() => {
+  const last = EVENTS[EVENTS.length - 1];
+  if (!last) return;
+  const s = Math.round((Date.now() - last.ts.getTime()) / 1000);
+  document.getElementById("tickerwhen").textContent = s < 5 ? "just now" : (s < 60 ? s + "s ago" : Math.round(s / 60) + "m ago");
+}, 3000);
+
+render();
+startDemo();
+</script>
+</body>
+</html>
