@@ -33,6 +33,16 @@ The complexity isn't in the code — it's in the interactions between commands a
 
 Every command follows the same pattern: `check_initialized()` → `load_items()` → mutate → `save_items()`. No exceptions. No middleware.
 
+## The docket/rite direction
+
+Bon is being split into two artifacts (bon-kepuko). The **docket** is the core — the data model, the verb surface, the invariants — that any vehicle queries. The **rite** is the session ritual (`/open`, `/close`) that rides any vehicle. The formal contract between them is `docs/CONTRACT.md` (v1, bon-bilegu); CLAUDE.md's Key Files points there. Today Claude Code is the only vehicle; the roadmap adds a web MCP serving the contract verbs (bon-welogi, one writer on hezza) and a GUI face on the same service (bon-kuwivo). The critical path runs through kepuko's packaging split (two artifacts from one repo) — welogi shouldn't be built against an unsplit package.
+
+**Contract-in-the-middle.** When two very different readers must share one artifact, engineer the contract in the middle — the faces are cheap projections of it. Dragram proved the shape (one DOM contract; the human sees a canvas, Claude reads structured state); the docket repeats it (one verb surface; Claude Code, Cornichon, a future Gemini, a human GUI are all just faces). Don't build per-reader artifacts; build one contract and project it.
+
+**Liveness is asymmetric by reader.** A human window must *push* — a stale GUI is an untrusted GUI, so it needs SSE / a change feed. Agents are *pull-native* — they read fresh state at each tool call, so they need nothing extra. One service serves both faces without CRDT machinery; the estate already paid for that lesson once with tafelmusik. welogi's `--how` banks the SSE/change-feed architecture (CRDTs rejected, tafelmusik cited) — but from stable knowledge, not current docs, so the Cowork research note is its verification.
+
+**A presence probe needs two axes, not one.** "Can I see the board?" and "Can I reach a writer?" are independent questions. The visible-but-unwritable quadrant is a real operating mode — Cowork's mounted sandbox sees the board but can't write it. Its output is provenance-tagged **candidates**, not items. A candidate not minted at the next writer-bearing `/open` is a wish, not tracking — so candidate mode must land in the close/open rites (bon-pujawo) or Cowork sessions leak. Both the two-axis probe and candidate mode are first-class in the contract. (Open before building pujawo: do Cowork sessions load plugin skills at all, or only the mount's CLAUDE.md? That decides whether the close-half is skill text or a CLAUDE.md snippet.)
+
 ## Storage backends
 
 **Dolt is the majority backend, not the universal one.** The April 2026 migration moved the then-existing repos to a single shared Dolt database on hezza (~19 boards carry `backend=dolt`), but boards created since then default to JSONL and stay there — a 2026-06-11 sweep found 12+ implicit-JSONL boards including active ones (cornichon, ~/notes, carnet, dragram, bestiary, piano, several itv/ repos). Code paths, scripts, and new verbs must treat both backends as live production. A `.bon/` with no `backend` file is JSONL. Cross-repo writes to JSONL boards (e.g. `bon move`) leave the target repo's items.jsonl uncommitted — the CLI warns about this.
