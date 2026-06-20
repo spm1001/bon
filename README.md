@@ -8,7 +8,7 @@ Bon organizes work as **Outcomes** (desired results) and **Actions** (concrete n
 
 **Robustness:** Stable — used daily
 **Works with:** Any agent, standalone CLI
-**Install:** `uv tool install .`
+**Install:** `uv tool install '.[dolt]'`
 **Requires:** Python 3.11+
 
 ## Install
@@ -16,10 +16,10 @@ Bon organizes work as **Outcomes** (desired results) and **Actions** (concrete n
 ```bash
 git clone https://github.com/spm1001/bon.git
 cd bon
-uv tool install .
+uv tool install '.[dolt]'
 ```
 
-This installs `bon` globally — available from any directory. To develop bon itself, also run `uv sync` for the dev dependencies (pytest, ruff).
+This installs `bon` globally — available from any directory. The `[dolt]` extra pulls in PyMySQL for the Dolt backend (small, harmless, and avoids silent breakage if any project uses Dolt). To develop bon itself, also run `uv sync` for the dev dependencies (pytest, ruff).
 
 ### Updating
 
@@ -29,7 +29,7 @@ This installs `bon` globally — available from any directory. To develop bon it
 bon update          # re-installs from source
 ```
 
-Or manually: `uv tool install ~/Repos/bon`.
+Or manually: `uv tool install '~/repos/spm1001/bon[dolt]' --force --reinstall --no-cache` (the `--no-cache` is load-bearing — a version-only bump leaves the source byte-identical, so uv otherwise reuses the cached build and the version never moves).
 
 > **Note:** `uv tool install` doesn't support editable mode (`-e`) yet. When uv adds this, the update step goes away.
 
@@ -317,7 +317,7 @@ Interactive mode prompts for these. Non-interactive requires all three flags.
 
 ## Claude Code Integration
 
-Bon includes a skill for Claude Code at `skills/tracker/SKILL.md`. The plugin system auto-discovers skills from the `skills/` directory.
+Bon includes Claude Code skills under `skills/` (`open`, `close`, `plan`, `review`). The plugin system auto-discovers skills from the `skills/` directory.
 
 This gives Claude access to the draw-down workflow (read item → activate tactical steps → work with pauses) and draw-up patterns (file work with complete briefs for future sessions).
 
