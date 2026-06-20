@@ -76,6 +76,11 @@ Seed understanding.md with the architectural context that applies across all
 outcomes. This is where cross-cutting concerns live — the content that would
 have been Context, Approach, Gotchas, and Scope in a plan file.
 
+> **Note — `understanding.md` has two authors.** `/plan` *seeds* this framing;
+> `/open` then *maintains* it, synthesizing each session's handoff knowledge
+> into the same file (`/open` → Synthesize Knowledge). Seed the durable
+> architectural frame here and expect /open to grow it around what you wrote.
+
 **Write to understanding.md:**
 - Architectural decisions and rationale
 - Key technical constraints discovered during orientation

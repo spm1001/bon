@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 20 commands (incl. cross-repo `bon move`), ~2850 LOC core (+600 optional Dolt module), 506 tests (10 are opt-in Dolt integration via BON_DOLT_TEST=1).
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 20 commands (incl. cross-repo `bon move`), ~2900 LOC core (+600 optional Dolt module), 520 tests (10 are opt-in Dolt integration via BON_DOLT_TEST=1).
 
 ## Quick Commands
 
@@ -30,6 +30,23 @@ tests/            # pytest suite, one file per command
 fixtures/         # JSONL snapshots for parametrized tests
 skills/open/SKILL.md     # Claude Code integration (session ritual + draw-down discipline)
 ```
+
+## Module Dependencies
+
+Verified against imports (2026-06-20). Intra-package edges only:
+
+```
+cli      ──▶ display, storage, ids, queries     (+ dolt, lazy/function-local)
+storage  ──▶ ids                                (+ dolt, lazy)   ── dolt ⇄ storage (mutual, lazy)
+display  ──▶ ids, queries
+dolt     ──▶ storage
+ids, queries ── leaves (no intra-package imports)
+```
+
+- **`ids` and `queries` are leaves** — nothing in-package depends *up* from them; safe to read first.
+- **A change to `ids`** (ID generation, ordering) is the most load-bearing leaf — it ripples into `storage`, `display`, and `cli`.
+- **`dolt` ⇄ `storage` are mutually dependent, but lazily**: `storage` imports `dolt` functions only inside backend branches; `dolt` imports `storage` helpers. Edit either, check the other.
+- Dolt imports are function-local throughout, so the optional backend never loads unless a repo uses it.
 
 ## Data Model
 

@@ -73,6 +73,8 @@ The most recent handoff may contain a `## For Claudes to come` section — durab
 
 This synthesis is onboarding. Integrating new knowledge into an existing document forces you to read the existing understanding, find where the new insight fits, and rewrite with judgment. By the time you're done, you know the project — not just the words on the page.
 
+> **Note — `understanding.md` has two authors.** `/open` *maintains* it (synthesizing each handoff's durable knowledge, as above); `/plan` *seeds* it with architectural framing when planning multi-session work (`/plan` Phase 2). Same file, two roles — don't clobber plan-seeded framing during synthesis; integrate around it.
+
 The handoff stays on disk — never delete it. Not every handoff has a compost zone; when absent, skip this step.
 
 **Transition:** If `.bon/contributions/` contains files, process those the same way (read, integrate into understanding.md, delete the contribution files). This path is being retired.
