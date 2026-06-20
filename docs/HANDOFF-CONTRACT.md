@@ -1,4 +1,4 @@
-# Handoff Contract v3
+# Handoff Contract v4
 
 The handoff file is an interface between sessions. This document specifies the stable contract that external consumers (e.g. aboyeur, overnight composting) can depend on.
 
