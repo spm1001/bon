@@ -214,6 +214,32 @@ else
     echo "HANDOFF_TARGET=$CWD"
 fi
 
+# === ROOMS INDEX (bon-walile) ===
+# Eager regen: if the worked repo has ADOPTED a rooms.md (a drift-proof
+# existence index of its CLAUDE.md rooms), refresh it so it rides this close's
+# commit — same-session freshness. Adoption is opt-in by the file's presence:
+# repos without a rooms.md are left untouched (no churn — the trap a
+# SessionStart hook would fall into). The nightly Hezza timer is the
+# all-surface guarantee; this is only the eager half. Fully guarded so a
+# generator hiccup can never abort /close (the script runs under `set -e`).
+echo ""
+echo "=== ROOMS ==="
+ROOMS_REPO=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -n "$ROOMS_REPO" ] && [ -f "$ROOMS_REPO/rooms.md" ]; then
+    GEN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gen-rooms.py"
+    if [ -f "$GEN" ] && command -v python3 &>/dev/null; then
+        if python3 "$GEN" "$ROOMS_REPO" >/dev/null 2>&1; then
+            echo "ROOMS_REGENERATED=$ROOMS_REPO/rooms.md"
+        else
+            echo "ROOMS_REGENERATED=false (generator error — non-fatal)"
+        fi
+    else
+        echo "ROOMS_REGENERATED=false (generator unavailable)"
+    fi
+else
+    echo "ROOMS_ADOPTED=false"
+fi
+
 # === DATE ===
 echo ""
 echo "=== META ==="

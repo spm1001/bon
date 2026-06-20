@@ -1,6 +1,6 @@
 # Bon — Understanding
 
-Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. ~2,900 lines of core source plus a 600-line optional Dolt module. 520 tests (10 opt-in Dolt integration). Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
+Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. ~2,900 lines of core source plus a 600-line optional Dolt module. 530 tests (10 opt-in Dolt integration). Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
 
 ## The data model
 
@@ -114,6 +114,8 @@ Bon splits its substrate by audience: the **board** (`.bon/items.jsonl`) stays h
 **Runtime-agnostic is the load-bearing constraint.** A session's rituals must assume NO harness autoload — context reaches a session only if the ritual reads it *explicitly*. Harness help spans a wide, undependable range: Claude Code does the full filesystem walk (ancestor CLAUDE.md at launch, subtree on-demand, `@import` at launch) — but for CLAUDE.md ONLY, never understanding.md or handoffs; Cowork (confirmed empirically, bon-meroga 2026-06-20) loads ONLY the mounted folder's root CLAUDE.md (no subtree, no `@import`), its plugin skills+hooks fire host-side, but its bash tool is a *separate sandbox with no bon CLI*; Cornichon is whatever we author. The only common denominator is "read it yourself" — which is why gopewu's design (walile generates a rooms index; camoru's skill *reads* it plus the room's CLAUDE.md/understanding.md/handoffs explicitly) drops the `@import` auto-load as a redundant CC-only optimization rather than depending on it.
 
 **Two mechanisms, kept separate.** zopopu is the *path resolver* — deterministic, runtime-agnostic, in `scripts/lib-handoff.sh`, shared by reader and writer so they can't drift. camoru is the *judgment layer* — which room did I work in? read it in. Handoff placement is WORK-based (the primary room worked, which the LLM knows at close), not a cwd/launch heuristic.
+
+**The rooms index (bon-walile).** `scripts/gen-rooms.py` is the generator half: it walks a repo's `**/CLAUDE.md`, extracts each sub-room's path + first-prose-sentence one-liner, and writes a flat, sorted, drift-proof `rooms.md` at the repo root (the repo-root CLAUDE.md, which hosts the index, is skipped; `.git`/`.bon`/etc. are pruned). Generic, stdlib-only python3 — no uv, because it runs at close time where uv's per-invocation latency wouldn't pay. The OUTPUT (`rooms.md`) is committed in the target repo; the GENERATOR stays toolkit-side (the lozuko boundary). Triggering follows build-one-first: the **eager** half is a guarded step in `close-context.sh` that regenerates `rooms.md` *only if the repo has already adopted one* (adoption = the file's presence, so no repo churns and a SessionStart hook is deliberately avoided), riding the close commit for same-session freshness; the **nightly Hezza timer** (notes-side, not yet built — notes-sobute) is the all-surface guarantee. Launch-visibility is per-repo and downstream of the generator: `@import rooms.md` from the root CLAUDE.md (CC/terminal only — `@import` is inert in Cowork), or camoru's explicit Read-tool read-in (the cross-surface path).
 
 ## Handoff resolution
 
