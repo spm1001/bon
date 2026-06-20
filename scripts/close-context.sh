@@ -25,6 +25,10 @@ validate_dependencies() {
 
 validate_dependencies
 
+# Shared handoff/understanding.md resolution — keeps this WRITER and the
+# /open READER (open-context.sh) in lockstep on the same convention.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-handoff.sh"
+
 # === TIME ===
 echo "=== TIME ==="
 CURRENT_HOUR=$(date +%H)
@@ -141,21 +145,20 @@ is_container() {
 # Encoded path always starts with '-' — never use as bare arg; always prefix with absolute path
 ENCODED_PATH=$(echo "$CWD" | sed 's/[^a-zA-Z0-9-]/-/g')
 
-# Walk up to find .bon/handoffs/ (primary)
+# Resolve where this session's handoff is written. The shared resolver walks
+# up to the board root and prefers a visible handoffs/ over the legacy
+# .bon/handoffs/ — the SAME resolution /open reads from, so a handoff is read
+# from exactly where it was written.
 HANDOFF_DIR=""
-WALK="$CWD"
-while [ "$WALK" != "/" ]; do
-    if [ -d "$WALK/.bon" ]; then
-        HANDOFF_DIR="$WALK/.bon/handoffs"
-        break
-    fi
-    WALK=$(dirname "$WALK")
-done
+if board_root "$CWD" >/dev/null 2>&1; then
+    HANDOFF_DIR=$(handoff_write_dir "$CWD")
+fi
 
-# Walk-up missed — scan down for repo with most recent commit
-# Covers container dirs (~/Repos) where work happened in a child repo
+# Walk-up missed — container dir (e.g. ~/Repos) where work happened in a child
+# repo. Scan down for the repo with the most recent commit, then resolve its
+# handoff dir visible-first via the same helper.
 if [ -z "$HANDOFF_DIR" ]; then
-    BEST_DIR=""
+    BEST_REPO=""
     BEST_TIME=0
     while IFS= read -r bon_dir; do
         repo_dir=$(dirname "$bon_dir")
@@ -165,10 +168,10 @@ if [ -z "$HANDOFF_DIR" ]; then
         latest=${latest:-0}
         if [ "$latest" -gt "$BEST_TIME" ]; then
             BEST_TIME=$latest
-            BEST_DIR="$bon_dir/handoffs"
+            BEST_REPO="$repo_dir"
         fi
     done < <(find "$CWD" -maxdepth 4 -name ".bon" -type d 2>/dev/null)
-    [ -n "$BEST_DIR" ] && HANDOFF_DIR="$BEST_DIR"
+    [ -n "$BEST_REPO" ] && HANDOFF_DIR=$(handoff_write_dir "$BEST_REPO")
 fi
 
 # Fallback: global bon handoffs (never legacy ~/.claude/handoffs/)

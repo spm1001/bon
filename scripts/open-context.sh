@@ -31,6 +31,10 @@ validate_dependencies() {
 }
 validate_dependencies
 
+# Shared handoff/understanding.md resolution — keeps this READER and the
+# /close WRITER (close-context.sh) in lockstep on the same convention.
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-handoff.sh"
+
 # === HELPERS ===
 time_ago() {
     local seconds=$1
@@ -60,20 +64,13 @@ fi
 # Fallback: ~/.bon/handoffs/ (global, for container sessions)
 NOW=$(date +%s)
 
-# Walk up to find .bon/handoffs/
-BON_HANDOFF_DIR=""
-WALK="$CWD"
-while [ "$WALK" != "/" ]; do
-    if [ -d "$WALK/.bon/handoffs" ]; then
-        BON_HANDOFF_DIR="$WALK/.bon/handoffs"
-        break
-    fi
-    WALK=$(dirname "$WALK")
-done
+# Handoff dirs to search come from the shared resolver (visible handoffs/ up
+# the tree, then the board root's .bon/handoffs/, then global). /open thus
+# reads from exactly where /close writes. Fixes the 2026-06-17 bug where a
+# newer handoff in a visible root handoffs/ was invisible to /open because it
+# only ever looked in .bon/handoffs/.
 
-GLOBAL_BON_DIR="$HOME/.bon/handoffs"
-
-# Find the most recent handoff across both locations
+# Find the most recent handoff across all candidate locations
 LATEST_FILE=""
 LATEST_PURPOSE=""
 LATEST_STR=""
@@ -99,21 +96,22 @@ find_latest_in() {
     [ -n "$best_file" ] && echo "${best_key}|${best_file}"
 }
 
-CANDIDATE_BON=$(find_latest_in "$BON_HANDOFF_DIR")
-CANDIDATE_GLOBAL=$(find_latest_in "$GLOBAL_BON_DIR")
-
-# Pick the better of the two locations by the same key
+# Rank the latest handoff across every candidate dir (de-duplicated, order
+# preserved). Visible handoffs/ and legacy .bon/handoffs/ compete on the same
+# header-date key, so a migration-in-progress repo (both populated) surfaces
+# the genuinely newest regardless of where it sits.
 BEST_KEY=""
-for CANDIDATE in "$CANDIDATE_BON" "$CANDIDATE_GLOBAL"; do
-    if [ -n "$CANDIDATE" ]; then
-        KEY="${CANDIDATE%%|*}"
-        FILE="${CANDIDATE#*|}"
-        if [ -z "$BEST_KEY" ] || [ "$KEY" \> "$BEST_KEY" ]; then
-            BEST_KEY="$KEY"
-            LATEST_FILE="$FILE"
-        fi
+while IFS= read -r HDIR; do
+    [ -d "$HDIR" ] || continue
+    CANDIDATE=$(find_latest_in "$HDIR")
+    [ -n "$CANDIDATE" ] || continue
+    KEY="${CANDIDATE%%|*}"
+    FILE="${CANDIDATE#*|}"
+    if [ -z "$BEST_KEY" ] || [ "$KEY" \> "$BEST_KEY" ]; then
+        BEST_KEY="$KEY"
+        LATEST_FILE="$FILE"
     fi
-done
+done < <(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
 
 if [ -n "$LATEST_FILE" ]; then
     LATEST_TIME=$(file_mtime "$LATEST_FILE")
