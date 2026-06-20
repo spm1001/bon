@@ -4,21 +4,20 @@ The handoff file is an interface between sessions. This document specifies the s
 
 ## Location
 
-Handoffs live per-repo in `.bon/handoffs/`, git-tracked. The close-context script walks up from CWD to find the nearest `.bon/` directory.
+Handoffs are resolved by a shared walk (`scripts/lib-handoff.sh`, sourced by both the reader and the writer so they cannot drift). The "visible substrate" convention: prose (handoffs/, understanding.md) lives VISIBLE at the room where work happens, with `.bon/` as the legacy fallback; the board (`.bon/items.jsonl`) stays hidden + repo-global.
 
-```
-.bon/handoffs/
-```
+Resolution order, walking up from CWD to the board root (the repo's `.bon/` dir):
 
-Fallback for sessions without a `.bon/`: `~/.bon/handoffs/` (global catch-all, not git-tracked).
+1. A visible `handoffs/` at the nearest room — a room adopts the convention simply by having one — then
+2. A visible `handoffs/` at the board root, then
+3. `.bon/handoffs/` at the board root — the legacy default; fresh repos still write here — then
+4. `~/.bon/handoffs/` — global catch-all, not git-tracked.
+
+The **writer** picks the first that applies (visible-first); the **reader** ranks the latest across all of them, so a migration-in-progress repo (both populated) surfaces the genuinely newest. A handoff is always read from exactly where it was written.
 
 ## Discovery
 
-Most recent file by modification time in the project's handoff directory.
-
-```bash
-ls -t .bon/handoffs/ | head -1
-```
+Most recent handoff across all resolved locations, ranked by the header date (`# Handoff — YYYY-MM-DD`) with mtime breaking same-day ties. Header-date ranking, not raw mtime: a fresh clone flattens every mtime to checkout time, so mtime-first would pick an arbitrary (often ancient) handoff.
 
 - **v3 filename scheme:** `YYYY-MM-DD-{session-id-8}.md` (e.g. `2026-04-04-51d17dc5.md`). Date-prefixed for chronological sorting; session ID suffix links to the JSONL transcript.
 - **v2 filename scheme:** `{session-id-8}.md` (e.g. `51d17dc5.md`). Still valid — consumers must handle both during transition.
@@ -94,8 +93,8 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 
 ## What's Stable (don't break these)
 
-- Handoff directory: `.bon/handoffs/` per-repo
-- Discovery by mtime (newest wins)
+- Handoff resolution via `scripts/lib-handoff.sh`: visible `handoffs/` (room/root) preferred, `.bon/handoffs/` legacy fallback, `~/.bon/handoffs/` global catch-all
+- Discovery by header date (newest wins), mtime breaking same-day ties
 - Metadata fields: `session_id`, `purpose`
 - Escalation signal: `HUMAN REVIEW NEEDED` as grep target
 - File format: markdown with sections
@@ -118,8 +117,9 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 
 ## Versioning
 
-This is v3.
+This is v4.
 
 - **v1** (Jan 2026): Initial contract. `~/.claude/handoffs/` location, flat sections.
 - **v2** (Feb 2026): Path encoding widened. Still `~/.claude/handoffs/`.
 - **v3** (Apr 2026): Location moved to `.bon/handoffs/` (git-tracked). Two-zone layout (fond-v1). Date-prefixed filenames. `format:` metadata field.
+- **v4** (Jun 2026): Visible-substrate resolution (bon-zopopu). Handoffs resolve to a visible `handoffs/` (nearest-room, then board-root) before the legacy `.bon/handoffs/`, via the shared `scripts/lib-handoff.sh`; `understanding.md` resolves the same way. The `.bon/` fallback keeps every existing repo working untouched. **Consumers that read handoffs directly** (aboyeur, overnight composting) should use that resolver — or handle visible `handoffs/` + nearest-room — rather than assuming `.bon/handoffs/`.

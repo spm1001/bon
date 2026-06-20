@@ -239,6 +239,14 @@ if [ -n "$LATEST_FILE" ]; then
     echo ""
 fi
 
+# --- 2b. Understanding doc pointer (resolved root/nearest-room first, .bon/
+# fallback) — the /open skill reads AND rewrites this path, not blindly .bon/.
+UNDERSTANDING_FILE=$(understanding_path "$CWD" || true)
+if [ -n "$UNDERSTANDING_FILE" ]; then
+    echo "UNDERSTANDING=$UNDERSTANDING_FILE"
+    echo ""
+fi
+
 # --- 3. Outcomes only ---
 if [ "$BON_BACKEND" != "none" ]; then
     if [ -n "${BON_DOLT_ERROR:-}" ]; then

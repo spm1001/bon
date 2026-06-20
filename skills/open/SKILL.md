@@ -67,9 +67,9 @@ The hook output may be truncated in the system-reminder preview. When you see "O
 
 The most recent handoff may contain a `## For Claudes to come` section — durable knowledge written by the previous Claude to transcend their session. When present:
 
-1. Read `.bon/understanding.md`
+1. Read the project's `understanding.md` — the session-start hook resolves and prints its path as `UNDERSTANDING=<path>` (a visible root/nearest-room copy if the repo uses the visible convention, else `.bon/understanding.md`). Read *that* path.
 2. Read the `## For Claudes to come` section from the handoff
-3. **Rewrite** understanding.md — integrate the new knowledge, make salience judgments, restructure where needed. Don't append.
+3. **Rewrite** that same `understanding.md` (the resolved path — not blindly `.bon/`) — integrate the new knowledge, make salience judgments, restructure where needed. Don't append.
 
 This synthesis is onboarding. Integrating new knowledge into an existing document forces you to read the existing understanding, find where the new insight fits, and rewrite with judgment. By the time you're done, you know the project — not just the words on the page.
 

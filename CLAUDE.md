@@ -191,6 +191,7 @@ bon migrate --to jsonl                     # Back to JSONL
 | Update Claude integration | `skills/open/SKILL.md` |
 | Docket/rite boundary (probe, query surface, ownership) | `docs/CONTRACT.md` |
 | Handoff format spec | `docs/HANDOFF-CONTRACT.md` |
+| Where handoffs/understanding.md resolve (READ+WRITE share this) | `scripts/lib-handoff.sh` |
 | Test bon-read.sh | `tests/test_bon_read.py` |
 
 
