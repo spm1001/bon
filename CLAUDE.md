@@ -6,6 +6,17 @@ Guidance for working on bon (the codebase, not with bon).
 
 Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 20 commands (incl. cross-repo `bon move`), ~2900 LOC core (+600 optional Dolt module), 530 tests (10 are opt-in Dolt integration via BON_DOLT_TEST=1).
 
+## Versioning & releasing (suite-managed)
+
+bon ships as part of the **Batterie de Savoir** suite, which carries **one suite-wide version**. So:
+
+- **Do NOT hand-bump `.claude-plugin/plugin.json` to release.** This repo's own `plugin.json` version is **local-dev-only** — the assembler stamps every published plugin to the suite version, overwriting it.
+- **Release via `/batterie:publish`** from this working tree — it bumps the suite version centrally and ships the change (a 2-repo push: this repo + the central suite bump). Never hand-run the assemble.
+- **A `CLAUDE.md` / `instructions.md` / `skills/` / `hooks/` edit here is vendored content** — it must ride a suite bump (a publish) to actually ship, or the assembler quarantines the plugin. `docs/` / `.bon/` edits are free.
+- **`bon --version` is separate** — it reads *the suite release that last changed bon* (publish.py lazy-stamps only the repo it publishes), so a CLI number **below** the current suite number is expected, not drift.
+
+Full picture: `spm1001/batterie-de-savoir` → `CLAUDE.md` "Versioning convention" + `.bon/understanding.md`.
+
 ## Quick Commands
 
 ```bash
