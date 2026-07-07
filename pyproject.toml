@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-dolt = ["pymysql>=1.1.3"]
+dolt = ["pymysql>=1.2.0"]
 
 [project.scripts]
 bon = "bon.cli:main"
@@ -28,8 +28,8 @@ pythonpath = ["src"]
 
 [dependency-groups]
 dev = [
-    "pytest>=9.0.2",
-    "ruff>=0.15.12",
+    "pytest>=9.1.1",
+    "ruff>=0.15.20",
 ]
 
 [tool.ruff]
