@@ -1,0 +1,46 @@
+name: Auto-merge Dependabot on green
+
+# Squash-merges a Dependabot PR once its CI run goes green.
+# Deliberately triggered on workflow_run (CI completion), NOT GitHub-native
+# auto-merge: native auto-merge only gates on *required* status checks, which
+# needs branch protection — and branch protection would disrupt direct pushes
+# to main (the maintainer's workflow). This approach gates on green with zero
+# branch protection. Only same-repo Dependabot branches are eligible.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    # Only when CI passed, on a PR run, from a branch in THIS repo (not a fork).
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge green Dependabot PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          case "$BRANCH" in
+            dependabot/*) ;;
+            *) echo "Not a Dependabot branch ($BRANCH) — skipping."; exit 0 ;;
+          esac
+          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open \
+                 --json number,author \
+                 --jq '.[] | select(.author.login=="app/dependabot") | .number' | head -n1)
+          if [ -z "$pr" ]; then
+            echo "No open Dependabot PR for branch $BRANCH — skipping."
+            exit 0
+          fi
+          echo "CI green on $BRANCH → squash-merging Dependabot PR #$pr"
+          gh pr merge "$pr" --repo "$REPO" --squash --delete-branch
