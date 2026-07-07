@@ -1,21 +1,38 @@
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.11"
+# dependencies = ["pymysql"]
 # ///
-"""Audit survey — recursively scans all .bon/ directories under the scan
-roots and produces a JSON summary of open items with full briefs and age flags.
+"""Audit survey — estate-wide view of open bon items for the /review skill.
+
+Hybrid survey (bon-fuwofi): the shared Dolt database is the PRIMARY index —
+one global query covers every Dolt board in the estate, including repos with
+no clone on this machine and boards outside the scan roots (~/.dotfiles).
+The filesystem scan is demoted to a JSONL-straggler sweep: it only reads
+boards without a Dolt backend (their items already arrive via the global
+query).
+
+Repo labels come from Dolt's self-registering `repos` mapping table
+(prefix → repo_name, origin_url — see `bon register`). A prefix with no
+mapping row surfaces as "<prefix> (unmapped)" — fail visible, never guess.
+
+Each repo group carries `local_path` (a clone under the scan roots) or
+`not_cloned_here: true` so the review skill can split verification
+(local code checks) from survey-only visibility.
+
+If the Dolt server is unreachable the survey falls back to the old
+filesystem-only behaviour (including per-board `bon list --jsonl` for local
+Dolt boards) and says so loudly — a degraded survey must never present
+itself as the whole estate.
 
 Default roots: whichever of ~/repos, ~/Repos, ~/notes exist (deduped by
-realpath — on case-insensitive APFS the first two are the same directory).
-REPOS_DIR env var overrides with a single root; --roots overrides both.
-
-Supports both JSONL and Dolt backends. Dolt repos are read via `bon list --jsonl`.
-
-Built for the /audit skill. For human-readable overviews, use bon-survey.py.
+realpath). REPOS_DIR env var overrides with a single root; --roots overrides
+both. Connection config: BON_DOLT_* env vars > ~/.config/bon/dolt.toml
+(same resolution as bon's dolt.py, minus the macOS keychain).
 
 Usage:
-    uv run --script audit_survey.py              # JSON to stdout
-    uv run --script audit_survey.py --repos trousse passe  # Filter to specific repos
-    uv run --script audit_survey.py --roots ~/repos ~/notes  # Explicit roots
+    uv run --script audit_survey.py                        # JSON to stdout
+    uv run --script audit_survey.py --repos trousse passe  # Filter by label
+    uv run --script audit_survey.py --roots ~/repos        # Explicit roots
 """
 
 import json
@@ -25,6 +42,103 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# ---------- Dolt connection (mirrors bon/dolt.py resolution) ----------
+
+_DOLT_DEFAULTS = {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "database": "bon",
+    "user": "root",
+    "password": "",
+}
+
+
+def load_dolt_config() -> dict:
+    """Connection config: env vars > ~/.config/bon/dolt.toml > defaults."""
+    config = dict(_DOLT_DEFAULTS)
+    config_path = Path.home() / ".config" / "bon" / "dolt.toml"
+    if config_path.exists():
+        try:
+            import tomllib
+            with open(config_path, "rb") as f:
+                file_config = tomllib.load(f)
+            for key in ("host", "port", "database", "user", "password"):
+                if key in file_config:
+                    config[key] = file_config[key]
+        except Exception as e:
+            print(f"Warning: failed to read {config_path}: {e}", file=sys.stderr)
+
+    env_map = {
+        "BON_DOLT_HOST": "host",
+        "BON_DOLT_PORT": "port",
+        "BON_DOLT_DATABASE": "database",
+        "BON_DOLT_USER": "user",
+        "BON_DOLT_PASSWORD": "password",
+    }
+    for env_key, config_key in env_map.items():
+        val = os.environ.get(env_key)
+        if val is not None:
+            config[config_key] = int(val) if config_key == "port" else val
+    return config
+
+
+def query_dolt_global() -> tuple[dict[str, list[dict]], dict[str, dict]]:
+    """One global query: all open items grouped by prefix, plus the repos map.
+
+    Returns ({prefix: [item, ...]}, {prefix: {"repo_name": ..., "origin_url": ...}}).
+    Raises on any connection/query failure — the caller decides the fallback.
+    """
+    import pymysql
+
+    config = load_dolt_config()
+    conn = pymysql.connect(
+        host=config["host"],
+        port=config["port"],
+        user=config["user"],
+        password=config["password"],
+        database=config["database"],
+        cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=5,
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, type, title, status, brief, parent, waiting_for, "
+                "created_at FROM items WHERE status = 'open'"
+            )
+            rows = cur.fetchall()
+            cur.execute("SELECT prefix, repo_name, origin_url FROM repos")
+            repos_map = {
+                r["prefix"]: {"repo_name": r["repo_name"], "origin_url": r["origin_url"]}
+                for r in cur.fetchall()
+            }
+    finally:
+        conn.close()
+
+    by_prefix: dict[str, list[dict]] = {}
+    for row in rows:
+        item = _dolt_row_to_item(row)
+        prefix = item["id"].split("-", 1)[0]
+        by_prefix.setdefault(prefix, []).append(item)
+    return by_prefix, repos_map
+
+
+def _dolt_row_to_item(row: dict) -> dict:
+    """Minimal row→item conversion (brief JSON, waiting_for list-or-legacy)."""
+    item = dict(row)
+    brief = item.get("brief")
+    if isinstance(brief, str):
+        try:
+            item["brief"] = json.loads(brief)
+        except json.JSONDecodeError:
+            item["brief"] = {}
+    wf = item.get("waiting_for")
+    if isinstance(wf, str):
+        item["waiting_for"] = json.loads(wf) if wf.startswith("[") else [wf]
+    return item
+
+
+# ---------- JSONL boards (filesystem) ----------
 
 def load_items_jsonl(bon_path: Path) -> list[dict]:
     """Load items from a .bon/items.jsonl file, deduping by last occurrence."""
@@ -39,8 +153,8 @@ def load_items_jsonl(bon_path: Path) -> list[dict]:
     return list(items.values())
 
 
-def load_items_dolt(repo_path: Path) -> list[dict]:
-    """Load items from a Dolt-backed repo via `bon list --jsonl`."""
+def load_items_dolt_via_cli(repo_path: Path) -> list[dict]:
+    """Fallback only: read a local Dolt board via `bon list --jsonl`."""
     try:
         result = subprocess.run(
             ["bon", "list", "--jsonl"],
@@ -67,16 +181,15 @@ def get_backend(bon_dir: Path) -> str:
     return "jsonl"
 
 
-def load_items(bon_dir: Path, repo_path: Path) -> list[dict]:
-    """Load items from a .bon/ directory, dispatching by backend."""
-    backend = get_backend(bon_dir)
-    if backend == "dolt":
-        return load_items_dolt(repo_path)
-    items_path = bon_dir / "items.jsonl"
-    if items_path.exists():
-        return load_items_jsonl(items_path)
-    return []
+def get_prefix(bon_dir: Path) -> str | None:
+    """Read .bon/prefix (None when the marker is absent, e.g. fresh clone)."""
+    prefix_file = bon_dir / "prefix"
+    if prefix_file.exists():
+        return prefix_file.read_text().strip()
+    return None
 
+
+# ---------- shared shaping ----------
 
 def age_flag(created_at: str | None) -> str | None:
     """Return an age flag based on item creation date."""
@@ -111,13 +224,52 @@ def item_record(item: dict) -> dict:
         flag = age_flag(item["created_at"])
         if flag:
             record["age_flag"] = flag
-    # Full brief fields for verification (nested under "brief" key)
-    brief = item.get("brief", {})
-    if brief:
-        for field in ("why", "what", "done"):
-            if brief.get(field):
-                record[field] = brief[field]
+    brief = item.get("brief") or {}
+    for field in ("why", "what", "done"):
+        if brief.get(field):
+            record[field] = brief[field]
     return record
+
+
+def repo_entry(label: str, open_items: list[dict], **extra) -> dict:
+    """Build one repo group for the output JSON."""
+    entry = {
+        "repo": label,
+        "open_count": len(open_items),
+        "outcomes": [item_record(i) for i in open_items if i["type"] == "outcome"],
+        "actions": [item_record(i) for i in open_items if i["type"] == "action"],
+    }
+    entry.update(extra)
+    return entry
+
+
+# ---------- discovery ----------
+
+def discover_boards(roots: list[Path]) -> list[dict]:
+    """Find local .bon/ boards under the roots: {path, backend, prefix}."""
+    boards = []
+    seen: set[Path] = set()
+    for root in roots:
+        for bon_dir in sorted(root.rglob(".bon")):
+            if not bon_dir.is_dir():
+                continue
+            real = bon_dir.resolve()
+            if real in seen:
+                continue
+            seen.add(real)
+            parts = bon_dir.parts
+            if any(p.startswith(".") and p != ".bon" for p in parts):
+                continue
+            if "node_modules" in parts:
+                continue
+            boards.append({
+                "bon_dir": bon_dir,
+                "repo_path": bon_dir.parent,
+                "root": root,
+                "backend": get_backend(bon_dir),
+                "prefix": get_prefix(bon_dir),
+            })
+    return boards
 
 
 def repo_label(repo_path: Path, root: Path) -> str:
@@ -126,13 +278,7 @@ def repo_label(repo_path: Path, root: Path) -> str:
         label = str(repo_path.relative_to(root))
     except ValueError:
         return repo_path.name
-    # A board at the root itself (e.g. ~/notes/.bon) labels as the root's name
     return root.name if label == "." else label
-
-
-def discover_bon_dirs(root: Path) -> list[Path]:
-    """Recursively find all .bon/ directories under root."""
-    return sorted(root.rglob(".bon"))
 
 
 def default_roots() -> list[Path]:
@@ -148,53 +294,96 @@ def default_roots() -> list[Path]:
     return roots
 
 
-def survey(roots: list[Path], repo_filter: list[str] | None = None) -> tuple[list[dict], int]:
-    """Scan all roots and return (structured audit data, boards discovered)."""
+# ---------- survey ----------
+
+def survey(roots: list[Path], repo_filter: list[str] | None = None) -> dict:
+    """Hybrid estate survey. Returns the full output document."""
+    boards = discover_boards(roots)
+    local_dolt_by_prefix = {
+        b["prefix"]: b for b in boards if b["backend"] == "dolt" and b["prefix"]
+    }
+
+    dolt_mode = "global"
+    dolt_items: dict[str, list[dict]] = {}
+    repos_map: dict[str, dict] = {}
+    try:
+        dolt_items, repos_map = query_dolt_global()
+    except Exception as e:
+        dolt_mode = "unreachable"
+        print(
+            f"WARNING: Dolt server unreachable ({e}).\n"
+            f"Falling back to filesystem survey: repos not cloned under "
+            f"{', '.join(str(r) for r in roots)} are MISSING from this output, "
+            f"and local Dolt-backed boards will also read empty while the "
+            f"server is down — this output is effectively JSONL boards only.",
+            file=sys.stderr,
+        )
+
     results = []
-    seen_dirs: set[Path] = set()
-    boards_found = 0
+    unmapped = []
+    seen_ids: set[str] = set()
 
-    for root in roots:
-        for bon_dir in discover_bon_dirs(root):
-            if not bon_dir.is_dir():
-                continue
-            real = bon_dir.resolve()
-            if real in seen_dirs:
-                continue
-            seen_dirs.add(real)
-            # Skip nested .bon inside node_modules, .git, etc.
-            parts = bon_dir.parts
-            if any(p.startswith(".") and p != ".bon" for p in parts):
-                continue
-            if "node_modules" in parts:
-                continue
-
-            boards_found += 1
-            repo_path = bon_dir.parent
-            label = repo_label(repo_path, root)
-
-            if repo_filter and not any(f in label for f in repo_filter):
-                continue
-
-            items = load_items(bon_dir, repo_path)
-            open_items = [i for i in items if i.get("status") == "open"]
-
+    if dolt_mode == "global":
+        # Primary index: every Dolt board in the estate, cloned here or not.
+        for prefix, items in sorted(dolt_items.items()):
+            open_items = [i for i in items if i["id"] not in seen_ids]
+            seen_ids.update(i["id"] for i in open_items)
             if not open_items:
                 continue
+            mapping = repos_map.get(prefix)
+            local = local_dolt_by_prefix.get(prefix)
+            if mapping:
+                label = mapping["repo_name"]
+            else:
+                label = f"{prefix} (unmapped)"
+                unmapped.append(prefix)
+            extra = {"prefix": prefix, "backend": "dolt"}
+            if mapping and mapping.get("origin_url"):
+                extra["origin_url"] = mapping["origin_url"]
+            if local:
+                extra["local_path"] = str(local["repo_path"])
+            else:
+                extra["not_cloned_here"] = True
+            results.append(repo_entry(label, open_items, **extra))
 
-            outcomes = [item_record(i) for i in open_items if i["type"] == "outcome"]
-            actions = [item_record(i) for i in open_items if i["type"] == "action"]
+    # Straggler sweep: JSONL boards only (Dolt boards arrived via the global
+    # query). In fallback mode, local Dolt boards are read via the CLI so the
+    # survey still covers everything visible from this machine.
+    for board in boards:
+        if board["backend"] == "dolt":
+            if dolt_mode == "global":
+                continue
+            items = load_items_dolt_via_cli(board["repo_path"])
+        else:
+            items_path = board["bon_dir"] / "items.jsonl"
+            items = load_items_jsonl(items_path) if items_path.exists() else []
+        open_items = [
+            i for i in items
+            if i.get("status") == "open" and i["id"] not in seen_ids
+        ]
+        seen_ids.update(i["id"] for i in open_items)
+        if not open_items:
+            continue
+        label = repo_label(board["repo_path"], board["root"])
+        results.append(repo_entry(
+            label, open_items,
+            prefix=board["prefix"],
+            backend=board["backend"],
+            local_path=str(board["repo_path"]),
+        ))
 
-            results.append({
-                "repo": label,
-                "repo_path": str(repo_path),
-                "open_count": len(open_items),
-                "outcomes": outcomes,
-                "actions": actions,
-            })
+    if repo_filter:
+        results = [r for r in results if any(f in r["repo"] for f in repo_filter)]
 
     results.sort(key=lambda r: r["open_count"], reverse=True)
-    return results, boards_found
+    return {
+        "roots": [str(r) for r in roots],
+        "dolt": dolt_mode,
+        "unmapped_prefixes": sorted(unmapped),
+        "total_open": sum(r["open_count"] for r in results),
+        "repos_with_open": len(results),
+        "repos": results,
+    }
 
 
 def main():
@@ -212,7 +401,6 @@ def main():
     else:
         roots = default_roots()
 
-    # Parse --repos filter
     repo_filter = None
     if "--repos" in sys.argv:
         idx = sys.argv.index("--repos")
@@ -222,22 +410,16 @@ def main():
                 break
             repo_filter.append(a)
 
-    results, boards_found = survey(roots, repo_filter)
+    output = survey(roots, repo_filter)
 
-    if boards_found == 0:
+    if output["unmapped_prefixes"]:
         print(
-            f"Warning: no .bon directories found under: "
-            f"{', '.join(str(r) for r in roots)}",
+            f"Note: unmapped prefixes (no repos-table row — run `bon register` "
+            f"from a clone, or triage as orphaned): "
+            f"{', '.join(output['unmapped_prefixes'])}",
             file=sys.stderr,
         )
 
-    total = sum(r["open_count"] for r in results)
-    output = {
-        "roots": [str(r) for r in roots],
-        "total_open": total,
-        "repos_with_open": len(results),
-        "repos": results,
-    }
     print(json.dumps(output, indent=2))
 
 
