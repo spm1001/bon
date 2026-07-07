@@ -134,6 +134,19 @@ def cmd_init(args):
     if backend == "dolt":
         (bon_dir / "backend").write_text("dolt")
         print(f"{verb} .bon/ with prefix '{prefix}' (backend: dolt)")
+        # Register in the shared repos mapping table. Soft-fail: an offline
+        # init stays valid — the board self-registers on its first write.
+        try:
+            from bon.dolt import dolt_register_repo
+            dolt_register_repo(prefix)
+            print(f"Registered '{prefix}' in the Dolt repos table.")
+        except BonError as e:
+            print(
+                f"Warning: could not register '{prefix}' in the Dolt repos "
+                f"table ({e}). The board self-registers on first write, "
+                f"or run `bon register` later.",
+                file=sys.stderr,
+            )
     else:
         if not (bon_dir / "items.jsonl").exists():
             (bon_dir / "items.jsonl").touch()
@@ -1455,6 +1468,11 @@ def cmd_migrate(args):
         if archive_file.exists():
             archive_file.rename(bon_dir / "archive.jsonl.pre-dolt")
 
+        # Ensure the repos mapping row exists even for an empty board —
+        # save_items above only ran when there were items to write.
+        from bon.dolt import dolt_register_repo
+        dolt_register_repo()
+
         print(f"Migrated {len(items)} items and {len(archive)} archived items to Dolt.")
 
     elif target == "jsonl":
@@ -1480,6 +1498,22 @@ def cmd_migrate(args):
             append_archive(archive)
 
         print(f"Migrated {len(items)} items and {len(archive)} archived items to JSONL.")
+
+
+def cmd_register(args):
+    """Register this board in Dolt's repos mapping table."""
+    check_initialized()
+    if _get_backend() != "dolt":
+        error(
+            "bon register requires the Dolt backend — this board is JSONL.\n"
+            "JSONL boards are discovered by filesystem scan, not the repos table."
+        )
+    from bon.dolt import dolt_register_repo
+    prefix = load_prefix()
+    if dolt_register_repo(prefix):
+        print(f"Registered '{prefix}' in the Dolt repos table.")
+    else:
+        print(f"'{prefix}' already registered and current.")
 
 
 try:
@@ -1805,6 +1839,11 @@ def main():
     doctor_parser.set_defaults(func=cmd_doctor)
 
     # migrate
+    register_parser = subparsers.add_parser(
+        "register", help="Register this board in Dolt's repos mapping table"
+    )
+    register_parser.set_defaults(func=cmd_register)
+
     migrate_parser = subparsers.add_parser("migrate", help="Migrate between backends")
     migrate_parser.add_argument("--to", required=True, choices=["jsonl", "dolt"],
                                 help="Target backend")

@@ -45,13 +45,19 @@ class TestInitBackend:
         assert not (tmp_path / ".bon" / "backend").exists()
 
     def test_init_dolt(self, tmp_path):
-        result = run_bon("init", "--prefix", "test", "--backend", "dolt", cwd=tmp_path)
+        # Point Dolt at an unreachable local port: init must still succeed
+        # (repos-table registration soft-fails with a warning) and must never
+        # reach a real server from a unit test.
+        env = dict(os.environ)
+        env.update({"BON_DOLT_HOST": "127.0.0.1", "BON_DOLT_PORT": "9"})
+        result = run_bon("init", "--prefix", "test", "--backend", "dolt", cwd=tmp_path, env=env)
         assert result.returncode == 0
         assert (tmp_path / ".bon" / "backend").read_text() == "dolt"
         assert (tmp_path / ".bon" / "prefix").read_text() == "test"
         # items.jsonl should NOT be created for dolt backend
         assert not (tmp_path / ".bon" / "items.jsonl").exists()
         assert "dolt" in result.stdout
+        assert "could not register" in result.stderr
 
     def test_init_invalid_backend(self, tmp_path):
         result = run_bon("init", "--prefix", "test", "--backend", "mongo", cwd=tmp_path)
@@ -208,3 +214,16 @@ class TestMigrateDoltPrefixCollision:
         assert captured["archive_ids"] == set()
         # And nothing got written
         assert not (bon_dir / ".bon" / "backend").exists()
+
+class TestRegisterCommand:
+    """bon register — the manual/backfill path for the repos mapping table."""
+
+    def test_register_requires_dolt_backend(self, bon_dir):
+        result = run_bon("register", cwd=bon_dir)
+        assert result.returncode == 1
+        assert "requires the Dolt backend" in result.stderr
+
+    def test_register_requires_init(self, tmp_path):
+        result = run_bon("register", cwd=tmp_path)
+        assert result.returncode == 1
+        assert "Not initialized" in result.stderr

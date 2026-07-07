@@ -14,6 +14,7 @@ from bon.storage import (
     _most_recent_timestamp,
     error,
     get_creator,
+    now_iso,
     validate_item,
 )
 
@@ -295,6 +296,12 @@ _SCHEMA_SQL = [
         `key`   VARCHAR(64) PRIMARY KEY,
         `value` TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS repos (
+        prefix      VARCHAR(64) PRIMARY KEY,
+        repo_name   VARCHAR(200) NOT NULL,
+        origin_url  VARCHAR(500),
+        updated_at  VARCHAR(30)
+    )""",
 ]
 
 
@@ -482,6 +489,9 @@ def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
                     list(row.values()),
                 )
 
+            # Keep the repos mapping table current — rides this same commit
+            _register_repo(cur, prefix)
+
             # Dolt commit
             cmd_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "save"
             author = f"{get_creator()} <bon@localhost>"
@@ -540,6 +550,9 @@ def dolt_append_archive(items: list[dict]) -> None:
                     list(row.values()),
                 )
 
+            # Keep the repos mapping table current — rides this same commit
+            _register_repo(cur, prefix)
+
             cmd_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "archive"
             author = f"{get_creator()} <bon@localhost>"
             cur.execute("CALL DOLT_ADD('-A')")
@@ -584,6 +597,77 @@ def _dolt_load_prefix_local() -> str:
     if path.exists():
         return path.read_text()
     return "bon"
+
+
+# ---------- repos mapping table ----------
+
+def _repo_identity() -> tuple[str, str | None]:
+    """Derive (repo_name, origin_url) for the current board root.
+
+    repo_name is the board root's directory name; origin_url comes from
+    git when the board lives in a repo with an origin remote, else None.
+    """
+    root = _data_dir().parent
+    origin_url = None
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "-C", str(root), "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            origin_url = result.stdout.strip() or None
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return root.name, origin_url
+
+
+def _register_repo(cur, prefix: str) -> bool:
+    """Sync this board's row in the repos mapping table.
+
+    Compares before writing so an unchanged identity adds nothing to the
+    caller's transaction. Returns True when a row was written.
+    """
+    repo_name, origin_url = _repo_identity()
+    cur.execute("SELECT repo_name, origin_url FROM repos WHERE prefix = %s", (prefix,))
+    row = cur.fetchone()
+    if row and row["repo_name"] == repo_name and row["origin_url"] == origin_url:
+        return False
+    if row is None:
+        cur.execute(
+            "INSERT INTO repos (prefix, repo_name, origin_url, updated_at) "
+            "VALUES (%s, %s, %s, %s)",
+            (prefix, repo_name, origin_url, now_iso()),
+        )
+    else:
+        cur.execute(
+            "UPDATE repos SET repo_name = %s, origin_url = %s, updated_at = %s "
+            "WHERE prefix = %s",
+            (repo_name, origin_url, now_iso(), prefix),
+        )
+    return True
+
+
+def dolt_register_repo(prefix: str | None = None) -> bool:
+    """Upsert this board's repos-table row in its own Dolt commit.
+
+    Explicit registration for `bon init --backend dolt` / `bon register` /
+    post-migrate; ordinary writes register as a side-effect of
+    dolt_save_items. Returns True when the row changed.
+    """
+    conn = _get_connection()
+    prefix = prefix or _dolt_load_prefix_local()
+    with _write_transaction(conn, "repo registration"):
+        with conn.cursor() as cur:
+            changed = _register_repo(cur, prefix)
+            if changed:
+                author = f"{get_creator()} <bon@localhost>"
+                cur.execute("CALL DOLT_ADD('-A')")
+                cur.execute(
+                    "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
+                    (f"bon register {prefix}", author),
+                )
+    return changed
 
 
 # ---------- log ----------

@@ -107,6 +107,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `log [-n N]` | Show recent activity (creations, completions, archives) |
 | `reopen ID` | Reopen a completed or archived item |
 | `migrate --to {jsonl\|dolt}` | Switch storage backend |
+| `register` | Register this board in Dolt's repos mapping table (writes self-register; this is the manual/backfill path) |
 | `update` | Re-install bon from source |
 | `status` | Show counts overview |
 | `help [CMD]` | Show help |

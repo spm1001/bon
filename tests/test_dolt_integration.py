@@ -51,6 +51,7 @@ def dolt_dir(tmp_path, monkeypatch):
         with conn.cursor() as cur:
             cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{prefix}-%",))
             cur.execute("DELETE FROM archive WHERE id LIKE %s", (f"{prefix}-%",))
+            cur.execute("DELETE FROM repos WHERE prefix = %s", (prefix,))
             cur.execute("CALL DOLT_ADD('-A')")
             cur.execute(
                 "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
@@ -249,6 +250,7 @@ class TestDoltIntegration:
             conn = _get_connection()
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{prefix}-%",))
+                cur.execute("DELETE FROM repos WHERE prefix = %s", (prefix,))
                 cur.execute("CALL DOLT_ADD('-A')")
                 cur.execute(
                     "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
@@ -388,6 +390,7 @@ class TestDoltMove:
                     for p in (src_prefix, tgt_prefix):
                         cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{p}-%",))
                         cur.execute("DELETE FROM archive WHERE id LIKE %s", (f"{p}-%",))
+                        cur.execute("DELETE FROM repos WHERE prefix = %s", (p,))
                     cur.execute("CALL DOLT_ADD('-A')")
                     cur.execute(
                         "CALL DOLT_COMMIT('-m', %s, '--author', %s, '--allow-empty')",
@@ -396,3 +399,57 @@ class TestDoltMove:
                 conn.commit()
             except Exception:
                 pass  # Best-effort cleanup
+
+class TestReposRegistration:
+    """The repos mapping table self-populates as boards write (bon-hatemu)."""
+
+    def _item(self, prefix, suffix):
+        return {
+            "id": f"{prefix}-{suffix}",
+            "type": "action",
+            "title": f"repos registration test {suffix}",
+            "status": "open",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "order": 1,
+            "created_at": now_iso(),
+            "created_by": "test",
+        }
+
+    def _repos_row(self, prefix):
+        from bon.dolt import _get_connection
+        conn = _get_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM repos WHERE prefix = %s", (prefix,))
+            return cur.fetchone()
+
+    def test_save_items_registers_board(self, dolt_dir):
+        tmp_path, prefix = dolt_dir
+        save_items([self._item(prefix, "rega")])
+        row = self._repos_row(prefix)
+        assert row is not None
+        assert row["repo_name"] == tmp_path.name
+        assert row["origin_url"] is None  # tmp dir is not a git repo
+        assert row["updated_at"]
+
+    def test_unchanged_identity_does_not_churn(self, dolt_dir):
+        tmp_path, prefix = dolt_dir
+        save_items([self._item(prefix, "rega")])
+        # Plant a sentinel: a save with unchanged identity must not overwrite
+        # it. (Comparing timestamps would false-pass within the same second.)
+        from bon.dolt import _get_connection
+        conn = _get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE repos SET updated_at = %s WHERE prefix = %s",
+                ("SENTINEL", prefix),
+            )
+        conn.commit()
+        save_items([self._item(prefix, "rega"), self._item(prefix, "regb")])
+        assert self._repos_row(prefix)["updated_at"] == "SENTINEL"
+
+    def test_dolt_register_repo_explicit(self, dolt_dir):
+        tmp_path, prefix = dolt_dir
+        from bon.dolt import dolt_register_repo
+        assert dolt_register_repo(prefix) is True   # first registration writes
+        assert dolt_register_repo(prefix) is False  # re-run is a no-op
+        assert self._repos_row(prefix)["repo_name"] == tmp_path.name
