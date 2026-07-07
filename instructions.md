@@ -34,8 +34,10 @@ Frame outcomes as achievements: "Taught Claude to generate charts" not "Create c
 Some repos use Dolt instead of JSONL. The `bon` CLI handles both transparently. If bon commands fail with "Cannot connect," the Dolt server may be down:
 
 ```bash
-systemctl --user start dolt-bon.service   # on hezza
+systemctl --user start dolt-bon.service   # on tube (moved from hezza 2026-07-07)
 ```
+
+If the error instead *names the move* (error 9999, "bon Dolt moved to tube"), your `~/.config/bon/dolt.toml` still points at hezza — set `host = "100.124.115.49"`.
 
 If a repo has both `.bon/backend=dolt` and a stale `items.jsonl`, the JSONL file is a pre-migration ghost — bon ignores it.
 
