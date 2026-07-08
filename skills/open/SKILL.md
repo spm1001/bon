@@ -297,17 +297,19 @@ All commands support `--json` for output. `bon new` reads JSON from piped stdin 
 **For creating items:** Pipe JSON to `bon new` with a heredoc for anything with special
 characters (quotes, backticks, parentheses). Flags are only for quick stubs.
 
-**For reading items:** When piping `bon --json` output through inline python, use a heredoc:
+**For reading items:** When piping `bon --json` output through inline python, use `python3 -c` (script as an argument) — **not** a heredoc:
 
 ```bash
-bon list --json | python3 << 'PYEOF'
+bon list --json | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
-for o in data["outcomes"]:
-    if o["status"] != "done":
-        print(o["id"])
-PYEOF
+for o in data['outcomes']:
+    if o['status'] != 'done':
+        print(o['id'])
+"
 ```
+
+`python3 -c '…'` keeps stdin pointed at the pipe. `bon list --json | python3 <<'PYEOF' … PYEOF` is **broken**: the heredoc claims stdin, so python reads its *script* from there and the piped JSON never arrives — `json.load(sys.stdin)` then reads empty and raises. (If a heredoc is unavoidable, write the JSON to a file first and `json.load(open(path))`.)
 
 ### Creating Multiple Items
 

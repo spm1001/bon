@@ -92,6 +92,19 @@ or disappearing on this machine, not work created or closed.
 
 Verification is LOCAL-ONLY: dispatch read-only subagents (Task tool, Opus) for repos with a `local_path`. Items in `not_cloned_here` repos are classified **NOT_VERIFIABLE_HERE** — with a note of where they could be verified (a machine holding the clone, or a fresh clone from `origin_url`) — unless the user asks you to clone or ssh. Never let distance quietly downgrade the standard to trusting the brief.
 
+**Freshness gate (before dispatch) — a stale clone is worse than no clone.** A clone is a snapshot; verifying a brief against out-of-date code produces a *confident* wrong verdict (a false DONE/STALE), whereas NOT_VERIFIABLE_HERE at least announces its ignorance. So before dispatching a repo's subagent, bring its clone current or flag it:
+
+```bash
+git -C {local_path} fetch --quiet
+behind=$(git -C {local_path} rev-list --count HEAD..@{u} 2>/dev/null || echo "?")
+```
+
+- `behind` = 0 → current; verify normally.
+- `behind` > 0 and the working tree is clean → `git -C {local_path} pull --ff-only` (these clones are read/verify surfaces, so a fast-forward is safe and loses nothing — now you verify against fresh code).
+- can't fast-forward (dirty, diverged, no upstream, or `behind` = `?`) → **flag it**: pass "clone is {behind} commits behind — verdicts provisional" into that repo's subagent prompt, and treat its DONE/STALE results as needing a human nod, not auto-closable.
+
+Run the fetch pass once, up front, and tell the user which clones were refreshed and which are flagged before any verdicts land — a verdict from a silently-stale clone looks identical to one from a fresh clone, which is exactly the trap this closes.
+
 **Result files (bg survival):** create a run directory first (`/tmp/bon-audit-$(date +%F)/`) and have every subagent Write its own result JSON there as it finishes. In-context-only results die if the session gets backgrounded mid-run.
 
 **Parallelism strategy (rolling dispatch, not strict waves):**
