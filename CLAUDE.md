@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 20 commands (incl. cross-repo `bon move`), ~2900 LOC core (+600 optional Dolt module), 530 tests (10 are opt-in Dolt integration via BON_DOLT_TEST=1).
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 21 commands (incl. cross-repo `bon move` and Dolt `bon register`), ~2900 LOC core (+700 optional Dolt module), 535 tests (13 are opt-in Dolt integration via BON_DOLT_TEST=1).
 
 ## Versioning & releasing (suite-managed)
 
@@ -198,6 +198,8 @@ Bon supports two backends: **JSONL** (default) and **Dolt** (optional).
 - Dolt: MySQL-compatible DB with git semantics, requires `pymysql` (`pip install bon[dolt]`)
 
 Backend is set per-project in `.bon/backend` (absent = jsonl). All Dolt code lives in `src/bon/dolt.py`, lazily imported. Dispatch happens at the function boundary in `storage.py` — cli.py doesn't change.
+
+**The Dolt database carries a `repos` mapping table** (prefix → repo_name, origin_url) so estate-wide consumers (the /review survey) can label prefixes without a local clone. Boards self-register: every Dolt write upserts the row inside the existing transaction (SELECT-compare first, so unchanged identity writes nothing), `init --backend dolt` and `migrate --to dolt` register explicitly, and `bon register` is the manual/backfill path. Unmapped prefixes are surfaced as such — never guessed.
 
 **Dolt write strategy is truncate-and-reinsert** (DELETE prefix rows + INSERT all, in one transaction). This deliberately mirrors JSONL semantics (rewrite the whole file). Do not "optimize" to per-item UPSERT/DELETE — that changes the concurrency model and breaks the parallel between backends.
 
