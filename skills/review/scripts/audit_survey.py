@@ -225,18 +225,40 @@ def item_record(item: dict) -> dict:
         if flag:
             record["age_flag"] = flag
     brief = item.get("brief") or {}
-    for field in ("why", "what", "done"):
+    for field in ("why", "how", "what", "done"):
         if brief.get(field):
             record[field] = brief[field]
     return record
 
 
 def repo_entry(label: str, open_items: list[dict], **extra) -> dict:
-    """Build one repo group for the output JSON."""
+    """Build one repo group for the output JSON.
+
+    Outcomes carry `open_child_count` — the number of OPEN children in the same
+    board — so a verifier (and the skill's outcome-rollup) can see at a glance
+    which outcomes would strand children if closed (the kegewe trap). Parent
+    links are within-prefix, so counting over this board's open items is exact.
+    """
+    open_child_count: dict[str, int] = {}
+    for i in open_items:
+        parent = i.get("parent")
+        if parent:
+            open_child_count[parent] = open_child_count.get(parent, 0) + 1
+
+    outcomes = []
+    for i in open_items:
+        if i["type"] != "outcome":
+            continue
+        rec = item_record(i)
+        n = open_child_count.get(i["id"], 0)
+        if n:
+            rec["open_child_count"] = n
+        outcomes.append(rec)
+
     entry = {
         "repo": label,
         "open_count": len(open_items),
-        "outcomes": [item_record(i) for i in open_items if i["type"] == "outcome"],
+        "outcomes": outcomes,
         "actions": [item_record(i) for i in open_items if i["type"] == "action"],
     }
     entry.update(extra)
@@ -376,11 +398,31 @@ def survey(roots: list[Path], repo_filter: list[str] | None = None) -> dict:
         results = [r for r in results if any(f in r["repo"] for f in repo_filter)]
 
     results.sort(key=lambda r: r["open_count"], reverse=True)
+
+    # Visibility is split by backend. Dolt boards come from the shared database,
+    # so they're visible from ANY machine. JSONL boards are only seen when their
+    # repo is cloned under the scan roots — so the JSONL total is machine- and
+    # clone-dependent, and the headline count jumps when clones appear (the
+    # 491→650 overnight move on 2026-07-08 was purely tube gaining JSONL clones,
+    # not new work). Annotate it so the next run reads a jump correctly.
+    dolt_open = sum(r["open_count"] for r in results if r.get("backend") == "dolt")
+    jsonl_open = sum(r["open_count"] for r in results if r.get("backend") != "dolt")
+    visibility_note = (
+        f"{dolt_open} open on Dolt boards (visible from any machine — shared DB is "
+        f"the index); {jsonl_open} open on JSONL boards (visible ONLY where cloned — "
+        f"this run saw clones under {', '.join(str(r) for r in roots)}). The JSONL "
+        f"total changes per machine; a headline jump between runs is usually clones "
+        f"appearing, not work created."
+    )
+
     return {
         "roots": [str(r) for r in roots],
         "dolt": dolt_mode,
         "unmapped_prefixes": sorted(unmapped),
         "total_open": sum(r["open_count"] for r in results),
+        "dolt_open": dolt_open,
+        "jsonl_open": jsonl_open,
+        "visibility_note": visibility_note,
         "repos_with_open": len(results),
         "repos": results,
     }

@@ -62,21 +62,29 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse pass
 | Field | Meaning |
 |-------|---------|
 | `dolt: "global"` | Full estate view. `"unreachable"` = JSONL boards only — a DEGRADED survey. |
+| `visibility_note` | Human sentence splitting the count into Dolt (visible anywhere) vs JSONL (visible only where cloned). **Read this to the user** — it's how a headline jump gets read as clones appearing, not work. |
+| `dolt_open` / `jsonl_open` | The split behind `total_open`. `jsonl_open` is machine-dependent; `dolt_open` is not. |
 | `unmapped_prefixes` | Prefixes with items but no repos-table row — usually orphaned boards of retired repos. |
 | `local_path` | Clone under the scan roots — verifiable here. |
 | `not_cloned_here: true` | No clone under the scan roots — surveyed, not verifiable here. Caveat: this really means "not under the scan roots"; `~/.dotfiles` is the known board that IS local anyway. |
 | `origin_url` | Where a fresh clone would come from, when registered. |
+| `open_child_count` (on outcomes) | Open children in the same board — closing this outcome would strand them (the kegewe trap). Non-zero means re-home or close children first. |
 
 **If `dolt` is `"unreachable"`, stop and tell the user** — present the degraded scope honestly (JSONL boards only, every Dolt board missing) and offer to fix the server first. Never present a degraded survey as the estate.
 
 **Present the landscape to the user:**
 
 > Scanned {N} open items across {M} boards ({K} verifiable here, {L} not cloned here).
+> {dolt_open} on Dolt boards (visible anywhere) · {jsonl_open} on JSONL boards (only where cloned — count is machine-dependent).
 > Top repos: {repo1} ({count}), {repo2} ({count}), ...
 > {X} items flagged old (30d+), {Y} very old (60d+).
 > Orphaned prefixes (no live repo mapping): {unmapped list with counts}.
 >
 > Which repos should I audit? (default: all with open items)
+
+If the headline moved a lot since the last run, check `visibility_note` before
+reading it as progress or backsliding: a JSONL swing is usually clones appearing
+or disappearing on this machine, not work created or closed.
 
 **STOP here.** Wait for user to confirm scope before proceeding.
 
@@ -86,10 +94,10 @@ Verification is LOCAL-ONLY: dispatch read-only subagents (Task tool, Opus) for r
 
 **Result files (bg survival):** create a run directory first (`/tmp/bon-audit-$(date +%F)/`) and have every subagent Write its own result JSON there as it finishes. In-context-only results die if the session gets backgrounded mid-run.
 
-**Parallelism strategy (expect waves):**
+**Parallelism strategy (rolling dispatch, not strict waves):**
 - Repos with <5 open items: batch up to 3 repos per subagent
 - Repos with 5+ items: one subagent per repo
-- Max 5 concurrent subagents — a large estate means multiple waves (28 dispatches ≈ 6 waves); tell the user the expected wave count up front
+- Keep ~5 subagents in flight and **refill a slot the moment one finishes** — don't wait for a whole wave to drain before launching the next batch. On the 2026-07-08 run (30 dispatches) rolling dispatch beat strict waves: strict waves leave every fast repo's slot idle while the slowest repo in the wave finishes. Give the user a rough dispatch total (≈{N} dispatches) rather than a wave count — with rolling refill the "wave" framing no longer maps to wall-clock.
 
 **Subagent prompt template:**
 
@@ -112,6 +120,11 @@ Classify each item:
 - STALE: brief references things that no longer exist or codebase has diverged
 - ACTIVE: brief is current, work not yet done
 - BLOCKED: has waiting_for set or depends on external factor
+- EXTERNAL_SURFACE: --done criteria live OFF the repo — a Google Doc/Drive file,
+  Confluence page, a SaaS dashboard, an email thread, a deployed service. The item
+  is clear, it's just not code-verifiable from here. Name the surface to check.
+  (Distinct from UNCLEAR: UNCLEAR = you can't tell what "done" means; EXTERNAL_SURFACE
+  = you know exactly, it just lives somewhere this repo can't see.)
 - UNCLEAR: cannot determine programmatically, needs human judgment
 
 Items to verify:
@@ -123,7 +136,8 @@ Write your result to {run_dir}/{repo_label}.json AS SOON as you finish
   {{
     "id": "bon-xyz",
     "title": "item title",
-    "classification": "DONE|STALE|ACTIVE|BLOCKED|UNCLEAR",
+    "classification": "DONE|STALE|ACTIVE|BLOCKED|EXTERNAL_SURFACE|UNCLEAR",
+    "external_surface": "(only for EXTERNAL_SURFACE) where to check — e.g. 'Drive: <doc>', 'Confluence', 'Adalyser dashboard'",
     "reasoning": "one line explanation",
     "evidence": "what you checked that led to this conclusion"
   }}
@@ -139,7 +153,22 @@ bon commands. The only file you create is your result JSON in {run_dir}.
 
 Collect subagent results and present a clear, actionable summary. **Output as text in your response, not via Bash** (Bash output collapses behind Ctrl+O).
 
-Format:
+**The review has two orthogonal axes — keep them separate.** Verification (Phase 2) answered TRUTH: does each brief still match the code? Only the human can answer DESIRE: is the thing still wanted? A git-quiet board reads identically as "finished and in daily use" and "abandoned" — no substrate distinguishes them, so **never infer desire from staleness**. Truth is per-item and mechanical; desire triages at **repo/outcome level**.
+
+**For big estates (100+ items), hold the desire conversation FIRST, at repo/outcome level, before any item tables.** On the 2026-07-08 run, leading with 145 item verdicts drowned the user ("I'm drowning"); pulling up to six repo-level questions resolved the whole doubt zone in one exchange. So:
+
+1. **Present the portfolio grouped by pulse** — per repo (and per outcome for the big boards): open-item count, `open_child_count` on outcomes, age flags, and a one-line "what this board is for". This is the *shape*, not verdicts.
+2. **Ask the desire questions only the human can answer**, per repo/outcome: *still wanted? veil it? fold into a sibling? convert the promise to an action?* Six good repo-level questions beat 145 rows.
+3. **Only after desire is settled**, drop into the item tables below for the boards that survived — that's where the truth-verdicts drive the actual closes.
+
+**Triage vocabulary** (what a desire answer maps to):
+- **VEIL** — close with a recorded no-regrets note + a reopening condition. An examined no-action, not done-work: `bon done <id> --note "veil: <why safe to drop> · revisit if <trigger>"`.
+- **FOLD** — merge into a living sibling outcome; close the absorbed one with a pointer to where it went.
+- **CONVERT** — a task-shaped "outcome" that's really one step: `bon convert <id>` demotes it to an action. Honest shrinkage without losing the work.
+
+For smaller estates (<100 items), the item tables below ARE the review surface — present them directly.
+
+**Item tables (the backing detail — and the whole surface for small estates):**
 
 ```
 ## Audit Summary — {date}
@@ -176,11 +205,21 @@ Scanned {N} open items across {M} boards.
 |------|-------|------------------|
 | ... | ... | machine/clone hint, or origin_url |
 
+### External Surface — Verify Off-Repo ({count})
+
+Done-criteria that live on Drive/Confluence/a SaaS/an email — clear, just not in
+code. Present as a clean checklist grouped by surface, so the user (or a
+facteur/mise-armed session) can tick them in one pass instead of digging.
+
+| Item | Title | Surface to check |
+|------|-------|------------------|
+| ... | ... | Drive doc / Confluence / dashboard / thread |
+
 ### Orphaned Prefixes ({count})
 
 | Prefix | Open items | Triage options |
 |--------|-----------|----------------|
-| ... | ... | register from a clone / bon move the live ones / close as retired |
+| ... | ... | register from a clone / `bon move` the live ones / close as retired (Phase 4 orphan-close recipe) |
 
 ### Unclear — Needs Human ({count})
 
@@ -192,7 +231,7 @@ Which items should I close? (Say "close all ready", name specific IDs,
 or move items between categories.)
 ```
 
-**For big estates (100+ items), lead with the outcome-level rollup**, not the item tables: desired outcomes per repo with open-child counts, childless outcomes, standalone-action share. Nine portfolio fronts beat 586 item verdicts as the human review surface — the item tables back it up underneath.
+(For big estates these tables are the *backing detail* — the desire conversation above is the review surface. Don't paste all of them at the user; surface a category on request or once desire has narrowed the boards in play.)
 
 **STOP here.** This is a hard gate — no action without user approval.
 
@@ -212,6 +251,36 @@ bon done {id}
 1. ssh to a machine holding the clone and run `bon done` there
 2. Defer with a note in the summary — closure waits for a session on the right machine
 3. Clone fresh from `origin_url` only if the user wants it — cloning just to close items is usually overkill
+
+**For orphan boards (a prefix with NO clone anywhere — a retired repo whose Dolt items linger; e.g. consomme/gm/tmig/day on 2026-07-08):**
+
+Only inside the review venue, and only after the user confirms the board is retired (the desire axis — a git-quiet orphan can be a finished-and-*absorbed* tool, not a dead one). Reach it by a scratch reconnect to the shared Dolt DB — the real `bon` CLI keeps proper commit provenance, unlike raw SQL (which leaves the change uncommitted in Dolt's working set and skips the unblock cascade):
+
+```bash
+t=$(mktemp -d); cd "$t"
+bon init --prefix <orphan-prefix> --backend dolt   # reconnects; now sees the orphan items
+bon done <prefix-xxx> --note "board retired: <evidence>. audit <date>"
+# test-litter → done THEN archive to remove entirely. archive needs done first, and an
+# outcome won't archive until ITS actions are archived, so do children before parents:
+#   bon done <child> --note "..."; bon archive <child>; bon archive <parent>
+```
+
+`bon init` writes ONE scratch row into the `repos` label table (`<prefix> → <tmpdir>, no origin`). Since you close every open item, that board then has zero open items and never surfaces in a survey again — the row is invisible. Tidy it anyway, in one committed DELETE at the end:
+
+```bash
+uv run --with pymysql - <<'PY'
+import pymysql, tomllib; from pathlib import Path
+cfg={"host":"127.0.0.1","port":3306,"database":"bon","user":"root","password":""}
+p=Path.home()/".config/bon/dolt.toml"
+if p.exists():
+    fc=tomllib.load(open(p,"rb")); cfg.update({k:fc[k] for k in cfg if k in fc})
+c=pymysql.connect(autocommit=True, **cfg); cur=c.cursor()
+cur.execute("DELETE FROM repos WHERE prefix IN ('<p1>','<p2>')")   # the orphan prefixes
+cur.execute("CALL DOLT_COMMIT('-A','-m','repos: remove scratch label rows from orphan-close')")
+PY
+```
+
+If this dance (or the `ssh`-to-clone step above) starts to grate, that's the trigger to build **`bon --board <prefix>`** — act on any Dolt board by prefix with no cwd, no scratch dir, no label-row to tidy. Filed with that tripwire, not built speculatively: **bon-wezahu**.
 
 **Commit strategy (JSONL boards only — Dolt boards have no file to commit):**
 ```bash
