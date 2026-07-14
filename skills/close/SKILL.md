@@ -52,6 +52,21 @@ If the script isn't found, diagnose with `find ~/.claude/plugins/cache -name "cl
 
 The script outputs TIME, GIT, BON, LOCATION context, plus two values you'll need in Act: **HANDOFF_DIR** and **SESSION_ID**.
 
+### Which mode are you in?
+
+The rite adapts to what the session can reach — two independent axes (full spec: `docs/CONTRACT.md`):
+
+- **Board visible?** Can you see the repo's `.bon/`, `handoffs/`, or `understanding.md` (via Read/Glob)?
+- **Writer reachable?** Does `bon list` actually return — the CLI on PATH *and* a reachable backend?
+
+| Board | Writer | Mode | What close does |
+|-------|--------|------|-----------------|
+| visible | reachable | **Full-fat** | The full path below — board mutations, handoff, commit |
+| visible | unreachable | **Candidate mode** | Handoff carries board mutations as *candidates*; no `bon` calls, no commit (see Act) |
+| absent | either | **Board-less** | Reflect and write a handoff from the vehicle's own memory; skip the board steps silently |
+
+Writer-unreachability shows up generically as: no `bon` on PATH, `bon list` erroring on its backend, or no `.git` to commit into. The live case is Cowork's mounted sandbox — files are visible via Read, but its bash tool has no `bon`. Detect it by *trying* `bon list`; identify it by the signals, never by testing for "Cowork" by name.
+
 ### Board health: outcomes with no actions
 
 Outcomes created mid-session often haven't been broken down yet — a long
@@ -69,6 +84,22 @@ for o in json.load(sys.stdin)['outcomes']:
 
 Carry anything that surfaces into the Reflect proposal: break it down now,
 file a first action, or confirm it's intentionally still a sketch.
+
+### New rooms: registered?
+
+If this session created a **new room** — a new nested `CLAUDE.md` below the repo
+root — check it's discoverable, so it doesn't become an unread twin. (The `notes`
+egta room was minted beside its unread predecessor and the duplication surfaced
+twelve days later.)
+
+```bash
+git status --porcelain | grep -E '(^A|^\?\?).*/CLAUDE\.md$'   # new room files this session
+```
+
+For each new room, confirm two things: it's listed in its parent room's index or
+table (and would appear in `rooms.md`), and this session's handoff lands in the
+room you actually worked in (see "Where does it go?"). Carry any gap into the
+Reflect proposal as a "Now" fix while you still have the context.
 
 Before continuing, check where you are: compare `pwd -P` with the Working directory in your system prompt. If they differ, `cd` back. If the session started in a folder called 'scratch' or 'chat' but the work belongs elsewhere, note the target repo — you'll route the handoff there in Act.
 
@@ -162,6 +193,8 @@ Wait for approval or adjustment before doing anything.
 
 ## Act
 
+**Candidate mode** (board visible, writer unreachable): work with Read/Write tools only. Skip the board closes in "Do the Now work" and skip "File the new bons" — instead record every intended board mutation as a **Candidate** in the handoff (format under "Craft the handoff"), and skip the commit. Now-fixes to plain files, the reflection, and the handoff itself all run unchanged. **Board-less mode**: skip the board steps silently and write a handoff from the vehicle's own memory. The rest of this section is the full-fat path.
+
 ### Do the "Now" work
 
 Work through the list. Finish the quick fixes, close off completed Bon items - generally leave things how you'd like to find them.
@@ -223,17 +256,46 @@ The test: would future Claudes benefit from knowing this?
 If nothing qualifies, omit this section — filler dilutes understanding.md over time.]
 ```
 
+#### Candidates (candidate mode only)
+
+In candidate mode you can't mint on the board, so the handoff carries your intended
+mutations as **candidates** — provenance-tagged proposals a writer-bearing `/open`
+mints. Add this block inside "For the next Claude":
+
+```markdown
+### Candidates
+
+<!-- Board visible, writer unreachable — a writer-bearing /open mints or drops each; unminted = wish. -->
+Provenance: {vehicle, e.g. Cowork} session {session_id} — {YYYY-MM-DD}
+
+- **NEW** action under `bon-PARENT` — "Title"
+  - why: … / what: … / done: …   (how: … — optional)
+- **DONE** `bon-xxxx` — "one-line reason"
+- **EDIT** `bon-yyyy` — --how: "new text"
+```
+
+One line per mutation, with enough detail to mint without your context. This is what
+the two worked examples did (`~/notes/handoffs/2026-06-10-7c379a74.md`,
+`2026-06-12-804b6ba8.md`) — their candidates rode an "Opportunities — bon candidates"
+list in prose; the dedicated `### Candidates` heading is the same idea, structured so
+the next open mints reliably instead of re-deriving the convention. Format spec:
+`docs/HANDOFF-CONTRACT.md`.
+
 #### Where does it go?
 
-Handoffs live per-repo in `.bon/handoffs/`, git-tracked so they sync across machines. The script walks up from CWD to find the nearest `.bon/` — that's usually right, but not always:
+Handoffs live in the room's **visible `handoffs/`** (falling back to `.bon/handoffs/`), git-tracked so they sync across machines. `close-context.sh` resolves this via the shared `scripts/lib-handoff.sh` — the same walk the next `/open` reads from, so a handoff always lands where the next one looks. `HANDOFF_DIR` is usually right, but placement is a judgment you make, not only a cwd heuristic:
+
+**Placement is work-based, not launch-based.** You know the primary room you worked in better than any cwd walk does — name it, and the resolver places the handoff in that room's `handoffs/`. "Launched at root" (a `claude agents @repo`, a Cowork folder-pick) is the worst case, not the target: a root-launched session that spent itself in one room still files there. Substrate-wide sessions file at the repo root.
 
 | Situation | Handoff destination |
 |-----------|-------------------|
-| Normal session in a project | HANDOFF_DIR (the default) |
-| Work clearly belongs to another repo | That repo's `.bon/handoffs/` |
+| Session worked mainly in one room | That room's `handoffs/` (name the room; the resolver places it) |
+| Substrate-wide session | The repo root's `handoffs/` (HANDOFF_DIR) |
+| Work clearly belongs to another repo | That repo's `handoffs/` |
 | Started in scratch/workbench | Ask the user — default to the repo where the session's bon items live |
+| Candidate mode (Cowork mount) | The mount's visible `handoffs/` for the room worked — Write tool, no commit |
 
-For cross-repo handoffs, check the target `.bon/handoffs/` exists first.
+For cross-repo handoffs, check the target `handoffs/` exists first.
 
 #### Filename
 
@@ -243,6 +305,8 @@ Use HANDOFF_FILE from the script output — it generates `YYYY-MM-DD-{session-id
 ### Commit and go
 
 Stage relevant files (including the handoff), commit in modular commits with descriptive messages, and offer to push. If nothing's dirty, just move on — not every session produces code changes.
+
+**Candidate mode has no commit step.** There's no writer and usually no git in the sandbox — the handoff you wrote to the mount *is* the deliverable, and a writer-bearing session sweeps and mints its candidates at the next open. Leave it uncommitted; say so, so the next full-fat session knows to look.
 
 **If the context script reported `WORKTREE_SESSION=true`:** this session's branch — commits and the handoff you just wrote — is deleted with the worktree. Push, merge, or open a PR before declaring the session closed; say what would be lost (`git log @{u}..HEAD` count) if the user wants to skip it. (JSONL-backed bons filed this session live in the worktree's copy too; Dolt-backed bons are safe — they write over the network.)
 

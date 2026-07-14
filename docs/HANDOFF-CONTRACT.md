@@ -1,4 +1,4 @@
-# Handoff Contract v4
+# Handoff Contract v5
 
 The handoff file is an interface between sessions. This document specifies the stable contract that external consumers (e.g. aboyeur, overnight composting) can depend on.
 
@@ -52,12 +52,37 @@ Handoffs have two zones serving different audiences:
 | Concerns and traps | `### Risks` | Prevent repeat mistakes |
 | Suggested direction | `### Opportunities` | Next steps with bon IDs |
 | Verification commands | `### Commands` | Optional. Pick up where we left off |
+| Board mutations to mint | `### Candidates` | Optional. A no-writer session's proposals; a writer-bearing /open mints them (see Candidate mode) |
 
 **Zone 2: For Claudes to come** — consumed by overnight composting for synthesis into understanding.md and garde.
 
 Single prose block under `## For Claudes to come`. Architectural knowledge that transcends the session, written to stand alone without session context.
 
 Scripts that extract section content should grep for `## For the next Claude` and `## For Claudes to come` as zone markers. Section headings within zones are flexible — content matters, not labels.
+
+### Candidate mode (`### Candidates`)
+
+A session that can **see** the board but can't **reach** a writer (Cowork's mounted sandbox is the live case — files visible, no `bon` CLI, no git) runs the rite knowledge-side and records its intended board mutations in the handoff as **candidates**: provenance-tagged proposals a writer-bearing `/open` mints at the next full-fat session. This is the "visible / unreachable" quadrant of the probe in `docs/CONTRACT.md` — that document owns the probe; this one owns the block's shape.
+
+The block lives in Zone 1 (it's consumed at the next open) and is **optional**: only no-writer sessions produce it, so existing handoffs and consumers are untouched.
+
+```markdown
+### Candidates
+
+<!-- Board visible, writer unreachable — a writer-bearing /open mints or drops each; unminted = wish. -->
+Provenance: {vehicle} session {session_id} — {YYYY-MM-DD}
+
+- **NEW** action under `bon-PARENT` — "Title"
+  - why: … / what: … / done: …   (how: … — optional)
+- **DONE** `bon-xxxx` — "one-line reason"
+- **EDIT** `bon-yyyy` — --how: "new text"
+```
+
+- **Provenance line** — which vehicle and session produced the candidates, and the date; the minting session carries this into each item's brief so origin survives.
+- **One entry per mutation**, keyed by verb (`NEW` / `DONE` / `EDIT`), with enough detail to mint without the originating session's context.
+- **Minting is part of the full-fat open, not a courtesy** — a candidate not minted at the next open is a wish. After minting, the open marks the block `### Candidates (minted YYYY-MM-DD)` so a re-open doesn't double-mint.
+
+Two worked examples predate this spec and carry their candidates as an `### Opportunities — bon candidates` list (`~/notes/handoffs/2026-06-10-7c379a74.md`, `2026-06-12-804b6ba8.md`); readers should treat that legacy shape as candidates too.
 
 ### Legacy Layout (pre-fond)
 
@@ -107,6 +132,7 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 - Prose style and detail level
 - Whether `### Commands` or `### Reflection` are present
 - Whether `## For Claudes to come` is present (not every session produces durable insight)
+- Whether the optional `### Candidates` block is present (only no-writer sessions produce it)
 
 ## What's Out of Scope
 
@@ -117,9 +143,10 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 
 ## Versioning
 
-This is v4.
+This is v5.
 
 - **v1** (Jan 2026): Initial contract. `~/.claude/handoffs/` location, flat sections.
 - **v2** (Feb 2026): Path encoding widened. Still `~/.claude/handoffs/`.
 - **v3** (Apr 2026): Location moved to `.bon/handoffs/` (git-tracked). Two-zone layout (fond-v1). Date-prefixed filenames. `format:` metadata field.
 - **v4** (Jun 2026): Visible-substrate resolution (bon-zopopu). Handoffs resolve to a visible `handoffs/` (nearest-room, then board-root) before the legacy `.bon/handoffs/`, via the shared `scripts/lib-handoff.sh`; `understanding.md` resolves the same way. The `.bon/` fallback keeps every existing repo working untouched. **Consumers that read handoffs directly** (aboyeur, overnight composting) should use that resolver — or handle visible `handoffs/` + nearest-room — rather than assuming `.bon/handoffs/`.
+- **v5** (Jul 2026): Candidate mode (bon-pujawo). An optional `### Candidates` block in Zone 1 lets a no-writer session (board visible, writer unreachable — e.g. Cowork) record board mutations for a writer-bearing `/open` to mint. Additive and optional; the handoff format stays `fond-v1`.

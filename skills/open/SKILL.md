@@ -79,7 +79,21 @@ The handoff stays on disk — never delete it. Not every handoff has a compost z
 
 **Transition:** If `.bon/contributions/` contains files, process those the same way (read, integrate into understanding.md, delete the contribution files). This path is being retired.
 
-### 2. Present Hierarchy
+### 2. Mint Pending Candidates
+
+The latest handoff may carry a `### Candidates` section — board mutations proposed by a session that could see the board but couldn't reach a writer (candidate mode; the live case is a Cowork close). They are proposals, not tracked work: mint them now, or they're lost. When the handoff has no such section — the common case — skip this step.
+
+For each candidate, run the matching verb, tagging where it came from so provenance survives:
+
+- **NEW** → `bon new` (JSON stdin); add its origin to the brief, e.g. `"(candidate from Cowork session local_7c379a74, 2026-06-10)"`
+- **DONE** → `bon done ID --note "…"`
+- **EDIT** → `bon edit ID …`
+
+Mint deliberately, not on autopilot: if a candidate is stale, already done, or wrong, drop it and say so to the user — a conscious drop is a real decision; an unnoticed one is the leak this step exists to close. The two worked examples (`~/notes/handoffs/2026-06-10-7c379a74.md`, `2026-06-12-804b6ba8.md`) carry their candidates as an "Opportunities — bon candidates" list rather than a `### Candidates` heading — treat that shape as candidates too.
+
+**Then mark them minted**, so a re-open doesn't double-mint: edit the handoff's candidate heading to `### Candidates (minted YYYY-MM-DD)`. This is the step that re-syncs the board with the handoffs — it's what cures "where do I pick up".
+
+### 3. Present Hierarchy
 
 Show the full picture — outcomes with progress and their actions — **as text in your response** (not via Bash, which collapses behind Ctrl+O).
 
@@ -88,11 +102,19 @@ Run `bon list`, capture to a temp file, Read and output:
 bon list > /tmp/bon-hierarchy.txt
 ```
 
-### 3. Pick Direction
+### 4. Pick Direction
 
 Assess which ready items align with what's already in context — files read, handoff content, understanding document. State your reasoning briefly. When context is thin, just present the list.
 
-User picks direction. Then **draw-down** before touching code.
+User picks direction.
+
+### 5. Read the Room
+
+In a **multi-room repo** — one with a `rooms.md` index, or nested `CLAUDE.md` files below the root — read the tissue of the room you'll actually work in *before* touching its files: its `CLAUDE.md`, its `understanding.md`, and its recent `handoffs/`. Do this with the Read tool, yourself — the harness won't. It loads a subtree `CLAUDE.md` only on-demand (and Cowork not at all), and it *never* autoloads understanding.md or handoffs on any launch. A session that skips this works a room half-blind and mints twins — the `notes` egta twin was a duplicate room built beside its unread predecessor, caught twelve days later.
+
+This fires **regardless of where the session launched**: a room-launched session still needs the explicit understanding.md + handoffs read, because the harness's upward walk carries only CLAUDE.md. `rooms.md`, when present, is the map of what rooms exist — read it first to place your work. In a single-room repo this is a no-op: the tissue the hook already resolved is the whole story.
+
+Then **draw-down** before touching code.
 
 ---
 
