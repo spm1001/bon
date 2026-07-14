@@ -185,8 +185,16 @@ for _ in 1 2 3; do
     if [ -f "/tmp/.claude-ctx-${_cand}" ]; then cc_pid=$_cand; break; fi
     _cand=$(ps -o ppid= -p "$_cand" 2>/dev/null | tr -d ' ')
 done
-if [ -n "$cc_pid" ]; then
-    MAX_TOKENS=$(cat "/tmp/.claude-ctx-${cc_pid}")
+# The sidecar is EXTERNAL input (statusline.sh writes it). Trust it only if it
+# is numeric: a field-misaligned statusline can write a non-number (e.g. an
+# effort level like "xhigh" leaking into the window slot), and $(( xhigh / 1000 ))
+# dies under `set -u` with "xhigh: unbound variable". Non-numeric => fall through
+# to model-based inference, so the window stays CORRECT (1M for fable/[1m]), not
+# merely non-crashing.
+SIDECAR_WINDOW=""
+[ -n "$cc_pid" ] && SIDECAR_WINDOW=$(cat "/tmp/.claude-ctx-${cc_pid}" 2>/dev/null)
+if [[ "$SIDECAR_WINDOW" =~ ^[0-9]+$ ]]; then
+    MAX_TOKENS="$SIDECAR_WINDOW"
 elif [ -n "${CLAUDE_CONTEXT_WINDOW:-}" ]; then
     MAX_TOKENS="$CLAUDE_CONTEXT_WINDOW"
 else
@@ -209,6 +217,10 @@ else
     esac
 fi
 CURRENT_WINDOW=${MAX_TOKENS:-200000}
+# Belt-and-braces: guarantee every downstream $(( CURRENT_WINDOW … )) (WINDOW_K,
+# the window-change drift calc) survives `set -u` even if MAX_TOKENS was set
+# non-numerically upstream. Never crash /open on a bad denominator.
+[[ "$CURRENT_WINDOW" =~ ^[0-9]+$ ]] || CURRENT_WINDOW=200000
 
 # --- Context free % ---
 # Real input tokens = input_tokens + cache_creation + cache_read.
