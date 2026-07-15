@@ -97,6 +97,23 @@ TACTICAL_ACTION = {
     },
 }
 
+STANDALONE_ACTION = {
+    "id": "test-solo",
+    "type": "action",
+    "title": "Standalone action",
+    "status": "open",
+    "order": 1,
+}
+
+WAITING_STANDALONE = {
+    "id": "test-solowait",
+    "type": "action",
+    "title": "Waiting standalone",
+    "status": "open",
+    "order": 2,
+    "waiting_for": ["something"],
+}
+
 
 # --- Tests ---
 
@@ -274,6 +291,28 @@ class TestListCommand:
         assert result.stdout != ""
         assert not result.stdout.endswith("\n\n")
 
+    def test_standalone_action_appears_in_list(self, tmp_path):
+        """Standalone actions (no parent) appear under a Standalone: section."""
+        data = make_jsonl(OPEN_OUTCOME, STANDALONE_ACTION)
+        result = run_bon_read(tmp_path, data, "list")
+        assert "Standalone:" in result.stdout
+        assert "Standalone action" in result.stdout
+        assert "(test-solo)" in result.stdout
+
+    def test_standalone_only_board_not_empty(self, tmp_path):
+        """A board whose only open work is standalone must not read as empty.
+
+        The notes-board bug: all open actions were standalone, so list showed
+        nothing actionable.
+        """
+        data = make_jsonl(
+            STANDALONE_ACTION,
+            {**STANDALONE_ACTION, "id": "test-solo2", "title": "Another solo", "order": 2},
+        )
+        result = run_bon_read(tmp_path, data, "list")
+        assert "Standalone action" in result.stdout
+        assert "Another solo" in result.stdout
+
 
 class TestReadyCommand:
     """The ready command shows only open, non-waiting items."""
@@ -323,6 +362,19 @@ class TestReadyCommand:
         result = run_bon_read(tmp_path, data, "ready")
         assert result.stdout != ""
         assert not result.stdout.endswith("\n\n")
+
+    def test_standalone_action_appears_in_ready(self, tmp_path):
+        """Open standalone actions are ready work."""
+        data = make_jsonl(OPEN_OUTCOME, STANDALONE_ACTION)
+        result = run_bon_read(tmp_path, data, "ready")
+        assert "Standalone action" in result.stdout
+
+    def test_waiting_standalone_excluded_from_ready(self, tmp_path):
+        """A standalone action that is waiting is not ready."""
+        data = make_jsonl(OPEN_OUTCOME, STANDALONE_ACTION, WAITING_STANDALONE)
+        result = run_bon_read(tmp_path, data, "ready")
+        assert "Standalone action" in result.stdout
+        assert "Waiting standalone" not in result.stdout
 
 
 class TestCurrentCommand:

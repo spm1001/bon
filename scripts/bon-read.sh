@@ -84,6 +84,19 @@ if mode == "list":
             print(f'  {num}. {am} {a["title"]} ({a["id"]})')
         if i < len(outcomes) - 1:
             print()
+    # Standalone actions (open, no parent) — the CLI's second bucket, else
+    # a board whose open work is all standalone reads as empty.
+    standalone = sorted(
+        [it for it in items if it.get("type") == "action"
+         and not it.get("parent") and it.get("status") == "open"],
+        key=by_order,
+    )
+    if standalone:
+        if outcomes:
+            print()
+        print("Standalone:")
+        for a in standalone:
+            print(f'  ○ {a["title"]} ({a["id"]})')
 
 elif mode == "ready":
     # Ready: open outcomes with only open, non-waiting actions
@@ -104,6 +117,19 @@ elif mode == "ready":
             print(f'  {idx}. \u25cb {a["title"]} ({a["id"]})')
         if i < len(outcomes) - 1:
             print()
+    # Standalone ready actions (open, non-waiting, no parent)
+    standalone = sorted(
+        [it for it in items if it.get("type") == "action"
+         and not it.get("parent") and it.get("status") == "open"
+         and not it.get("waiting_for")],
+        key=by_order,
+    )
+    if standalone:
+        if outcomes:
+            print()
+        print("Standalone:")
+        for a in standalone:
+            print(f'  \u25cb {a["title"]} ({a["id"]})')
 
 elif mode == "current":
     # Active tactical steps
