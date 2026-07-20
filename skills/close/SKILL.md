@@ -251,7 +251,10 @@ Don't write a separate Suggested section; that duplication is format drift.]
 This is what /open synthesizes into understanding.md — repo, craft, and
 architecture knowledge belongs here. Knowledge about Claude's own functional
 patterns or working conditions routes to self.md directly instead of through
-the handoff; if a lesson is genuinely both, split it rather than double-filing.
+the handoff — and self.md's "How this document breathes" section owns the
+routing (Read the matching warm shard first for dedup/placement; full texture
+there, cue line to the hot file). If a lesson is genuinely both, split it
+rather than double-filing.
 The test: would future Claudes benefit from knowing this?
 If nothing qualifies, omit this section — filler dilutes understanding.md over time.]
 ```
