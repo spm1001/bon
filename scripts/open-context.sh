@@ -254,11 +254,26 @@ if [ "$BON_BACKEND" != "none" ]; then
         echo "  Run: systemctl --user start dolt-bon.service"
         echo ""
     elif [ -n "$BON_LIST_OUTPUT" ]; then
-        echo "Outcomes we're working towards:"
-        echo "$BON_LIST_OUTPUT" | grep -E '^○' | while IFS= read -r line; do
-            echo "  $line"
-        done
-        echo ""
+        # Top-level outcomes sit at column 0; standalone actions sit indented
+        # under a column-0 'Standalone:' header (same shape from bon list and
+        # bon-read.sh list). Filter each into its own section and only emit a
+        # header when its section has content. A standalone-only board used to
+        # die here under pipefail (grep '^○' exits 1) leaving a bare header
+        # and hiding all open work (bon-cuvice).
+        OUTCOME_LINES=$(echo "$BON_LIST_OUTPUT" | grep -E '^○' || true)
+        STANDALONE_LINES=$(echo "$BON_LIST_OUTPUT" | awk '/^Standalone:/{f=1;next} /^[^ ]/{f=0} f && /^  ○/' || true)
+        if [ -n "$OUTCOME_LINES" ]; then
+            echo "Outcomes we're working towards:"
+            echo "$OUTCOME_LINES" | while IFS= read -r line; do
+                echo "  $line"
+            done
+            echo ""
+        fi
+        if [ -n "$STANDALONE_LINES" ]; then
+            echo "Standalone actions:"
+            echo "$STANDALONE_LINES"
+            echo ""
+        fi
     fi
 fi
 
