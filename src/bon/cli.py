@@ -104,6 +104,56 @@ def limit_items(items: list[dict], limit: int | None) -> list[dict]:
     return [i for i in items if i["id"] in kept_ids or i.get("parent") in kept_ids]
 
 
+# The message in a bottle: written into every board so an agent with none of
+# our tooling (no plugin, no CLI, any vendor) knows how to read and write it.
+# Vehicle-neutral by contract (docs/CONTRACT.md non-goals) — no harness-specific
+# text. Git-tracked, unlike the prefix/backend markers: travelling with clones
+# is its entire job.
+BOARD_README = """\
+# This is a bon board
+
+This directory is a work tracker ("bon") used by human–AI partnerships.
+It is the durable work memory for this repository: **outcomes** (desired
+results) and **actions** (concrete steps), each carrying a brief —
+why / what / done, plus optional how.
+
+Everything an agent needs to work with it safely is below.
+Tool and docs: https://github.com/spm1001/bon
+
+## Reading (safe from any surface)
+
+- `items.jsonl` — one self-describing JSON object per line. Key fields:
+  `id`, `type` (outcome|action), `title`, `brief{why,how,what,done}`,
+  `status` (open|done), `parent`, `waiting_for` (list of blocker ids).
+- "Ready" = status open with empty/absent `waiting_for`.
+- If `.bon/backend` contains `dolt`, items live in a shared database this
+  clone can't reach — orient from prose instead (below); an items.jsonl
+  here is a stale pre-migration ghost, not the board.
+- Best orientation: read `understanding.md` and the newest handoff in
+  `handoffs/` — each lives either in this directory or visibly at the
+  repo/room root.
+
+## Writing (through the tool, never by hand)
+
+- With the CLI (`uv tool install git+https://github.com/spm1001/bon`):
+  `bon list`, `bon show ID`, pipe JSON to `bon new`, `bon done ID --note`.
+- Without the CLI: leave `items.jsonl` untouched. Append a `### Candidates`
+  section to your session's handoff instead, proposing changes as
+  provenance-tagged NEW/DONE/EDIT entries — the next tool-bearing session
+  applies ("mints") them. Format:
+  https://github.com/spm1001/bon/blob/main/docs/HANDOFF-CONTRACT.md
+- Hand-edits break invariants the tool maintains: ID uniqueness, dedup,
+  the blocker-release cascade, and merge semantics.
+"""
+
+DISCOVERY_STANZA = """\
+To help agents discover this board, add two lines to the repo's CLAUDE.md
+and/or AGENTS.md:
+
+  Work is tracked on a bon board in `.bon/` — read `.bon/README.md`
+  before reading or changing anything there."""
+
+
 def cmd_init(args):
     """Initialize .bon/ directory."""
     prefix = args.prefix
@@ -129,6 +179,8 @@ def cmd_init(args):
         bon_dir.mkdir()
 
     (bon_dir / "prefix").write_text(prefix)  # No trailing newline
+    # Unconditional: a reconnect refreshes a clone's bottle to current wording.
+    (bon_dir / "README.md").write_text(BOARD_README)
 
     verb = "Reconnected" if completing else "Initialized"
     if backend == "dolt":
@@ -151,6 +203,9 @@ def cmd_init(args):
         if not (bon_dir / "items.jsonl").exists():
             (bon_dir / "items.jsonl").touch()
         print(f"{verb} .bon/ with prefix '{prefix}'")
+
+    print()
+    print(DISCOVERY_STANZA)
 
 
 def prompt_brief() -> dict:

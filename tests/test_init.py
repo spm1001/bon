@@ -91,3 +91,46 @@ def test_init_prefix_alphanumeric_accepted(tmp_path, monkeypatch):
 
     assert result.returncode == 0
     assert (tmp_path / ".bon" / "prefix").read_text() == "myProject123"
+
+
+def test_init_writes_board_readme(tmp_path, monkeypatch):
+    """bon init writes the .bon/README.md message-in-a-bottle."""
+    monkeypatch.chdir(tmp_path)
+
+    result = run_bon("init", cwd=tmp_path)
+
+    assert result.returncode == 0
+    readme = tmp_path / ".bon" / "README.md"
+    assert readme.exists()
+    content = readme.read_text()
+    assert "bon board" in content
+    assert "items.jsonl" in content
+    assert "Candidates" in content  # the no-CLI write path
+    assert "dolt" in content  # the unreachable-backend branch
+
+
+def test_init_refreshes_readme_on_reconnect(tmp_path, monkeypatch):
+    """Reconnect (markerless .bon) refreshes a stale README to current content."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".bon").mkdir()
+    (tmp_path / ".bon" / "README.md").write_text("old bottle\n")
+
+    result = run_bon("init", "--prefix", "abc", cwd=tmp_path)
+
+    assert result.returncode == 0
+    assert "Reconnected" in result.stdout
+    content = (tmp_path / ".bon" / "README.md").read_text()
+    assert "old bottle" not in content
+    assert "bon board" in content
+
+
+def test_init_prints_discovery_stanza(tmp_path, monkeypatch):
+    """bon init suggests a discovery stanza for CLAUDE.md and AGENTS.md."""
+    monkeypatch.chdir(tmp_path)
+
+    result = run_bon("init", cwd=tmp_path)
+
+    assert result.returncode == 0
+    assert "CLAUDE.md" in result.stdout
+    assert "AGENTS.md" in result.stdout
+    assert ".bon/README.md" in result.stdout
