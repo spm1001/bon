@@ -1275,6 +1275,9 @@ def cmd_work(args):
     if "--force" in positional:
         positional = [a for a in positional if a != "--force"]
         args.force = True
+    if "--clear" in positional:
+        positional = [a for a in positional if a != "--clear"]
+        args.clear = True
     work_id = positional[0] if positional else None
     work_steps = positional[1:] if len(positional) > 1 else []
 
@@ -1297,16 +1300,38 @@ def cmd_work(args):
         print(format_tactical(active["tactical"], action_status=active["status"]))
         return
 
-    # --clear: clear active tactical (scoped to CWD)
+    # --clear: release a tactical claim. Bare form takes this session's
+    # active tactical, falling back to its finished (--no-complete) one —
+    # the same pair --status reads, so the two surfaces agree on what a
+    # claim is (a finished tactical was previously unreachable: bon-rucape).
+    # `--clear ID` targets a specific item; another session's claim needs --force.
     if args.clear:
-        active = find_active_tactical(items, session=session)
-        if not active:
-            return  # Silent success
-        active.pop("tactical", None)
-        active["updated_at"] = now_iso()
-        active["updated_by"] = "cleared"
+        if work_id:
+            target = find_by_id(items, work_id, prefix)
+            if not target:
+                error(f"Item '{work_id}' not found")
+            tactical = target.get("tactical")
+            if not tactical:
+                return  # Silent success
+            if target["status"] == "done":
+                error(f"{target['id']} is done — its tactical record is history, not a claim")
+            t_session = tactical.get("session")
+            if t_session and t_session != session and not args.force:
+                error(
+                    f"{target['id']}'s tactical belongs to another session ({t_session}).\n"
+                    f"Use `bon work --clear {target['id']} --force` to clear it anyway."
+                )
+        else:
+            target = find_active_tactical(items, session=session)
+            if not target:
+                target = find_no_complete_tactical(items, session=session)
+            if not target:
+                return  # Silent success
+        target.pop("tactical", None)
+        target["updated_at"] = now_iso()
+        target["updated_by"] = "cleared"
         save_items(items)
-        print(f"Cleared tactical steps from {active['id']}")
+        print(f"Cleared tactical steps from {target['id']}")
         return
 
     # Initialize tactical for specific action
@@ -1846,7 +1871,7 @@ def main():
     work_parser = subparsers.add_parser("work", help="Manage tactical steps for an action")
     work_parser.add_argument("args", nargs=argparse.REMAINDER, help="Action ID followed by optional steps")
     work_parser.add_argument("--status", action="store_true", help="Show current tactical state")
-    work_parser.add_argument("--clear", action="store_true", help="Clear active tactical steps")
+    work_parser.add_argument("--clear", action="store_true", help="Clear tactical steps (bare: this session's claim, active or finished; with ID: that item's)")
     work_parser.add_argument("--force", action="store_true", help="Restart steps even if in progress")
     work_parser.set_defaults(func=cmd_work)
 

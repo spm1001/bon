@@ -328,6 +328,162 @@ class TestWorkClear:
         assert result.stdout == ""
 
 
+def _write_tactical_store(tmp_path, specs):
+    """Helper: create a bon dir with actions in given tactical states.
+
+    specs: list of (item_id, current, session) — session None means unscoped,
+    current None means no tactical at all.
+    """
+    bon_dir = tmp_path / ".bon"
+    bon_dir.mkdir()
+    (bon_dir / "prefix").write_text("bon")
+    lines = []
+    for item_id, current, session in specs:
+        item = {
+            "id": item_id,
+            "type": "action",
+            "title": f"Action {item_id}",
+            "brief": {"why": "Testing", "what": "1. Step one 2. Step two 3. Step three", "done": "Done"},
+            "status": "open",
+            "parent": None,
+            "order": 1,
+            "created_at": "2026-01-01T00:00:00Z",
+            "created_by": "test",
+            "waiting_for": None,
+        }
+        if current is not None:
+            tactical = {"steps": ["Step one", "Step two", "Step three"], "current": current}
+            if session is not None:
+                tactical["session"] = session
+            item["tactical"] = tactical
+        lines.append(json.dumps(item))
+    (bon_dir / "items.jsonl").write_text("\n".join(lines) + "\n")
+
+
+def _load_store(tmp_path):
+    """Helper: read items.jsonl back as {id: item}."""
+    lines = (tmp_path / ".bon" / "items.jsonl").read_text().strip().split("\n")
+    return {json.loads(line)["id"]: json.loads(line) for line in lines}
+
+
+class TestWorkClearFinished:
+    """--clear must reach a finished (--no-complete) tactical — the bon-rucape zombie.
+
+    A tactical left at current == len(steps) via `bon step --no-complete` is
+    visible to --status and the prompt hook but was invisible to --clear
+    (silent no-op) and the serial-claim guard. --clear gains the same
+    finished-tactical fallback --status already has.
+    """
+
+    def test_clear_reaches_finished_tactical(self, tmp_path, monkeypatch):
+        """Bare --clear releases a finished --no-complete tactical (rucape's bug)."""
+        import os
+        session = os.path.realpath(str(tmp_path))
+        _write_tactical_store(tmp_path, [("bon-zombie", 3, session)])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "--clear", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert "Cleared tactical steps from bon-zombie" in result.stdout
+        store = _load_store(tmp_path)
+        assert "tactical" not in store["bon-zombie"]
+        assert store["bon-zombie"]["updated_by"] == "cleared"
+
+    def test_clear_prefers_active_over_finished(self, tmp_path, monkeypatch):
+        """With both an active and a finished tactical, bare --clear takes the active one."""
+        import os
+        session = os.path.realpath(str(tmp_path))
+        _write_tactical_store(tmp_path, [("bon-live", 1, session), ("bon-zombie", 3, session)])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "--clear", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert "Cleared tactical steps from bon-live" in result.stdout
+        store = _load_store(tmp_path)
+        assert "tactical" not in store["bon-live"]
+        assert "tactical" in store["bon-zombie"]
+
+
+class TestWorkClearTargeted:
+    """bon work --clear ID clears a specific item's tactical."""
+
+    def test_clear_targeted_leaves_active_claim_alone(self, tmp_path, monkeypatch):
+        """--clear ID clears that item, not the session's active claim."""
+        import os
+        session = os.path.realpath(str(tmp_path))
+        _write_tactical_store(tmp_path, [("bon-live", 1, session), ("bon-zombie", 3, session)])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "--clear", "bon-zombie", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert "Cleared tactical steps from bon-zombie" in result.stdout
+        store = _load_store(tmp_path)
+        assert "tactical" not in store["bon-zombie"]
+        assert "tactical" in store["bon-live"]
+
+    def test_clear_targeted_flag_after_id(self, tmp_path, monkeypatch):
+        """bon work ID --clear works too (REMAINDER swallows trailing flags)."""
+        import os
+        session = os.path.realpath(str(tmp_path))
+        _write_tactical_store(tmp_path, [("bon-zombie", 3, session)])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "bon-zombie", "--clear", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert "Cleared tactical steps from bon-zombie" in result.stdout
+        store = _load_store(tmp_path)
+        assert "tactical" not in store["bon-zombie"]
+
+    def test_clear_targeted_other_session_refuses(self, tmp_path, monkeypatch):
+        """--clear ID refuses another session's tactical without --force."""
+        _write_tactical_store(tmp_path, [("bon-other", 1, "host:/some/other/repo")])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "--clear", "bon-other", cwd=tmp_path)
+
+        assert result.returncode == 1
+        assert "another session" in result.stderr
+        assert "--force" in result.stderr
+        store = _load_store(tmp_path)
+        assert "tactical" in store["bon-other"]
+
+    def test_clear_targeted_force_overrides(self, tmp_path, monkeypatch):
+        """--clear ID --force clears another session's tactical."""
+        _write_tactical_store(tmp_path, [("bon-other", 1, "host:/some/other/repo")])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "--clear", "bon-other", "--force", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert "Cleared tactical steps from bon-other" in result.stdout
+        store = _load_store(tmp_path)
+        assert "tactical" not in store["bon-other"]
+
+    def test_clear_targeted_not_found(self, tmp_path, monkeypatch):
+        """--clear ID errors on unknown ID."""
+        _write_tactical_store(tmp_path, [("bon-zombie", 3, None)])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "--clear", "bon-nonexistent", cwd=tmp_path)
+
+        assert result.returncode == 1
+        assert "not found" in result.stderr
+
+    def test_clear_targeted_no_tactical_silent(self, tmp_path, monkeypatch):
+        """--clear ID is silent when the item has no tactical."""
+        _write_tactical_store(tmp_path, [("bon-bare", None, None)])
+        monkeypatch.chdir(tmp_path)
+
+        result = run_bon("work", "--clear", "bon-bare", cwd=tmp_path)
+
+        assert result.returncode == 0
+        assert result.stdout == ""
+
+
 class TestWorkDoneAction:
     """Test errors on done actions."""
 
