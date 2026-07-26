@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from bon.storage import _reset_backend, _reset_data_dir
+from bon.storage import BOARD_README, _reset_backend, _reset_data_dir
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +31,8 @@ def bon_dir(tmp_path):
     bon_path.mkdir()
     (bon_path / "items.jsonl").touch()
     (bon_path / "prefix").write_text("bon")
+    # bon init writes the bottle since miheza; fixtures mirror a real board
+    (bon_path / "README.md").write_text(BOARD_README)
     return tmp_path
 
 
@@ -55,6 +57,8 @@ def bon_dir_with_fixture(request, tmp_path, fixtures_dir):
 
     (bon_path / "items.jsonl").write_text(content)
     (bon_path / "prefix").write_text("bon")
+    # bon init writes the bottle since miheza; fixtures mirror a real board
+    (bon_path / "README.md").write_text(BOARD_README)
     return tmp_path
 
 

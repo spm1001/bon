@@ -15,6 +15,48 @@ KNOWN_VERBS = frozenset({
     "moved",
 })
 
+# The message in a bottle: written into every board so an agent with none of
+# our tooling (no plugin, no CLI, any vendor) knows how to read and write it.
+# Vehicle-neutral by contract (docs/CONTRACT.md non-goals) — no harness-specific
+# text. Git-tracked, unlike the prefix/backend markers: travelling with clones
+# is its entire job.
+BOARD_README = """\
+# This is a bon board
+
+This directory is a work tracker ("bon") used by human–AI partnerships.
+It is the durable work memory for this repository: **outcomes** (desired
+results) and **actions** (concrete steps), each carrying a brief —
+why / what / done, plus optional how.
+
+Everything an agent needs to work with it safely is below.
+Tool and docs: https://github.com/spm1001/bon
+
+## Reading (safe from any surface)
+
+- `items.jsonl` — one self-describing JSON object per line. Key fields:
+  `id`, `type` (outcome|action), `title`, `brief{why,how,what,done}`,
+  `status` (open|done), `parent`, `waiting_for` (list of blocker ids).
+- "Ready" = status open with empty/absent `waiting_for`.
+- If `.bon/backend` contains `dolt`, items live in a shared database this
+  clone can't reach — orient from prose instead (below); an items.jsonl
+  here is a stale pre-migration ghost, not the board.
+- Best orientation: read `understanding.md` and the newest handoff in
+  `handoffs/` — each lives either in this directory or visibly at the
+  repo/room root.
+
+## Writing (through the tool, never by hand)
+
+- With the CLI (`uv tool install git+https://github.com/spm1001/bon`):
+  `bon list`, `bon show ID`, pipe JSON to `bon new`, `bon done ID --note`.
+- Without the CLI: leave `items.jsonl` untouched. Append a `### Candidates`
+  section to your session's handoff instead, proposing changes as
+  provenance-tagged NEW/DONE/EDIT entries — the next tool-bearing session
+  applies ("mints") them. Format:
+  https://github.com/spm1001/bon/blob/main/docs/HANDOFF-CONTRACT.md
+- Hand-edits break invariants the tool maintains: ID uniqueness, dedup,
+  the blocker-release cascade, and merge semantics.
+"""
+
 
 class ValidationError(Exception):
     """Raised when item validation fails."""
@@ -34,6 +76,31 @@ def error(message: str) -> None:
 def warn(message: str) -> None:
     """Print warning message to stderr (does not exit)."""
     print(f"Warning: {message}", file=sys.stderr)
+
+
+def refresh_bottle(bon_dir: Path) -> bool:
+    """Bring a board's README.md (the bottle) to current BOARD_README wording.
+
+    Returns True when it wrote — the file was missing or carried stale
+    wording. The bottle is machine-owned: 29+ static copies shipped in the
+    2026-07-21 backfill, so this is the single code path that converges them.
+    """
+    path = Path(bon_dir) / "README.md"
+    if path.exists() and path.read_text() == BOARD_README:
+        return False
+    path.write_text(BOARD_README)
+    return True
+
+
+def _refresh_bottle_quietly(bon_dir: Path) -> None:
+    """Refresh the bottle on the back of a save, like repos-table registration.
+
+    A refresh failure must never break the save it rides.
+    """
+    try:
+        refresh_bottle(bon_dir)
+    except OSError:
+        pass
 
 
 _cached_data_dir: Path | None = None
@@ -268,9 +335,10 @@ def save_items(items: list[dict]) -> None:
     """
     if _get_backend() == "dolt":
         from bon.dolt import dolt_save_items
-        return dolt_save_items(items)
-
-    _save_items_jsonl(_data_dir() / "items.jsonl", items)
+        dolt_save_items(items)
+    else:
+        _save_items_jsonl(_data_dir() / "items.jsonl", items)
+    _refresh_bottle_quietly(_data_dir())
 
 
 def _save_items_jsonl(path: Path, items: list[dict]) -> None:
@@ -470,8 +538,10 @@ def save_items_at(board: dict, items: list[dict]) -> None:
     """Save items to another repo's board (both backends)."""
     if board["backend"] == "dolt":
         from bon.dolt import dolt_save_items
-        return dolt_save_items(items, prefix=board["prefix"])
-    _save_items_jsonl(board["dir"] / "items.jsonl", items)
+        dolt_save_items(items, prefix=board["prefix"])
+    else:
+        _save_items_jsonl(board["dir"] / "items.jsonl", items)
+    _refresh_bottle_quietly(board["dir"])
 
 
 def archive_ids_at(board: dict) -> set[str]:

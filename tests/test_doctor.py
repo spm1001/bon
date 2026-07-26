@@ -104,3 +104,47 @@ def test_doctor_not_initialized(tmp_path):
     result = run_bon("doctor", cwd=tmp_path)
     assert result.returncode != 0
     assert "Not initialized" in result.stderr
+
+
+@pytest.mark.parametrize("bon_dir_with_fixture", ["doctor_clean"], indirect=True)
+def test_doctor_stale_bottle(bon_dir_with_fixture):
+    """A README.md that differs from current bottle wording is flagged."""
+    (bon_dir_with_fixture / ".bon" / "README.md").write_text("old bottle\n")
+    result = run_bon("doctor", cwd=bon_dir_with_fixture)
+    assert result.returncode == 0
+    assert "differs from current wording" in result.stdout
+    assert "1 issue(s) found." in result.stdout
+
+
+@pytest.mark.parametrize("bon_dir_with_fixture", ["doctor_clean"], indirect=True)
+def test_doctor_missing_bottle(bon_dir_with_fixture):
+    """A board with no README.md at all is flagged."""
+    (bon_dir_with_fixture / ".bon" / "README.md").unlink()
+    result = run_bon("doctor", cwd=bon_dir_with_fixture)
+    assert result.returncode == 0
+    assert "is missing" in result.stdout
+    assert "1 issue(s) found." in result.stdout
+
+
+@pytest.mark.parametrize("bon_dir_with_fixture", ["doctor_clean"], indirect=True)
+def test_doctor_fix_refreshes_bottle(bon_dir_with_fixture):
+    """--fix rewrites the bottle and the board comes back clean."""
+    from bon.storage import BOARD_README
+    readme = bon_dir_with_fixture / ".bon" / "README.md"
+    readme.write_text("old bottle\n")
+    result = run_bon("doctor", "--fix", cwd=bon_dir_with_fixture)
+    assert result.returncode == 0
+    assert "Refreshed .bon/README.md" in result.stdout
+    assert "All clear." in result.stdout
+    assert readme.read_text() == BOARD_README
+    result = run_bon("doctor", cwd=bon_dir_with_fixture)
+    assert "All clear." in result.stdout
+
+
+@pytest.mark.parametrize("bon_dir_with_fixture", ["doctor_clean"], indirect=True)
+def test_doctor_fix_noop_when_current(bon_dir_with_fixture):
+    """--fix on a current bottle refreshes nothing."""
+    result = run_bon("doctor", "--fix", cwd=bon_dir_with_fixture)
+    assert result.returncode == 0
+    assert "Refreshed" not in result.stdout
+    assert "All clear." in result.stdout

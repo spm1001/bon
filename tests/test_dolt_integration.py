@@ -101,6 +101,11 @@ class TestDoltIntegration:
         outcome = next(i for i in loaded if i["id"] == f"{prefix}-aaa")
         assert outcome["brief"]["why"] == "testing"
 
+        # Bottle refresh rides Dolt saves too (the .bon dir is still local)
+        tmp_root, _ = dolt_dir
+        from bon.storage import BOARD_README
+        assert (tmp_root / ".bon" / "README.md").read_text() == BOARD_README
+
     def test_archive_roundtrip(self, dolt_dir):
         _, prefix = dolt_dir
         ts = now_iso()

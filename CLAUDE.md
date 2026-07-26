@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 21 commands (incl. cross-repo `bon move` and Dolt `bon register`), ~2900 LOC core (+700 optional Dolt module), 535 tests (13 are opt-in Dolt integration via BON_DOLT_TEST=1).
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 21 commands (incl. cross-repo `bon move` and Dolt `bon register`), ~3100 LOC core (+700 optional Dolt module), 563 tests (13 are opt-in Dolt integration via BON_DOLT_TEST=1).
 
 ## Versioning & releasing (suite-managed)
 
@@ -108,6 +108,18 @@ Users can type `gabdur` instead of `bon-gabdur`. The `find_by_id()` function han
 ### Atomic Writes
 
 `save_items()` writes to `.tmp` then renames. Don't bypass this.
+
+### The Bottle (.bon/README.md)
+
+`bon init` writes `.bon/README.md` — the "message in a bottle" telling a stranger
+Claude (no CLI, any vendor) how to read the board and route writes as handoff
+candidates — and prints a CLAUDE.md/AGENTS.md discovery stanza. The canonical text
+is `BOARD_README` in `storage.py`. Every `save_items()`/`save_items_at()` refreshes
+a missing or stale copy on the back of the write (same parasitic pattern as Dolt
+repos-table registration), and `bon doctor` reports staleness / `bon doctor --fix`
+repairs it without touching items. So a wording change to `BOARD_README` converges
+the estate's static copies as boards get written; dormant boards take the doctor
+route.
 
 ### Merge-Friendly Storage
 

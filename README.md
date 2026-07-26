@@ -95,7 +95,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `list [--ready\|--waiting\|--all] [--limit N]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
-| `doctor` | Check items.jsonl for health issues |
+| `doctor [--fix]` | Check board health; `--fix` refreshes a stale `.bon/README.md` |
 | `wait ID REASON` | Mark as waiting for something |
 | `unwait ID` | Clear waiting status |
 | `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |

@@ -11,6 +11,7 @@ from bon.display import _normalize_brief, format_hierarchical, format_json, form
 from bon.queries import open_child_parent_ids
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from bon.storage import (
+    BOARD_README,
     KNOWN_VERBS,
     BonError,
     ValidationError,
@@ -36,6 +37,7 @@ from bon.storage import (
     load_items_at,
     load_prefix,
     now_iso,
+    refresh_bottle,
     remove_from_archive,
     save_items,
     save_items_at,
@@ -104,48 +106,6 @@ def limit_items(items: list[dict], limit: int | None) -> list[dict]:
     return [i for i in items if i["id"] in kept_ids or i.get("parent") in kept_ids]
 
 
-# The message in a bottle: written into every board so an agent with none of
-# our tooling (no plugin, no CLI, any vendor) knows how to read and write it.
-# Vehicle-neutral by contract (docs/CONTRACT.md non-goals) — no harness-specific
-# text. Git-tracked, unlike the prefix/backend markers: travelling with clones
-# is its entire job.
-BOARD_README = """\
-# This is a bon board
-
-This directory is a work tracker ("bon") used by human–AI partnerships.
-It is the durable work memory for this repository: **outcomes** (desired
-results) and **actions** (concrete steps), each carrying a brief —
-why / what / done, plus optional how.
-
-Everything an agent needs to work with it safely is below.
-Tool and docs: https://github.com/spm1001/bon
-
-## Reading (safe from any surface)
-
-- `items.jsonl` — one self-describing JSON object per line. Key fields:
-  `id`, `type` (outcome|action), `title`, `brief{why,how,what,done}`,
-  `status` (open|done), `parent`, `waiting_for` (list of blocker ids).
-- "Ready" = status open with empty/absent `waiting_for`.
-- If `.bon/backend` contains `dolt`, items live in a shared database this
-  clone can't reach — orient from prose instead (below); an items.jsonl
-  here is a stale pre-migration ghost, not the board.
-- Best orientation: read `understanding.md` and the newest handoff in
-  `handoffs/` — each lives either in this directory or visibly at the
-  repo/room root.
-
-## Writing (through the tool, never by hand)
-
-- With the CLI (`uv tool install git+https://github.com/spm1001/bon`):
-  `bon list`, `bon show ID`, pipe JSON to `bon new`, `bon done ID --note`.
-- Without the CLI: leave `items.jsonl` untouched. Append a `### Candidates`
-  section to your session's handoff instead, proposing changes as
-  provenance-tagged NEW/DONE/EDIT entries — the next tool-bearing session
-  applies ("mints") them. Format:
-  https://github.com/spm1001/bon/blob/main/docs/HANDOFF-CONTRACT.md
-- Hand-edits break invariants the tool maintains: ID uniqueness, dedup,
-  the blocker-release cascade, and merge semantics.
-"""
-
 DISCOVERY_STANZA = """\
 To help agents discover this board, add two lines to the repo's CLAUDE.md
 and/or AGENTS.md:
@@ -180,7 +140,7 @@ def cmd_init(args):
 
     (bon_dir / "prefix").write_text(prefix)  # No trailing newline
     # Unconditional: a reconnect refreshes a clone's bottle to current wording.
-    (bon_dir / "README.md").write_text(BOARD_README)
+    refresh_bottle(bon_dir)
 
     verb = "Reconnected" if completing else "Initialized"
     if backend == "dolt":
@@ -1625,11 +1585,26 @@ def cmd_doctor(args):
     """Check items.jsonl for health issues."""
     check_initialized()
 
+    issues = []
+
+    # The bottle (.bon/README.md) refreshes automatically on every save;
+    # doctor is the deliberate route for boards not being written.
+    readme = _data_dir() / "README.md"
+    bottle_current = readme.exists() and readme.read_text() == BOARD_README
+    if not bottle_current and getattr(args, "fix", False):
+        refresh_bottle(_data_dir())
+        print("Refreshed .bon/README.md to current bottle wording.")
+        bottle_current = True
+    if not bottle_current:
+        state = "differs from current wording" if readme.exists() else "is missing"
+        issues.append(
+            f".bon/README.md (the bottle) {state} — `bon doctor --fix` refreshes it"
+        )
+
     if _get_backend() == "dolt":
         # In Dolt mode, validate loaded items (no file-level checks)
         items = load_items()
         archived = load_archive()
-        issues = []
         all_ids = {i["id"] for i in items}
         for item in items:
             brief = item.get("brief")
@@ -1649,10 +1624,13 @@ def cmd_doctor(args):
         return
 
     path = items_path()
-    issues = []
 
     if not path.exists():
         print("No items.jsonl found — nothing to check.")
+        for issue in issues:
+            print(f"  {issue}")
+        if issues:
+            print(f"\n{len(issues)} issue(s) found.")
         return
 
     raw_text = path.read_text()
@@ -1916,6 +1894,11 @@ def main():
 
     # doctor
     doctor_parser = subparsers.add_parser("doctor", help="Check items.jsonl for health issues")
+    doctor_parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Repair fixable issues (refreshes .bon/README.md to current wording)",
+    )
     doctor_parser.set_defaults(func=cmd_doctor)
 
     # migrate
