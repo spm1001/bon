@@ -14,3 +14,7 @@ jobs:
       - uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8
       - run: uv sync --all-extras --all-groups
       - run: uv run pytest
+      - name: README skill table matches skills/
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/spm1001/batterie-de-savoir/main/scripts/render-skills.py -o /tmp/render-skills.py
+          uv run --script /tmp/render-skills.py . --check

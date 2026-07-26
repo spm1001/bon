@@ -318,7 +318,19 @@ Interactive mode prompts for these. Non-interactive requires all three flags.
 
 ## Claude Code Integration
 
-Bon includes Claude Code skills under `skills/` (`open`, `close`, `plan`, `review`). The plugin system auto-discovers skills from the `skills/` directory.
+Bon includes Claude Code skills, auto-discovered from `skills/`:
+
+<!-- GENERATED:SKILLS:START -->
+4 skills, tabled from `skills/*/SKILL.md` frontmatter by [render-skills.py](https://github.com/spm1001/batterie-de-savoir/blob/main/scripts/render-skills.py) — regenerate from this repo's root with
+`uv run --script ../batterie-de-savoir/scripts/render-skills.py .`
+
+| Skill | What it does |
+|-------|--------------|
+| `/close` | Run before /exit, to reflect on this session and end it properly by figuring out what's best to (1) do now, with current context wisdom (2) file as a handoff for the next Claude as well as (3) capture for future Claudes in collective memory |
+| `/open` | Activate at session start when .bon/ exists AND before any bon CLI command |
+| `/plan` | Plan multi-session work as a bon hierarchy |
+| `/review` | Orchestrates periodic estate-wide backlog review using 5-phase survey-verify-summarize-act-snapshot workflow that prevents closing items without codebase verification |
+<!-- GENERATED:SKILLS:END -->
 
 This gives Claude access to the draw-down workflow (read item → activate tactical steps → work with pauses) and draw-up patterns (file work with complete briefs for future sessions).
 

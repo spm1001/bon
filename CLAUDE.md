@@ -237,3 +237,12 @@ bon migrate --to jsonl                     # Back to JSONL
 | Test bon-read.sh | `tests/test_bon_read.py` |
 
 
+
+## README skill table is generated
+
+The Skills table in README.md (between `GENERATED:SKILLS` markers) is rendered from
+`skills/*/SKILL.md` frontmatter — never hand-edit it. After adding, removing or renaming
+a skill: `uv run --script ../batterie-de-savoir/scripts/render-skills.py .` from the repo
+root. CI re-checks it on every push (fetching the canonical script from batterie-de-savoir
+raw main), so a stale table fails the build. If a table one-liner reads badly, fix the
+SKILL.md description (skill-forge), not the table.
