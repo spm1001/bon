@@ -249,12 +249,14 @@ Don't write a separate Suggested section; that duplication is format drift.]
 
 [Knowledge that transcends the next session, written to stand alone.
 This is what /open synthesizes into understanding.md — repo, craft, and
-architecture knowledge belongs here. Knowledge about Claude's own functional
-patterns or working conditions routes to self.md directly instead of through
-the handoff — and self.md's "How this document breathes" section owns the
-routing (Read the matching warm shard first for dedup/placement; full texture
-there, cue line to the hot file). If a lesson is genuinely both, split it
-rather than double-filing.
+architecture knowledge belongs here, including how Claude's own functional
+patterns played out in this work. Lessons that belong in the always-on
+guidance corpus (a trap keyed on its discriminating command, a
+verification-family instance) route differently: don't edit that corpus
+mid-close — it's a live-config repo, one writer at a time. File a bon item
+on the corpus's own board (in this estate: ~/.claude) carrying the proposed
+row text, or a handoff candidate when no writer is reachable. If a lesson is
+genuinely both, split it rather than double-filing.
 The test: would future Claudes benefit from knowing this?
 If nothing qualifies, omit this section — filler dilutes understanding.md over time.]
 ```
