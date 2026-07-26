@@ -26,7 +26,10 @@ itself as the whole estate.
 
 Default roots: whichever of ~/repos, ~/Repos, ~/notes exist (deduped by
 realpath). REPOS_DIR env var overrides with a single root; --roots overrides
-both. Connection config: BON_DOLT_* env vars > ~/.config/bon/dolt.toml
+both. The ~/.claude board (JSONL, prefix carte) is probed directly rather
+than walked: the walk skips hidden directories, and a recursive walk of
+~/.claude would surface phantom boards from vendored marketplace clones.
+Connection config: BON_DOLT_* env vars > ~/.config/bon/dolt.toml
 (same resolution as bon's dolt.py, minus the macOS keychain).
 
 Usage:
@@ -291,6 +294,20 @@ def discover_boards(roots: list[Path]) -> list[dict]:
                 "backend": get_backend(bon_dir),
                 "prefix": get_prefix(bon_dir),
             })
+    for bon_dir in EXTRA_BOARD_DIRS:
+        if not bon_dir.is_dir():
+            continue
+        real = bon_dir.resolve()
+        if real in seen:
+            continue
+        seen.add(real)
+        boards.append({
+            "bon_dir": bon_dir,
+            "repo_path": bon_dir.parent,
+            "root": bon_dir.parent.parent,
+            "backend": get_backend(bon_dir),
+            "prefix": get_prefix(bon_dir),
+        })
     return boards
 
 
@@ -301,6 +318,13 @@ def repo_label(repo_path: Path, root: Path) -> str:
     except ValueError:
         return repo_path.name
     return root.name if label == "." else label
+
+
+# Boards at fixed locations the walk can't reach: the walk-roots filter skips
+# hidden directories (and ~/.claude is one), so probe these directly — bounded,
+# and immune to the phantom boards a recursive walk of plugins/marketplaces/
+# clones would surface.
+EXTRA_BOARD_DIRS = [Path.home() / ".claude" / ".bon"]
 
 
 def default_roots() -> list[Path]:
