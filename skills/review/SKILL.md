@@ -105,7 +105,7 @@ behind=$(git -C {local_path} rev-list --count HEAD..@{u} 2>/dev/null || echo "?"
 
 Run the fetch pass once, up front, and tell the user which clones were refreshed and which are flagged before any verdicts land — a verdict from a silently-stale clone looks identical to one from a fresh clone, which is exactly the trap this closes.
 
-**Result files (bg survival):** create a run directory first (`/tmp/bon-audit-$(date +%F)/`) and have every subagent Write its own result JSON there as it finishes. In-context-only results die if the session gets backgrounded mid-run.
+**Result files (bg survival):** create a run directory first — `mktemp -d /tmp/bon-audit-$(date +%F)-XXXXXX` — and pass its path into every subagent prompt so each Writes its own result JSON there as it finishes. In-context-only results die if the session gets backgrounded mid-run. Date alone doesn't make the directory unique: two audits on one day would share it and interleave their results (the bon-potipe collision shape, one directory up).
 
 **Parallelism strategy (rolling dispatch, not strict waves):**
 - Repos with <5 open items: batch up to 3 repos per subagent

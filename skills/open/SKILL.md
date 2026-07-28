@@ -99,8 +99,15 @@ Show the full picture — outcomes with progress and their actions — **as text
 
 Run `bon list`, capture to a temp file, Read and output:
 ```bash
-bon list > /tmp/bon-hierarchy.txt
+OUT=$(mktemp /tmp/bon-hierarchy-XXXXXX.txt); bon list > "$OUT"; echo "$OUT"
 ```
+
+Read the path it echoes. The path must be unique per session: a fixed
+`/tmp/bon-hierarchy.txt` is shared by every concurrent `/open`, and on
+2026-07-26 one session overwrote another's capture seconds before its Read —
+the second session was one unnoticed glance from presenting a different repo's
+board as its own (bon-potipe). Wrong-board orientation fails silently, so the
+collision-proof path is the whole guard.
 
 ### 4. Pick Direction
 
