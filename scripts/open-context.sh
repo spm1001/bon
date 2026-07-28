@@ -12,6 +12,11 @@ else
     file_mtime() { stat -f '%m' "$1"; }
 fi
 
+# === PREVIEW BUDGET (bon-peluge) ===
+# Claude Code previews only the first ~2KB of hook output. Sections that can
+# grow without bound are either capped here or emitted last.
+STANDALONE_MAX=12
+
 # === PATHS ===
 BASE_CONTEXT_DIR="$HOME/.claude/.session-context"
 CWD=$(pwd -P)
@@ -231,15 +236,20 @@ fi
 echo "Good $TIME_OF_DAY. It's $(date '+%-d %b %Y, %H:%M')."
 echo ""
 
-# --- 2. Latest handoff in full ---
+# --- 2. Handoff pointer (body is emitted last — see section 8) ---
+# Claude Code persists oversized hook output and previews only the first ~2KB.
+# The handoff body used to sit HERE, spending that entire budget on its Done
+# bullets and pushing UNDERSTANDING=, the item list and Suggested past the cut
+# (bon-peluge; observed on spm1001/passe 2026-07-21 at 10.4KB, again
+# 2026-07-27). Skeleton first, body last, path stated up front — the body is on
+# disk either way, so a truncated preview stays navigable.
 if [ -n "$LATEST_FILE" ]; then
     echo "Last session ($LATEST_STR): $LATEST_PURPOSE"
-    echo ""
-    cat "$LATEST_FILE"
+    echo "HANDOFF=$LATEST_FILE"
     echo ""
 fi
 
-# --- 2b. Understanding doc pointer (resolved root/nearest-room first, .bon/
+# --- 3. Understanding doc pointer (resolved root/nearest-room first, .bon/
 # fallback) — the /open skill reads AND rewrites this path, not blindly .bon/.
 UNDERSTANDING_FILE=$(understanding_path "$CWD" || true)
 if [ -n "$UNDERSTANDING_FILE" ]; then
@@ -247,7 +257,25 @@ if [ -n "$UNDERSTANDING_FILE" ]; then
     echo ""
 fi
 
-# --- 3. Outcomes only ---
+# --- 4. Suggested (from handoff Opportunities or Next section) ---
+# Above the item lists on purpose: this is the baton — the outgoing Claude's
+# curated picks — and it is the highest-value-per-byte thing in the briefing.
+# The item lists grow without bound; this does not.
+if [ -n "$LATEST_FILE" ]; then
+    # fond-v1: ### Opportunities under ## For the next Claude
+    NEXT_LINES=$(sed -n '/^### Opportunities/,/^#/{/^#/d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
+    # Legacy: ## Next (flat section)
+    [ -z "$NEXT_LINES" ] && NEXT_LINES=$(sed -n '/^## Next/,/^## /{/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
+    if [ -n "$NEXT_LINES" ]; then
+        echo "Suggested:"
+        echo "$NEXT_LINES" | while IFS= read -r line; do
+            echo "  $line"
+        done
+        echo ""
+    fi
+fi
+
+# --- 5. Open work: outcomes, then standalone ---
 if [ "$BON_BACKEND" != "none" ]; then
     if [ -n "${BON_DOLT_ERROR:-}" ]; then
         echo "Bon: backend is dolt but server is unreachable"
@@ -270,14 +298,23 @@ if [ "$BON_BACKEND" != "none" ]; then
             echo ""
         fi
         if [ -n "$STANDALONE_LINES" ]; then
+            # Capped, and the cap says so. A long standalone pile is the other
+            # way the preview budget gets eaten (16 items pushed Suggested past
+            # the cut on this very board, 2026-07-28) — but a silent truncation
+            # would read as "that's all there is", which is worse than a long
+            # list. State the remainder and where to get it.
+            STANDALONE_COUNT=$(printf '%s\n' "$STANDALONE_LINES" | wc -l | tr -d ' ')
             echo "Standalone actions:"
-            echo "$STANDALONE_LINES"
+            printf '%s\n' "$STANDALONE_LINES" | head -n "$STANDALONE_MAX"
+            if [ "$STANDALONE_COUNT" -gt "$STANDALONE_MAX" ]; then
+                echo "  … +$((STANDALONE_COUNT - STANDALONE_MAX)) more — full list: bon list"
+            fi
             echo ""
         fi
     fi
 fi
 
-# --- 4. Active work / nothing in progress ---
+# --- 6. Active work / nothing in progress ---
 if [ -n "${BON_DOLT_ERROR:-}" ]; then
     true  # Already reported above
 elif [ "$BON_BACKEND" != "none" ]; then
@@ -287,22 +324,7 @@ elif [ "$BON_BACKEND" != "none" ]; then
     fi
 fi
 
-# --- 5. Suggested (from handoff Opportunities or Next section) ---
-if [ -n "$LATEST_FILE" ]; then
-    # fond-v1: ### Opportunities under ## For the next Claude
-    NEXT_LINES=$(sed -n '/^### Opportunities/,/^#/{/^#/d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
-    # Legacy: ## Next (flat section)
-    [ -z "$NEXT_LINES" ] && NEXT_LINES=$(sed -n '/^## Next/,/^## /{/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
-    if [ -n "$NEXT_LINES" ]; then
-        echo "Suggested:"
-        echo "$NEXT_LINES" | while IFS= read -r line; do
-            echo "  $line"
-        done
-        echo ""
-    fi
-fi
-
-# --- 6. Contributions pending ---
+# --- 7. Contributions pending ---
 if [ -d ".bon/contributions" ]; then
     CONTRIB_FILES=$(ls -1 .bon/contributions/*.md 2>/dev/null || true)
     if [ -n "$CONTRIB_FILES" ]; then
@@ -313,4 +335,12 @@ if [ -d ".bon/contributions" ]; then
         done
         echo ""
     fi
+fi
+
+# --- 8. Latest handoff, in full ---
+# Deliberately last: this is the only unbounded section, so it is the only one
+# that should ever fall past a preview cut. Its path is already printed above.
+if [ -n "$LATEST_FILE" ]; then
+    cat "$LATEST_FILE"
+    echo ""
 fi

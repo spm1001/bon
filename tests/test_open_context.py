@@ -103,3 +103,139 @@ def test_done_standalone_not_shown(tmp_path):
     assert result.returncode == 0
     assert "Fix the widget" in result.stdout
     assert "Old finished thing" not in result.stdout
+
+
+# --- Preview budgeting (bon-peluge) ------------------------------------
+#
+# Claude Code persists oversized hook output to a file and shows only the
+# first ~2KB as preview. A handoff inlined BEFORE the orientation skeleton
+# spends that whole budget on its Done bullets, pushing UNDERSTANDING=, the
+# item list and the Suggested picks past the cut. Observed live 2026-07-21
+# on spm1001/passe (10.4KB emitted), and again 2026-07-27 in an unrelated
+# session that had to go read the persisted file to find "For Claudes to
+# come". The skeleton goes first; the body — which is on disk either way —
+# goes last, with its path stated up front so a truncated preview is still
+# navigable.
+
+PREVIEW_BUDGET = 2000
+
+BIG_HANDOFF = """# Handoff — 2026-07-20
+
+session_id: deadbeef
+purpose: A big session that produced a long handoff
+format: fond-v1
+
+## For the next Claude
+
+### Done
+{filler}
+
+### Opportunities
+- **test-solo**: the suggested pick that must survive truncation
+
+## For Claudes to come
+
+DURABLE_KNOWLEDGE_TAIL_MARKER
+"""
+
+
+def write_handoff(tmp_path: Path, body: str) -> Path:
+    hdir = tmp_path / ".bon" / "handoffs"
+    hdir.mkdir(parents=True, exist_ok=True)
+    path = hdir / "2026-07-20-deadbeef.md"
+    path.write_text(body)
+    return path
+
+
+def big_handoff_text() -> str:
+    filler = "\n".join(f"- Did a fairly wordy thing number {i}" for i in range(220))
+    return BIG_HANDOFF.format(filler=filler)
+
+
+def test_big_handoff_skeleton_fits_the_preview_budget(tmp_path):
+    """Everything load-bearing lands inside the first 2KB, not past the cut."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    (tmp_path / ".bon" / "understanding.md").write_text("# Understanding\n")
+    write_handoff(tmp_path, big_handoff_text())
+    result = run_open_context(tmp_path, OUTCOME, STANDALONE)
+    assert result.returncode == 0
+
+    preview = result.stdout[:PREVIEW_BUDGET]
+    assert "Last session" in preview
+    assert "UNDERSTANDING=" in preview
+    assert "HANDOFF=" in preview
+    assert "Outcomes we're working towards:" in preview
+    assert "Users can frobnicate" in preview
+    assert "Standalone actions:" in preview
+    assert "Suggested:" in preview
+
+
+def test_big_handoff_body_comes_after_the_skeleton(tmp_path):
+    """The body is still emitted in full — just last, where the cut is safe."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    write_handoff(tmp_path, big_handoff_text())
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+
+    out = result.stdout
+    assert "DURABLE_KNOWLEDGE_TAIL_MARKER" in out, "body must not be dropped"
+    assert out.index("Outcomes we're working towards:") < out.index(
+        "Did a fairly wordy thing number 0"
+    ), "orientation skeleton must precede the handoff body"
+
+
+def test_handoff_path_is_emitted(tmp_path):
+    """A truncated preview still tells the reader where the full text lives."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    path = write_handoff(tmp_path, big_handoff_text())
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert f"HANDOFF={path}" in result.stdout
+
+
+def test_no_handoff_emits_no_handoff_path(tmp_path):
+    """Boards with no handoff yet stay quiet — no empty HANDOFF= line."""
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "HANDOFF=" not in result.stdout
+
+
+def test_suggested_precedes_the_item_lists(tmp_path):
+    """The baton outranks the landscape: Suggested is small and curated."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    write_handoff(tmp_path, big_handoff_text())
+    result = run_open_context(tmp_path, OUTCOME, STANDALONE)
+    assert result.returncode == 0
+    out = result.stdout
+    assert out.index("Suggested:") < out.index("Outcomes we're working towards:")
+
+
+def test_long_standalone_list_is_capped_and_says_so(tmp_path):
+    """A capped list states its remainder — a silent cut reads as completeness."""
+    many = [
+        {
+            "id": f"test-s{i:02d}",
+            "type": "action",
+            "title": f"Standalone item number {i}",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "status": "open",
+            "order": i,
+        }
+        for i in range(20)
+    ]
+    result = run_open_context(tmp_path, *many)
+    assert result.returncode == 0
+    out = result.stdout
+    assert "Standalone actions:" in out
+    assert "… +8 more — full list: bon list" in out
+    # First 12 shown, the rest elided but accounted for.
+    assert "Standalone item number 0" in out
+    assert "Standalone item number 19" not in out
+
+
+def test_short_standalone_list_has_no_cap_line(tmp_path):
+    """Under the cap, no residue — the honest line only appears when it's true."""
+    result = run_open_context(tmp_path, STANDALONE)
+    assert result.returncode == 0
+    assert "Fix the widget" in result.stdout
+    assert "more — full list" not in result.stdout
