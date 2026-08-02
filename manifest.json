@@ -31,8 +31,8 @@
       "required": false,
       "group": "batterie"
     },
-    "todoist-gtd": {
-      "github": "spm1001/todoist-gtd",
+    "accomplis": {
+      "github": "spm1001/accomplis",
       "required": false,
       "group": "batterie"
     },
@@ -128,8 +128,8 @@
     "titans": {
       "target": "trousse/skills/titans"
     },
-    "todoist-gtd": {
-      "target": "todoist-gtd"
+    "accomplis": {
+      "target": "accomplis"
     },
     "garde": {
       "target": "garde-manger/skills/memory"
@@ -216,8 +216,8 @@
       "repo": "garde-manger",
       "required": false
     },
-    "todoist-gtd": {
-      "repo": "todoist-gtd",
+    "accomplis": {
+      "repo": "accomplis",
       "required": false
     },
     "itv-appscript": {
