@@ -70,6 +70,7 @@ Every edge-tier verb supports `--json`. Rendered text is for humans and text-fir
 | `step` | Advance the claim |
 | `work --status` | Cheap mid-session state query |
 | `wait ID` / `unwait ID` | Blocker bookkeeping |
+| `someday ID CONDITION` / `unsomeday ID` | Someday/Maybe parking — a flag with a required revisit condition, never a status |
 
 A backend without the tactical tier still satisfies the category — the rite degrades to edge-only (orientation and capture, no draw-down). A vehicle that finds the tier present may use it; one that doesn't loses checkpointing, not correctness.
 

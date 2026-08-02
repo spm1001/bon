@@ -121,11 +121,20 @@ def query_dolt_global(
     )
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, type, title, status, brief, parent, waiting_for, "
-                "created_at FROM items WHERE status = 'open'"
-            )
-            rows = cur.fetchall()
+            # `someday` arrived August 2026 (bon-majoca) — fall back to the
+            # older shape if this server's schema hasn't migrated yet.
+            try:
+                cur.execute(
+                    "SELECT id, type, title, status, brief, parent, waiting_for, "
+                    "someday, created_at FROM items WHERE status = 'open'"
+                )
+                rows = cur.fetchall()
+            except pymysql.err.MySQLError:
+                cur.execute(
+                    "SELECT id, type, title, status, brief, parent, waiting_for, "
+                    "created_at FROM items WHERE status = 'open'"
+                )
+                rows = cur.fetchall()
             cur.execute(
                 "SELECT id, type, title, done_at, done_note FROM items "
                 "WHERE status = 'done' AND done_at >= %s",
@@ -269,6 +278,8 @@ def item_record(item: dict) -> dict:
         record["parent"] = item["parent"]
     if item.get("waiting_for"):
         record["waiting_for"] = item["waiting_for"]
+    if item.get("someday"):
+        record["someday"] = item["someday"]
     if item.get("created_at"):
         record["created_at"] = item["created_at"]
         flag = age_flag(item["created_at"])

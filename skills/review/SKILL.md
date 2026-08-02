@@ -177,8 +177,11 @@ Collect subagent results and present a clear, actionable summary. **Output as te
 
 **Triage vocabulary** (what a desire answer maps to):
 - **VEIL** — close with a recorded no-regrets note + a reopening condition. An examined no-action, not done-work: `bon done <id> --note "veil: <why safe to drop> · revisit if <trigger>"`.
+- **PARK** — still wanted, not now: `bon someday <id> "revisit condition"`. The OPEN counterpart of VEIL — the item leaves ready/orientation but stays a live desire with its condition recorded. Gentler than veil for work the human still wants.
 - **FOLD** — merge into a living sibling outcome; close the absorbed one with a pointer to where it went.
 - **CONVERT** — a task-shaped "outcome" that's really one step: `bon convert <id>` demotes it to an action. Honest shrinkage without losing the work.
+
+**Someday re-check pass:** every review sweeps the parked list (`bon list --someday`, or the survey's `someday` field on items) and re-checks each revisit condition. Condition fired → `bon unsomeday <id>` and triage it live this round. Condition unreadable or stale → ask, don't guess. A parked item whose condition is never re-checked is the hitene failure (a cleared gate sat unnoticed seven weeks behind a title prefix) wearing a nicer costume.
 
 For smaller estates (<100 items), the item tables below ARE the review surface — present them directly.
 

@@ -68,6 +68,8 @@ Items live in `.bon/items.jsonl` (or a Dolt database when using the optional bac
 
 Both require `brief: {why, what, done}` — all three non-empty. Optional `how` field captures approach/strategy.
 
+Open items can be **parked Someday/Maybe**: the optional `someday` field holds a required revisit condition (`bon someday ID "condition"` / `bon unsomeday ID`). It's a flag, not a status — status stays open/done so older clients never lose sight of the item. Parked subtrees leave default views at read time (children inherit, no mutation) and `bon list` states the parked count in a tail line; `bon list --someday` is the parked view.
+
 ## Adding a Command
 
 1. Add handler in `cli.py`:

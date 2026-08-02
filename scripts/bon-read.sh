@@ -55,6 +55,17 @@ mode = "$MODE"
 def by_order(item):
     return item.get("order", 999)
 
+# Someday/Maybe (bon-majoca): parked subtrees leave the default views.
+# The someday field holds the revisit condition; children inherit at read
+# time. Mirrors the CLI's queries.someday_ids — keep in step.
+_flagged = {i["id"] for i in items if i.get("someday")}
+_parked = {i["id"] for i in items
+           if i.get("someday") or i.get("parent") in _flagged}
+_n_parked = sum(1 for i in items
+                if i.get("someday") and i.get("status") == "open")
+if mode in ("list", "ready"):
+    items = [i for i in items if i["id"] not in _parked]
+
 if mode == "list":
     # Group actions by parent
     children = {}
@@ -97,6 +108,10 @@ if mode == "list":
         print("Standalone:")
         for a in standalone:
             print(f'  ○ {a["title"]} ({a["id"]})')
+    if _n_parked:
+        if outcomes or standalone:
+            print()
+        print(f"\U0001f17f️ Someday: {_n_parked} parked — bon list --someday")
 
 elif mode == "ready":
     # Ready: open outcomes with only open, non-waiting actions

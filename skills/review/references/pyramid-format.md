@@ -50,7 +50,7 @@ Boards in `jobs_unassigned` get a one-line "Unassigned — where do these live?"
 
 One line per repo, plain English at human grain: "mit-plongeur: Handed over to Flore Data", not item IDs or counts. Derive Recent Progress lines from `recent_dones` (titles + done_notes) and `git.last_commit`, compressed by judgment — pick what a Monday-morning Sameer would want to know, drop the plumbing. Desired Outcomes lines come from open outcomes at their own wording, tightened. Headline counts are **Desired Outcomes, not items** — an item count is workshop trivia; a DO count is a commitment count.
 
-**Parked boards are excluded from the headline DO count** (a parked project's outcomes aren't open commitments). Until Someday/Maybe is first-class (bon-majoca), the Parked list is curated by hand from the previous pyramid — carry it forward and re-confirm rather than re-deriving.
+**Parked items are excluded from the headline DO count** (a parked project's outcomes aren't open commitments). Parking is first-class since suite 1.30.0: the survey's `someday` field on an item carries its revisit condition, and the Parked/Someday section renders from it — each line shows the condition, and the review's Someday re-check pass (SKILL.md Phase 3) fires conditions that have come true. Boards parked only in prose (the previous pyramid's hand-curated list) get carried forward once more and converted to real `bon someday` flags as they're confirmed.
 
 ## Stockpot loop (Knowledge Work only)
 

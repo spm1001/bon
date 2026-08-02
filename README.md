@@ -98,6 +98,8 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `doctor [--fix]` | Check board health; `--fix` refreshes a stale `.bon/README.md` |
 | `wait ID REASON` | Mark as waiting for something |
 | `unwait ID` | Clear waiting status |
+| `someday ID CONDITION` | Park Someday/Maybe with a revisit condition (leaves default views) |
+| `unsomeday ID` | Unpark a Someday item |
 | `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |
 | `work ID [STEPS...] [--status\|--clear\|--force]` | Manage tactical steps for an action |
 | `step` | Complete current step, advance to next |
@@ -134,9 +136,12 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 bon list              # Open outcomes + their actions (default)
 bon list --ready      # Only items ready to work on
 bon list --waiting    # Only items that are waiting
-bon list --all        # Include done items
+bon list --someday    # Only parked items, with their revisit conditions
+bon list --all        # Include done items (parked shown inline, 🅿️-marked)
 bon list --limit 5    # First 5 top-level items (children come along)
 ```
+
+Parked (Someday/Maybe) subtrees are excluded from `list`, `--ready` and `--waiting`; the default list ends with a `🅿️ Someday: N parked` tail line so hidden work always announces itself.
 
 **`--limit N`** truncates to the first N top-level items — outcomes first, then standalones. Children of kept outcomes always come along, so output never cuts mid-item. Combine with any filter (e.g. `--ready --limit 3`).
 

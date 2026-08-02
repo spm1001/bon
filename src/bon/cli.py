@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from bon.display import _normalize_brief, format_hierarchical, format_json, format_jsonl, format_tactical
-from bon.queries import open_child_parent_ids
+from bon.queries import open_child_parent_ids, someday_ids
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from bon.storage import (
     BOARD_README,
@@ -53,7 +53,15 @@ def filter_items_for_output(items: list[dict], filter_mode: str) -> list[dict]:
 
     Used by --json and --jsonl to respect filter flags.
     Done outcomes with open children count as board-visible (bon-kegewe).
+    Parked (someday) subtrees are excluded from every mode except "all" and
+    the dedicated "someday" view — mirroring format_hierarchical.
     """
+    parked_ids = someday_ids(items)
+    if filter_mode == "someday":
+        return [i for i in items if i["id"] in parked_ids]
+    if filter_mode != "all":
+        items = [i for i in items if i["id"] not in parked_ids]
+
     open_parents = open_child_parent_ids(items)
 
     def board_visible(outcome):
@@ -376,6 +384,8 @@ def cmd_list(args):
         filter_mode = "ready"
     elif args.waiting:
         filter_mode = "waiting"
+    elif getattr(args, "someday", False):
+        filter_mode = "someday"
     elif args.all:
         filter_mode = "all"
     else:
@@ -456,6 +466,9 @@ def cmd_show(args):
         if item.get("wait_note"):
             wf_line += f" ({item['wait_note']})"
         print(wf_line)
+
+    if item.get("someday"):
+        print(f"   Someday 🅿️ — revisit: {item['someday']}")
 
     # Brief
     brief = item.get("brief", {})
@@ -628,6 +641,73 @@ def cmd_unwait(args):
         print(f"{item['id']} removed {blocker}, still waiting for: {remaining}")
     else:
         print(f"{item['id']} no longer waiting")
+
+
+def cmd_someday(args):
+    """Park an item Someday/Maybe with a revisit condition (bon-majoca)."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+    item = find_by_id(items, args.id, prefix)
+
+    if not item:
+        error(f"Item '{args.id}' not found")
+    if item["status"] == "done":
+        error(f"{item['id']} is done — Someday is for open items still wanted, not now")
+    # bon wait silently discards tactical progress (a documented landmine);
+    # someday refuses instead and names the way out.
+    if item.get("tactical"):
+        error(
+            f"{item['id']} has tactical steps in progress — parking would orphan them.\n"
+            f"Finish the work, or clear first: bon work --clear"
+        )
+
+    condition = args.condition.strip()
+    if not condition:
+        error("A revisit condition is required — /review re-checks it each pass")
+
+    item["someday"] = condition
+    item["updated_at"] = now_iso()
+    item["updated_by"] = "parked"
+    save_items(items)
+
+    if getattr(args, "quiet", False):
+        print(item["id"])
+    else:
+        line = f"{item['id']} parked Someday — revisit: {condition}"
+        open_children = [
+            i for i in items
+            if i.get("parent") == item["id"] and i["status"] == "open"
+        ]
+        if open_children:
+            line += f" ({len(open_children)} open child(ren) park with it)"
+        print(line)
+
+
+def cmd_unsomeday(args):
+    """Unpark a Someday item — it returns to the live board."""
+    check_initialized()
+
+    items = load_items()
+    prefix = load_prefix()
+    item = find_by_id(items, args.id, prefix)
+
+    if not item:
+        error(f"Item '{args.id}' not found")
+    if not item.get("someday"):
+        print(f"{item['id']} is not parked — nothing to do.")
+        return
+
+    was = item.pop("someday")
+    item["updated_at"] = now_iso()
+    item["updated_by"] = "unparked"
+    save_items(items)
+
+    if getattr(args, "quiet", False):
+        print(item["id"])
+    else:
+        print(f"{item['id']} unparked (was: revisit {was})")
 
 
 def validate_edit(original: dict, edited: dict, all_items: list[dict], prefix: str | None = None):
@@ -1799,6 +1879,8 @@ def main():
     list_parser = subparsers.add_parser("list", help="List items")
     list_parser.add_argument("--ready", action="store_true", help="Show only ready items")
     list_parser.add_argument("--waiting", action="store_true", help="Show only waiting items")
+    list_parser.add_argument("--someday", action="store_true",
+                             help="Show only parked (Someday/Maybe) items with their revisit conditions")
     list_parser.add_argument("--all", action="store_true", help="Include done items")
     list_parser.add_argument("--limit", type=int, default=None,
                              help="Truncate to first N top-level items (outcomes + standalones); children of kept outcomes always come along")
@@ -1833,6 +1915,23 @@ def main():
     unwait_parser.add_argument("blocker", nargs="?", help="Specific blocker to remove (omit to clear all)")
     add_output_flags(unwait_parser, quiet=True)
     unwait_parser.set_defaults(func=cmd_unwait)
+
+    # someday / unsomeday
+    someday_parser = subparsers.add_parser(
+        "someday", help="Park an item Someday/Maybe (still wanted, not now)"
+    )
+    someday_parser.add_argument("id", help="Item ID")
+    someday_parser.add_argument(
+        "condition",
+        help="Revisit condition (required) — e.g. 'when Mary picks it up'; /review re-checks it",
+    )
+    add_output_flags(someday_parser, quiet=True)
+    someday_parser.set_defaults(func=cmd_someday)
+
+    unsomeday_parser = subparsers.add_parser("unsomeday", help="Unpark a Someday item")
+    unsomeday_parser.add_argument("id", help="Item ID")
+    add_output_flags(unsomeday_parser, quiet=True)
+    unsomeday_parser.set_defaults(func=cmd_unsomeday)
 
     # edit
     edit_parser = subparsers.add_parser("edit", help="Edit item fields")

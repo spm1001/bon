@@ -2,7 +2,7 @@
 import json
 
 from bon.ids import DEFAULT_ORDER
-from bon.queries import filter_ready, filter_waiting, open_child_parent_ids
+from bon.queries import filter_ready, filter_waiting, open_child_parent_ids, someday_ids
 
 # Optional brief fields with their default values for JSON output.
 # Required fields (why, what, done) are always present; optional ones
@@ -68,7 +68,13 @@ def format_tactical(tactical: dict, action_status: str | None = None) -> str:
 
 
 def format_json(items: list[dict]) -> str:
-    """Format as nested JSON structure."""
+    """Format as nested JSON structure.
+
+    Actions whose parent is absent from the (possibly filtered) item set land
+    in `standalone` with their real `parent` field intact — a filtered view
+    must never silently drop an item just because its parent was filtered out.
+    """
+    outcome_ids = {i["id"] for i in items if i["type"] == "outcome"}
     outcomes = []
     for outcome in sorted(
         [i for i in items if i["type"] == "outcome"],
@@ -83,7 +89,8 @@ def format_json(items: list[dict]) -> str:
         outcomes.append(outcome_copy)
 
     standalone = sorted(
-        [_normalize_brief(i) for i in items if i["type"] == "action" and not i.get("parent")],
+        [_normalize_brief(i) for i in items if i["type"] == "action"
+         and (not i.get("parent") or i["parent"] not in outcome_ids)],
         key=lambda x: x.get("order", DEFAULT_ORDER)
     )
 
@@ -108,6 +115,7 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
             - "ready": Open outcomes, only ready actions (or waiting count)
             - "waiting": Open outcomes, only waiting actions
             - "all": All outcomes including done, all their actions
+            - "someday": Only parked subtrees, revisit conditions shown
         limit: If set, keep only the first N top-level items (outcomes
             before standalones, each by render order). Children of kept
             outcomes come along.
@@ -115,6 +123,37 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
     Returns:
         Formatted string output
     """
+    # Someday/Maybe handling (bon-majoca): the default views exclude parked
+    # subtrees and end with one honest tail line — hidden work must announce
+    # itself (the no-silent-caps discipline). "all" shows everything, parked
+    # items carrying their 🅿️ condition inline. "someday" is the parked view.
+    parked_ids = someday_ids(items)
+    someday_tail = None
+    if filter_mode == "someday":
+        items = [i for i in items if i["id"] in parked_ids]
+        # A parked action under an UNPARKED outcome has no parent in this
+        # view — render it standalone rather than dropping it (display-only
+        # re-home; stored data untouched).
+        kept = {i["id"] for i in items}
+        items = [
+            dict(i, parent=None)
+            if i["type"] == "action" and i.get("parent") and i["parent"] not in kept
+            else i
+            for i in items
+        ]
+        filter_mode = "all"  # render the parked subset in full
+        if not items:
+            return "Nothing parked Someday. Park with: bon someday ID \"revisit condition\""
+    elif filter_mode != "all" and parked_ids:
+        n_flagged = len([
+            i for i in items if i.get("someday") and i["status"] == "open"
+        ])
+        if n_flagged:
+            someday_tail = (
+                f"🅿️ Someday: {n_flagged} parked — bon list --someday"
+            )
+        items = [i for i in items if i["id"] not in parked_ids]
+
     lines = []
     include_done_outcomes = filter_mode == "all"
 
@@ -144,6 +183,8 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
         status_icon = "✓" if outcome["status"] == "done" else "○"
         wf = outcome.get("waiting_for")
         waiting_suffix = f" ⏳ {', '.join(wf)}" if wf else ""
+        if outcome.get("someday"):
+            waiting_suffix += f" 🅿️ {outcome['someday']}"
         lines.append(f"{status_icon} {outcome['title']} ({outcome['id']}){waiting_suffix}")
 
         # Get actions for this outcome
@@ -182,6 +223,8 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
             else:
                 status_icon = "○"
                 waiting_suffix = ""
+            if action.get("someday"):
+                waiting_suffix += f" 🅿️ {action['someday']}"
 
             lines.append(f"  {idx}. {status_icon} {action['title']} ({action['id']}){waiting_suffix}")
 
@@ -230,7 +273,14 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
             status_icon = "✓" if action["status"] == "done" else "○"
             wf = action.get("waiting_for")
             waiting_suffix = f" ⏳ {', '.join(wf)}" if wf else ""
+            if action.get("someday"):
+                waiting_suffix += f" 🅿️ {action['someday']}"
             lines.append(f"  {status_icon} {action['title']} ({action['id']}){waiting_suffix}")
+
+    if someday_tail:
+        if lines:
+            lines.append("")
+        lines.append(someday_tail)
 
     # Handle empty case
     if not lines:
