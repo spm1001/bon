@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Orchestrates periodic estate-wide backlog review using 5-phase survey-verify-summarize-act-snapshot workflow that prevents closing items without codebase verification. Surveys open bon items across the WHOLE estate (Dolt-global query covers repos not cloned on this machine; filesystem sweep covers JSONL boards), dispatches parallel subagents to verify briefs against actual code where clones exist, classifies as done/stale/active/blocked/not-verifiable-here, and presents triage summary for user approval before closing. Load before backlog review sessions. Invoke on '/review', 'review my bons', 'backlog review', 'what needs closing', 'clean up bons', 'triage my backlog'. Requires bon skill loaded first."
+description: "Orchestrates estate-wide backlog review — load FIRST, before any backlog triage. 5 phases (survey, verify, summarize, act, snapshot): opens at the top of the pyramid — jobs-grouped repo headlines, Todoist alignment block, dispatch-line proposals — then subagents verify briefs against code and nothing closes without approval. Invoke on '/review', 'review my bons', 'backlog review', 'Toolmaking reconciliation', 'weekly reconciliation', 'what needs closing', 'clean up bons', 'triage my backlog'. Requires bon skill loaded first."
 allowed-tools:
   - "Bash(bon:*)"
   - "Bash(uv:*)"
@@ -69,24 +69,25 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse pass
 | `not_cloned_here: true` | No clone under the scan roots — surveyed, not verifiable here. Caveat: this really means "not under the scan roots"; `~/.dotfiles` is the known board that IS local anyway. |
 | `origin_url` | Where a fresh clone would come from, when registered. |
 | `open_child_count` (on outcomes) | Open children in the same board — closing this outcome would strand them (the kegewe trap). Non-zero means re-home or close children first. |
+| `recent_dones` / `recent_done_count` | Items closed inside `window_days` (default 30), newest first. The list is capped at 10; the count is the TRUE total — trust the count, not the list length. Feeds the pyramid's Recent Progress lines. |
+| `git` | Light motion signal for boards with a clone here: `commits_window` + `last_commit` (date and subject). Absent for uncloned boards and non-repos. |
+| `job` | The board's jobs-group slug (Dolt: `repos.job` via `bon register --job`; JSONL: `.bon/job` marker). Drives the pyramid grouping. |
+| `jobs_unassigned` (top-level) | Boards reporting items but carrying no job — surface these for assignment, never guess a group. |
+| `repos_reported` (top-level) | Boards in the output. Includes boards with zero open items whose work all closed inside the window — a recent win is reportable even when nothing remains open. |
 
 **If `dolt` is `"unreachable"`, stop and tell the user** — present the degraded scope honestly (JSONL boards only, every Dolt board missing) and offer to fix the server first. Never present a degraded survey as the estate.
 
-**Present the landscape to the user:**
+**Present the pyramid, not count tables.** Assemble a DRAFT pyramid from the survey — jobs-grouped repo headlines with Recent Progress and Desired Outcomes at human grain, Cross-cutting Work first, a Todoist alignment block, and a proposed dispatch queue. The full format spec, jobs-group display mapping, line-grain rules and ceremony mechanics are in `references/pyramid-format.md` — read it before assembling. In brief:
 
-> Scanned {N} open items across {M} boards ({K} verifiable here, {L} not cloned here).
-> {dolt_open} on Dolt boards (visible anywhere) · {jsonl_open} on JSONL boards (only where cloned — count is machine-dependent).
-> Top repos: {repo1} ({count}), {repo2} ({count}), ...
-> {X} items flagged old (30d+), {Y} very old (60d+).
-> Orphaned prefixes (no live repo mapping): {unmapped list with counts}.
->
-> Which repos should I audit? (default: all with open items)
+1. **Check the previous pyramid first**: diff the scratch copy against the archived snapshot — Sameer's edits since last time are the freshest desire data; fold them forward, never regenerate over them.
+2. **Draft** `~/scratch/estate-pyramid-<date>.md`: headline counts **Desired Outcomes, not items** (Parked boards excluded); Cross-cutting Work first with the ranked top-4; then each jobs-group's ✅/🚧 lists, one human-grain line per repo, small/dormant boards collapsed to a named tail line; Parked/Someday last.
+3. **Alignment block**: his Todoist & Toolmaking DOs as headings, bon outcomes grouped under them (invoke `accomplis:coaching` first for Todoist semantics). The two orphan lists — workshop motion with no Sameer-DO, Sameer-DOs with no workshop motion — are the reconciliation's product. If Todoist is unreachable, say the block is missing rather than omitting it silently.
+4. **Dispatch proposal**: render the apex top-N as `Open <repo> → <desire fragment> (<bon-id>)` lines for Sameer to adopt by hand.
+5. **Boards in `jobs_unassigned`** get asked about, then persisted (`bon register --job` / `.bon/job`).
 
-If the headline moved a lot since the last run, check `visibility_note` before
-reading it as progress or backsliding: a JSONL swing is usually clones appearing
-or disappearing on this machine, not work created or closed.
+Alongside the pyramid, give the survey's one-line vitals: total open, `visibility_note` (a headline jump is usually clones appearing, not work), old-item flags, orphaned prefixes.
 
-**STOP here.** Wait for user to confirm scope before proceeding.
+**STOP here.** Adjudicate the pyramid in conversational Q&A clusters (recommendation first — his preferred shape), and wait for scope confirmation before verification. His wordings apply verbatim; his edits fold back into the draft.
 
 ### Phase 2: Verify (the hard part)
 
@@ -168,7 +169,7 @@ Collect subagent results and present a clear, actionable summary. **Output as te
 
 **The review has two orthogonal axes — keep them separate.** Verification (Phase 2) answered TRUTH: does each brief still match the code? Only the human can answer DESIRE: is the thing still wanted? A git-quiet board reads identically as "finished and in daily use" and "abandoned" — no substrate distinguishes them, so **never infer desire from staleness**. Truth is per-item and mechanical; desire triages at **repo/outcome level**.
 
-**For big estates (100+ items), hold the desire conversation FIRST, at repo/outcome level, before any item tables.** On the 2026-07-08 run, leading with 145 item verdicts drowned the user ("I'm drowning"); pulling up to six repo-level questions resolved the whole doubt zone in one exchange. So:
+**For big estates (100+ items), hold the desire conversation FIRST, at repo/outcome level, before any item tables.** On the 2026-07-08 run, leading with 145 item verdicts drowned the user ("I'm drowning"); pulling up to six repo-level questions resolved the whole doubt zone in one exchange. The Phase 1 pyramid and Sameer's edits to it ARE the opening desire data — start from what his edit pass said, not from a blank sheet. So:
 
 1. **Present the portfolio grouped by pulse** — per repo (and per outcome for the big boards): open-item count, `open_child_count` on outcomes, age flags, and a one-line "what this board is for". This is the *shape*, not verdicts.
 2. **Ask the desire questions only the human can answer**, per repo/outcome: *still wanted? veil it? fold into a sibling? convert the promise to an action?* Six good repo-level questions beat 145 rows.
@@ -317,7 +318,7 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 > Audit complete. Closed {N} items.
 > Open items: {before} → {after} across {repos} boards.
 
-**Then archive the run durably** — copy the run directory (before/after survey JSON, per-repo verification JSONs, the summary) to `~/notes/raw/claude/bon-audit-{date}/`. The next audit diffs against it: what closed, what's still limping along, what reappeared.
+**Then archive the run durably** — copy the run directory (before/after survey JSON, per-repo verification JSONs, the summary) to `~/notes/raw/claude/bon-audit-{date}/`, plus a snapshot of the final pyramid (and the reconciliation artefact when the run included one). The next audit diffs against it: what closed, what's still limping along, what reappeared — and the pyramid snapshot is what makes Sameer's later scratch edits detectable as edits.
 
 ## Anti-Patterns
 
@@ -339,11 +340,13 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 
 | Skill | Relationship |
 |-------|-------------|
-| **bon** | Audit uses bon CLI for closures, and `bon register` maintains the repos mapping the survey labels come from. Does not duplicate draw-down teaching. Assumes bon is loaded. |
+| **bon** | Audit uses bon CLI for closures, and `bon register` maintains the repos mapping (labels + jobs-groups) the survey reads. Does not duplicate draw-down teaching. Assumes bon is loaded. |
+| **accomplis:coaching** | Invoke before touching Todoist for the alignment block — it holds structure discovery and GTD semantics. The review renders the bon↔Todoist join; it never syncs. |
 | **close** | Audit's Phase 3→4 mirrors close's Decide→Act. But audit is estate-wide; close is single-session. |
 | **open** | After review, /open re-orients to whatever's next. |
 
 ## References
 
+- `references/pyramid-format.md` — The Phase 1 pyramid: document shape, jobs display mapping, alignment block, dispatch grammar, ceremony mechanics
 - `references/verification-patterns.md` — How to verify different brief types
-- `scripts/audit_survey.py` — Hybrid estate survey (Dolt-global + JSONL sweep) with JSON output and age flags
+- `scripts/audit_survey.py` — Hybrid estate survey (Dolt-global + JSONL sweep) with recent wins, git signal, jobs grouping, age flags

@@ -458,3 +458,24 @@ class TestReposRegistration:
         assert dolt_register_repo(prefix) is True   # first registration writes
         assert dolt_register_repo(prefix) is False  # re-run is a no-op
         assert self._repos_row(prefix)["repo_name"] == tmp_path.name
+
+    def test_register_job_curated_and_preserved(self, dolt_dir):
+        """The job column is human-curated: only an explicit --job touches it.
+
+        The parasitic save-path registration must never clobber a curated
+        value, and --job "" clears back to NULL (unassigned)."""
+        tmp_path, prefix = dolt_dir
+        from bon.dolt import dolt_register_repo
+        assert dolt_register_repo(prefix, job="batterie") is True
+        assert self._repos_row(prefix)["job"] == "batterie"
+        # Same job again: no churn
+        assert dolt_register_repo(prefix, job="batterie") is False
+        # Parasitic save (no job argument) preserves the curated value
+        save_items([self._item(prefix, "rega")])
+        assert self._repos_row(prefix)["job"] == "batterie"
+        # Explicit register without --job also preserves
+        assert dolt_register_repo(prefix) is False
+        assert self._repos_row(prefix)["job"] == "batterie"
+        # --job "" clears to NULL (surfaces as unassigned)
+        assert dolt_register_repo(prefix, job="") is True
+        assert self._repos_row(prefix)["job"] is None

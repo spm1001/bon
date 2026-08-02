@@ -141,6 +141,21 @@ The load-bearing fact, verified empirically (2026-07-21, scratch repo `spm1001/i
 
 Tripwires for re-litigation (don't reopen without one): GitHub's "agent issue assignment progress and session management" reaching GA (open roadmap item as of 2026-07 — the first tactical-shaped thing on Issues); a second regular human collaborator across the core estate; or the maintenance ratio inverting (bon-plumbing sessions outnumbering quiet-use sessions). The stranger-legibility half of the angst shipped as the message-in-a-bottle (bon-miheza, 2026-07-21, suite 1.17.0) — see "The legible substrate" below.
 
+## GTD for Claudes (bon-cadomu, adjudicated 2026-08-02)
+
+GTD's principles survive translation to Claudes; its parameters don't. For a human, GTD externalises memory while the mind stays continuous — the system is a prosthetic. For a Claude the system IS the continuity: bon + handoffs + corpus is the medium through which Claudes persist between sessions. Each practice re-derives from the mind it serves:
+
+- **Capture is provisioning, not relief** — an uncaptured loop doesn't nag a Claude; it simply never exists for the next one.
+- **The brief is the hippocampus.** The action↔outcome link that human GTD deliberately omits must be explicit, because no wetware persists to re-derive it.
+- **Next-action precision guards against confident misinterpretation**, not procrastination.
+- **A done-definition is a verification spec**, not a stopping rule.
+- **Open loops need protecting FROM a Claude's completion drive**, where a human's need quieting.
+- **Contexts invert rather than vanish.** A Claude never chooses from a menu mid-session — the repo is a birth condition — so the @-context choice moves up a level: the *sessions become the human's contexts*. His next-action layer thins to dispatch lines, "Open \<repo\> → \<desire\> (\<bon-id\>)", making the boards the true next-action lists and his queue a set of launch coordinates.
+
+**The system boundary, proven on its first live run (2026-08-02):** the human's tracker (Todoist) holds what he's committed to; bon holds what the workshop is doing about it; **nothing syncs** — this sharpens, not replaces, the kuwivo-era "typed and manual edge" above. The treaty table is a weekly *rendered reconciliation* whose product is the two orphan lists: workshop motion with no home in his desires = drift; his desire with no workshop motion = invisible stall. Ceremony 1 ran 2026-08-02 (draft → conversational Q&A adjudication — his preferred shape over file-homework → applied; artefact at `~/notes/raw/claude/toolmaking-reconciliation-2026-08-02.md`); both orphan directions produced real work, so the design thesis held. His & Toolmaking Todoist project is now a 10-line dispatch queue in the settled grammar, refreshed by the Sunday ceremony — expect mid-week bon-id rot in those lines. **bon-jagoha** carries the productisation: rebuild bon:review to generate the pyramid + alignment block + proposed dispatch lines.
+
+Corollary discovered live: a DO that can never be ticked ("General bon work") is an Area of Focus in a project costume — that's what dullness in an outcome usually means. Wider arc: Robert Peake (technical GTD coach) runs an MIT session in ~1 month covering the Claudes; the month is an experiment window (~4 ceremonies), then a "GTD for Claudes: what transferred, what didn't" write-up with the dull-vs-sparkle DO examples as exhibits.
+
 ## Handoff resolution
 
 Per-repo resolution — WHERE *within* a repo a handoff or understanding.md lives — runs through the shared `scripts/lib-handoff.sh`, sourced by both the reader (`open-context.sh` → `handoff_read_dirs`, `understanding_path`) and the writer (`close-context.sh` → `handoff_write_dir`). One source of truth means you always read a handoff from exactly where the next one would be written — this is what fixed the 2026-06-17 stale-handoff bug end-to-end (round-trip verified). Resolution walks up from CWD to the board root (`board_root` mirrors the CLI's `.bon` discovery: any `.bon` at the start dir, only a prefix-bearing one above it, stop at a `.git` boundary):

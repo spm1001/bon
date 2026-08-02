@@ -300,6 +300,7 @@ _SCHEMA_SQL = [
         prefix      VARCHAR(64) PRIMARY KEY,
         repo_name   VARCHAR(200) NOT NULL,
         origin_url  VARCHAR(500),
+        job         VARCHAR(64),
         updated_at  VARCHAR(30)
     )""",
 ]
@@ -322,6 +323,10 @@ def _ensure_schema(conn):
             col = cur.fetchone()
             if col and "varchar" in str(col.get("Type", "")).lower():
                 cur.execute(f"ALTER TABLE {table} MODIFY COLUMN waiting_for TEXT")
+        # repos.job arrived August 2026 (jobs-grouped review pyramid, bon-jagoha)
+        cur.execute("SHOW COLUMNS FROM repos LIKE 'job'")
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE repos ADD COLUMN job VARCHAR(64) AFTER origin_url")
     conn.commit()
 
 
@@ -622,33 +627,51 @@ def _repo_identity() -> tuple[str, str | None]:
     return root.name, origin_url
 
 
-def _register_repo(cur, prefix: str) -> bool:
+def _register_repo(cur, prefix: str, job: str | None = None) -> bool:
     """Sync this board's row in the repos mapping table.
 
     Compares before writing so an unchanged identity adds nothing to the
     caller's transaction. Returns True when a row was written.
+
+    `job` is the review pyramid's repo-to-job grouping (bon-jagoha). It is
+    human-curated: job=None means "leave whatever is there" — the parasitic
+    save-path callers never pass it, so an ordinary write can't clear a
+    curated value. Only an explicit `bon register --job` sets or changes it,
+    and `--job ""` clears it (stored as NULL, surfacing as unassigned).
     """
     repo_name, origin_url = _repo_identity()
-    cur.execute("SELECT repo_name, origin_url FROM repos WHERE prefix = %s", (prefix,))
+    cur.execute(
+        "SELECT repo_name, origin_url, job FROM repos WHERE prefix = %s", (prefix,)
+    )
     row = cur.fetchone()
-    if row and row["repo_name"] == repo_name and row["origin_url"] == origin_url:
+    job_current = row["job"] if row else None
+    if job is None:
+        job_target = job_current
+    else:
+        job_target = job or None
+    if (
+        row
+        and row["repo_name"] == repo_name
+        and row["origin_url"] == origin_url
+        and job_current == job_target
+    ):
         return False
     if row is None:
         cur.execute(
-            "INSERT INTO repos (prefix, repo_name, origin_url, updated_at) "
-            "VALUES (%s, %s, %s, %s)",
-            (prefix, repo_name, origin_url, now_iso()),
+            "INSERT INTO repos (prefix, repo_name, origin_url, job, updated_at) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (prefix, repo_name, origin_url, job_target, now_iso()),
         )
     else:
         cur.execute(
-            "UPDATE repos SET repo_name = %s, origin_url = %s, updated_at = %s "
-            "WHERE prefix = %s",
-            (repo_name, origin_url, now_iso(), prefix),
+            "UPDATE repos SET repo_name = %s, origin_url = %s, job = %s, "
+            "updated_at = %s WHERE prefix = %s",
+            (repo_name, origin_url, job_target, now_iso(), prefix),
         )
     return True
 
 
-def dolt_register_repo(prefix: str | None = None) -> bool:
+def dolt_register_repo(prefix: str | None = None, job: str | None = None) -> bool:
     """Upsert this board's repos-table row in its own Dolt commit.
 
     Explicit registration for `bon init --backend dolt` / `bon register` /
@@ -659,7 +682,7 @@ def dolt_register_repo(prefix: str | None = None) -> bool:
     prefix = prefix or _dolt_load_prefix_local()
     with _write_transaction(conn, "repo registration"):
         with conn.cursor() as cur:
-            changed = _register_repo(cur, prefix)
+            changed = _register_repo(cur, prefix, job=job)
             if changed:
                 author = f"{get_creator()} <bon@localhost>"
                 cur.execute("CALL DOLT_ADD('-A')")

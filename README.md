@@ -329,7 +329,7 @@ Bon includes Claude Code skills, auto-discovered from `skills/`:
 | `/close` | Run before /exit, to reflect on this session and end it properly by figuring out what's best to (1) do now, with current context wisdom (2) file as a handoff for the next Claude as well as (3) capture for future Claudes in collective memory |
 | `/open` | Activate at session start when .bon/ exists AND before any bon CLI command |
 | `/plan` | Plan multi-session work as a bon hierarchy |
-| `/review` | Orchestrates periodic estate-wide backlog review using 5-phase survey-verify-summarize-act-snapshot workflow that prevents closing items without codebase verification |
+| `/review` | Orchestrates estate-wide backlog review — load FIRST, before any backlog triage |
 <!-- GENERATED:SKILLS:END -->
 
 This gives Claude access to the draw-down workflow (read item → activate tactical steps → work with pauses) and draw-up patterns (file work with complete briefs for future sessions).

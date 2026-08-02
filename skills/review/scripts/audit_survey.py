@@ -32,17 +32,29 @@ than walked: the walk skips hidden directories, and a recursive walk of
 Connection config: BON_DOLT_* env vars > ~/.config/bon/dolt.toml
 (same resolution as bon's dolt.py, minus the macOS keychain).
 
+Recent wins ride the same pass (bon-jagoha): each repo group carries
+`recent_dones` (items closed inside the window, newest first, capped with the
+true total in `recent_done_count`) and, where a clone exists, a light `git`
+signal (commit count in the window + last commit line). The pyramid's
+"Recent Progress" lines come from these, not a separate sweep.
+
+Jobs grouping: each repo group carries `job` when assigned — Dolt boards from
+the repos table's `job` column (`bon register --job`), JSONL boards from a
+`.bon/job` marker file. Boards with open items and no job are listed in
+`jobs_unassigned` — fail-visible for assignment, never guessed.
+
 Usage:
     uv run --script audit_survey.py                        # JSON to stdout
     uv run --script audit_survey.py --repos trousse passe  # Filter by label
     uv run --script audit_survey.py --roots ~/repos        # Explicit roots
+    uv run --script audit_survey.py --window-days 14       # Recent-wins window
 """
 
 import json
 import os
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # ---------- Dolt connection (mirrors bon/dolt.py resolution) ----------
@@ -85,11 +97,15 @@ def load_dolt_config() -> dict:
     return config
 
 
-def query_dolt_global() -> tuple[dict[str, list[dict]], dict[str, dict]]:
-    """One global query: all open items grouped by prefix, plus the repos map.
+def query_dolt_global(
+    done_cutoff: str,
+) -> tuple[dict[str, list[dict]], dict[str, list[dict]], dict[str, dict]]:
+    """One global pass: open items and recent dones grouped by prefix, plus repos map.
 
-    Returns ({prefix: [item, ...]}, {prefix: {"repo_name": ..., "origin_url": ...}}).
-    Raises on any connection/query failure — the caller decides the fallback.
+    Returns (open_by_prefix, dones_by_prefix, repos_map). `done_cutoff` is an
+    ISO-8601 Z timestamp; done_at is stored in the same format, so the string
+    comparison is a correct date comparison. Raises on any connection/query
+    failure — the caller decides the fallback.
     """
     import pymysql
 
@@ -110,10 +126,28 @@ def query_dolt_global() -> tuple[dict[str, list[dict]], dict[str, dict]]:
                 "created_at FROM items WHERE status = 'open'"
             )
             rows = cur.fetchall()
-            cur.execute("SELECT prefix, repo_name, origin_url FROM repos")
+            cur.execute(
+                "SELECT id, type, title, done_at, done_note FROM items "
+                "WHERE status = 'done' AND done_at >= %s",
+                (done_cutoff,),
+            )
+            done_rows = cur.fetchall()
+            # `job` arrived August 2026; a server whose schema predates it
+            # (migration rides the next bon CLI connection) must not break
+            # the survey — fall back to the jobless shape.
+            try:
+                cur.execute("SELECT prefix, repo_name, origin_url, job FROM repos")
+                repo_rows = cur.fetchall()
+            except pymysql.err.MySQLError:
+                cur.execute("SELECT prefix, repo_name, origin_url FROM repos")
+                repo_rows = [dict(r, job=None) for r in cur.fetchall()]
             repos_map = {
-                r["prefix"]: {"repo_name": r["repo_name"], "origin_url": r["origin_url"]}
-                for r in cur.fetchall()
+                r["prefix"]: {
+                    "repo_name": r["repo_name"],
+                    "origin_url": r["origin_url"],
+                    "job": r.get("job"),
+                }
+                for r in repo_rows
             }
     finally:
         conn.close()
@@ -123,7 +157,11 @@ def query_dolt_global() -> tuple[dict[str, list[dict]], dict[str, dict]]:
         item = _dolt_row_to_item(row)
         prefix = item["id"].split("-", 1)[0]
         by_prefix.setdefault(prefix, []).append(item)
-    return by_prefix, repos_map
+    dones_by_prefix: dict[str, list[dict]] = {}
+    for row in done_rows:
+        prefix = row["id"].split("-", 1)[0]
+        dones_by_prefix.setdefault(prefix, []).append(dict(row))
+    return by_prefix, dones_by_prefix, repos_map
 
 
 def _dolt_row_to_item(row: dict) -> dict:
@@ -192,6 +230,15 @@ def get_prefix(bon_dir: Path) -> str | None:
     return None
 
 
+def get_job(bon_dir: Path) -> str | None:
+    """Read .bon/job — the JSONL board's jobs-group marker (Dolt boards use
+    the repos table's job column instead; see `bon register --job`)."""
+    job_file = bon_dir / "job"
+    if job_file.exists():
+        return job_file.read_text().strip() or None
+    return None
+
+
 # ---------- shared shaping ----------
 
 def age_flag(created_at: str | None) -> str | None:
@@ -232,6 +279,54 @@ def item_record(item: dict) -> dict:
         if brief.get(field):
             record[field] = brief[field]
     return record
+
+
+RECENT_DONES_CAP = 10
+
+
+def done_records(done_items: list[dict]) -> tuple[list[dict], int]:
+    """Shape recent-done items: newest first, capped, with the TRUE total.
+
+    The cap keeps busy boards from flooding the output; the count states the
+    remainder so a truncated list can't read as complete (no silent caps).
+    """
+    recs = []
+    for i in sorted(done_items, key=lambda x: x.get("done_at") or "", reverse=True):
+        r = {"id": i["id"], "title": i["title"]}
+        if i.get("type"):
+            r["type"] = i["type"]
+        if i.get("done_at"):
+            r["done_at"] = i["done_at"]
+        if i.get("done_note"):
+            r["done_note"] = i["done_note"]
+        recs.append(r)
+    return recs[:RECENT_DONES_CAP], len(recs)
+
+
+def git_activity(repo_path: Path, window_days: int) -> dict | None:
+    """Light git signal: commit count in the window + the last commit line.
+
+    Soft-fails to None — a board dir that isn't a git repo (or has no HEAD)
+    must not break the survey.
+    """
+    try:
+        count = subprocess.run(
+            ["git", "-C", str(repo_path), "rev-list", "--count",
+             f"--since={window_days}.days", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if count.returncode != 0:
+            return None
+        out = {"commits_window": int(count.stdout.strip() or 0)}
+        last = subprocess.run(
+            ["git", "-C", str(repo_path), "log", "-1", "--format=%cs %s"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if last.returncode == 0 and last.stdout.strip():
+            out["last_commit"] = last.stdout.strip()
+        return out
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        return None
 
 
 def repo_entry(label: str, open_items: list[dict], **extra) -> dict:
@@ -342,18 +437,26 @@ def default_roots() -> list[Path]:
 
 # ---------- survey ----------
 
-def survey(roots: list[Path], repo_filter: list[str] | None = None) -> dict:
+def survey(
+    roots: list[Path],
+    repo_filter: list[str] | None = None,
+    window_days: int = 30,
+) -> dict:
     """Hybrid estate survey. Returns the full output document."""
     boards = discover_boards(roots)
     local_dolt_by_prefix = {
         b["prefix"]: b for b in boards if b["backend"] == "dolt" and b["prefix"]
     }
+    done_cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=window_days)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     dolt_mode = "global"
     dolt_items: dict[str, list[dict]] = {}
+    dolt_dones: dict[str, list[dict]] = {}
     repos_map: dict[str, dict] = {}
     try:
-        dolt_items, repos_map = query_dolt_global()
+        dolt_items, dolt_dones, repos_map = query_dolt_global(done_cutoff)
     except Exception as e:
         dolt_mode = "unreachable"
         print(
@@ -371,10 +474,15 @@ def survey(roots: list[Path], repo_filter: list[str] | None = None) -> dict:
 
     if dolt_mode == "global":
         # Primary index: every Dolt board in the estate, cloned here or not.
-        for prefix, items in sorted(dolt_items.items()):
+        # Iterate the union of open and recently-done prefixes: a board whose
+        # work all closed this window has no open items but IS a recent win.
+        all_prefixes = sorted(set(dolt_items) | set(dolt_dones))
+        for prefix in all_prefixes:
+            items = dolt_items.get(prefix, [])
             open_items = [i for i in items if i["id"] not in seen_ids]
             seen_ids.update(i["id"] for i in open_items)
-            if not open_items:
+            recent, recent_total = done_records(dolt_dones.get(prefix, []))
+            if not open_items and not recent:
                 continue
             mapping = repos_map.get(prefix)
             local = local_dolt_by_prefix.get(prefix)
@@ -383,7 +491,14 @@ def survey(roots: list[Path], repo_filter: list[str] | None = None) -> dict:
             else:
                 label = f"{prefix} (unmapped)"
                 unmapped.append(prefix)
-            extra = {"prefix": prefix, "backend": "dolt"}
+            extra = {
+                "prefix": prefix,
+                "backend": "dolt",
+                "recent_dones": recent,
+                "recent_done_count": recent_total,
+            }
+            if mapping and mapping.get("job"):
+                extra["job"] = mapping["job"]
             if mapping and mapping.get("origin_url"):
                 extra["origin_url"] = mapping["origin_url"]
             if local:
@@ -408,18 +523,35 @@ def survey(roots: list[Path], repo_filter: list[str] | None = None) -> dict:
             if i.get("status") == "open" and i["id"] not in seen_ids
         ]
         seen_ids.update(i["id"] for i in open_items)
-        if not open_items:
+        recent, recent_total = done_records([
+            i for i in items
+            if i.get("status") == "done" and (i.get("done_at") or "") >= done_cutoff
+        ])
+        if not open_items and not recent:
             continue
         label = repo_label(board["repo_path"], board["root"])
-        results.append(repo_entry(
-            label, open_items,
-            prefix=board["prefix"],
-            backend=board["backend"],
-            local_path=str(board["repo_path"]),
-        ))
+        extra = {
+            "prefix": board["prefix"],
+            "backend": board["backend"],
+            "local_path": str(board["repo_path"]),
+            "recent_dones": recent,
+            "recent_done_count": recent_total,
+        }
+        job = get_job(board["bon_dir"])
+        if job:
+            extra["job"] = job
+        results.append(repo_entry(label, open_items, **extra))
 
     if repo_filter:
         results = [r for r in results if any(f in r["repo"] for f in repo_filter)]
+
+    # Light git signal for every board with a clone here — the pyramid's
+    # "recent wins" line wants motion, and board writes alone under-report it.
+    for r in results:
+        if r.get("local_path"):
+            g = git_activity(Path(r["local_path"]), window_days)
+            if g:
+                r["git"] = g
 
     results.sort(key=lambda r: r["open_count"], reverse=True)
 
@@ -442,12 +574,17 @@ def survey(roots: list[Path], repo_filter: list[str] | None = None) -> dict:
     return {
         "roots": [str(r) for r in roots],
         "dolt": dolt_mode,
+        "window_days": window_days,
         "unmapped_prefixes": sorted(unmapped),
+        "jobs_unassigned": sorted(
+            r["repo"] for r in results if not r.get("job")
+        ),
         "total_open": sum(r["open_count"] for r in results),
+        "total_recent_dones": sum(r.get("recent_done_count", 0) for r in results),
         "dolt_open": dolt_open,
         "jsonl_open": jsonl_open,
         "visibility_note": visibility_note,
-        "repos_with_open": len(results),
+        "repos_reported": len(results),
         "repos": results,
     }
 
@@ -476,7 +613,16 @@ def main():
                 break
             repo_filter.append(a)
 
-    output = survey(roots, repo_filter)
+    window_days = 30
+    if "--window-days" in sys.argv:
+        idx = sys.argv.index("--window-days")
+        try:
+            window_days = int(sys.argv[idx + 1])
+        except (IndexError, ValueError):
+            print("--window-days needs an integer argument", file=sys.stderr)
+            sys.exit(2)
+
+    output = survey(roots, repo_filter, window_days=window_days)
 
     if output["unmapped_prefixes"]:
         print(

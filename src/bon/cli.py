@@ -1550,8 +1550,14 @@ def cmd_register(args):
         )
     from bon.dolt import dolt_register_repo
     prefix = load_prefix()
-    if dolt_register_repo(prefix):
-        print(f"Registered '{prefix}' in the Dolt repos table.")
+    job = getattr(args, "job", None)
+    if dolt_register_repo(prefix, job=job):
+        if job:
+            print(f"Registered '{prefix}' in the Dolt repos table (job: {job}).")
+        elif job == "":
+            print(f"Registered '{prefix}' in the Dolt repos table (job cleared).")
+        else:
+            print(f"Registered '{prefix}' in the Dolt repos table.")
     else:
         print(f"'{prefix}' already registered and current.")
 
@@ -1904,6 +1910,11 @@ def main():
     # migrate
     register_parser = subparsers.add_parser(
         "register", help="Register this board in Dolt's repos mapping table"
+    )
+    register_parser.add_argument(
+        "--job",
+        help="Assign this board to a review jobs-group (e.g. 'knowledge work'); "
+        "--job '' clears the assignment",
     )
     register_parser.set_defaults(func=cmd_register)
 
