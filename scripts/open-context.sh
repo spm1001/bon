@@ -11,11 +11,19 @@ if stat -c '%Y' /dev/null &>/dev/null; then
 else
     file_mtime() { stat -f '%m' "$1"; }
 fi
+if date -d '2000-01-01' +%s &>/dev/null; then
+    date_to_epoch() { date -d "$1" +%s; }
+    epoch_day() { date -d "@$1" +%Y-%m-%d; }
+else
+    date_to_epoch() { date -j -f '%Y-%m-%d' "$1" +%s; }
+    epoch_day() { date -r "$1" +%Y-%m-%d; }
+fi
 
 # === PREVIEW BUDGET (bon-peluge) ===
 # Claude Code previews only the first ~2KB of hook output. Sections that can
 # grow without bound are either capped here or emitted last.
 STANDALONE_MAX=12
+SUGGESTED_MAX=6
 
 # === PATHS ===
 BASE_CONTEXT_DIR="$HOME/.claude/.session-context"
@@ -120,6 +128,16 @@ done < <(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
 
 if [ -n "$LATEST_FILE" ]; then
     LATEST_TIME=$(file_mtime "$LATEST_FILE")
+    # Display age from the HEADER date, not mtime: a clone flattens every
+    # mtime to checkout time, so mtime-age reads as days-since-clone — a
+    # 2026-03-30 handoff was shown as "26d ago" (bon-wakaju). The 2026-06
+    # ranking fix covered selection only; this covers display. mtime keeps
+    # the finer granularity when its calendar day agrees with the header.
+    HDR_DAY="${BEST_KEY%%.*}"
+    if [ "$HDR_DAY" != "0000-00-00" ] && [ "$(epoch_day "$LATEST_TIME")" != "$HDR_DAY" ]; then
+        HDR_EPOCH=$(date_to_epoch "$HDR_DAY" 2>/dev/null || true)
+        [ -n "$HDR_EPOCH" ] && LATEST_TIME="$HDR_EPOCH"
+    fi
     LATEST_AGO=$((NOW - LATEST_TIME))
     LATEST_STR=$(time_ago $LATEST_AGO)
     LATEST_PURPOSE=$(grep "^purpose:" "$LATEST_FILE" 2>/dev/null | head -1 | cut -d: -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
@@ -257,20 +275,68 @@ if [ -n "$UNDERSTANDING_FILE" ]; then
     echo ""
 fi
 
-# --- 4. Suggested (from handoff Opportunities or Next section) ---
+# --- 4. From the last handoff's Opportunities ---
 # Above the item lists on purpose: this is the baton — the outgoing Claude's
-# curated picks — and it is the highest-value-per-byte thing in the briefing.
-# The item lists grow without bound; this does not.
+# pointers — and it is the highest-value-per-byte thing in the briefing. The
+# label names the source rather than vouching for the content: Opportunities
+# has drifted to carry deliberate-inaction notes too, and "Suggested" read
+# those as invitations (bon-dokahi). Three guards keep it truthful and small:
+# a liveness filter (bon-mosase: suggestions named items closed since the
+# handoff), a first-sentence trim + count cap with the remainder stated
+# (bon-wokapu: 18 wordy bullets once ate the whole 2KB preview), and honest
+# accounting for anything omitted.
+DROPPED=0
 if [ -n "$LATEST_FILE" ]; then
     # fond-v1: ### Opportunities under ## For the next Claude
     NEXT_LINES=$(sed -n '/^### Opportunities/,/^#/{/^#/d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
     # Legacy: ## Next (flat section)
     [ -z "$NEXT_LINES" ] && NEXT_LINES=$(sed -n '/^## Next/,/^## /{/^## /d;p;}' "$LATEST_FILE" 2>/dev/null | grep -v '^$' || true)
+
+    # Liveness filter: drop a bullet only when it names this-board items and
+    # NONE of them is still open (○ covers both ready and waiting items).
+    # Foreign-prefix ids can't be checked against this board — keep them.
+    BOARD_PREFIX=""
+    [ -n "$BON_ROOT" ] && [ -f "$BON_ROOT/.bon/prefix" ] && BOARD_PREFIX=$(cat "$BON_ROOT/.bon/prefix" 2>/dev/null || true)
+    if [ -n "$NEXT_LINES" ] && [ -n "$BOARD_PREFIX" ] && [ -n "$BON_LIST_OUTPUT" ]; then
+        OPEN_IDS=$(echo "$BON_LIST_OUTPUT" | grep '○' | grep -oE "${BOARD_PREFIX}-[A-Za-z0-9]+" | sort -u || true)
+        FILTERED=""
+        while IFS= read -r line; do
+            LINE_IDS=$(echo "$line" | grep -oE "${BOARD_PREFIX}-[A-Za-z0-9]+" | sort -u || true)
+            if [ -n "$LINE_IDS" ]; then
+                LIVE=""
+                while IFS= read -r lid; do
+                    if printf '%s\n' "$OPEN_IDS" | grep -qx "$lid"; then
+                        LIVE=1
+                        break
+                    fi
+                done <<< "$LINE_IDS"
+                if [ -z "$LIVE" ]; then
+                    DROPPED=$((DROPPED + 1))
+                    continue
+                fi
+            fi
+            FILTERED="${FILTERED}${line}"$'\n'
+        done <<< "$NEXT_LINES"
+        NEXT_LINES=$(printf '%s' "$FILTERED")
+    fi
+
     if [ -n "$NEXT_LINES" ]; then
-        echo "Suggested:"
-        echo "$NEXT_LINES" | while IFS= read -r line; do
-            echo "  $line"
+        SUGGESTED_TOTAL=$(printf '%s\n' "$NEXT_LINES" | wc -l | tr -d ' ')
+        echo "From the last handoff's Opportunities:"
+        # First sentence per bullet — the full text is in the handoff body
+        # below (and on disk at the HANDOFF= path either way).
+        printf '%s\n' "$NEXT_LINES" | head -n "$SUGGESTED_MAX" | while IFS= read -r line; do
+            echo "  $(printf '%s' "$line" | sed 's/\([.!?]\) [A-Z].*/\1/')"
         done
+        if [ "$SUGGESTED_TOTAL" -gt "$SUGGESTED_MAX" ]; then
+            echo "  … +$((SUGGESTED_TOTAL - SUGGESTED_MAX)) more in the handoff (path above)"
+        fi
+        if [ "$DROPPED" -gt 0 ]; then
+            echo "  ($DROPPED omitted — their items have closed since the handoff)"
+        fi
+        echo ""
+    elif [ "$DROPPED" -gt 0 ]; then
+        echo "From the last handoff's Opportunities: all $DROPPED named items have since closed."
         echo ""
     fi
 fi

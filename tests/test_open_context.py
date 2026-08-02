@@ -8,7 +8,9 @@ rendered as empty because the filter grepped only column-0 outcome lines
 """
 
 import json
+import re
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -167,7 +169,7 @@ def test_big_handoff_skeleton_fits_the_preview_budget(tmp_path):
     assert "Outcomes we're working towards:" in preview
     assert "Users can frobnicate" in preview
     assert "Standalone actions:" in preview
-    assert "Suggested:" in preview
+    assert "From the last handoff's Opportunities:" in preview
 
 
 def test_big_handoff_body_comes_after_the_skeleton(tmp_path):
@@ -207,7 +209,9 @@ def test_suggested_precedes_the_item_lists(tmp_path):
     result = run_open_context(tmp_path, OUTCOME, STANDALONE)
     assert result.returncode == 0
     out = result.stdout
-    assert out.index("Suggested:") < out.index("Outcomes we're working towards:")
+    assert out.index("From the last handoff's Opportunities:") < out.index(
+        "Outcomes we're working towards:"
+    )
 
 
 def test_long_standalone_list_is_capped_and_says_so(tmp_path):
@@ -239,3 +243,129 @@ def test_short_standalone_list_has_no_cap_line(tmp_path):
     assert result.returncode == 0
     assert "Fix the widget" in result.stdout
     assert "more — full list" not in result.stdout
+
+
+# --- Orientation truthfulness (bon-bafume cluster) -----------------------
+#
+# Four papercuts, three sessions, one day (2026-08-02): the age string showed
+# clone age not session age (bon-wakaju); suggestions named items closed since
+# the handoff (bon-mosase); Suggested was unbounded and ate the 2KB preview
+# (bon-wokapu); and the "Suggested" label misrepresented deliberate-inaction
+# notes as invitations (bon-dokahi).
+
+
+def handoff_headed(day: str, opportunities: str) -> str:
+    return (
+        f"# Handoff — {day}\n\nsession_id: cafebabe\npurpose: test session\n"
+        f"format: fond-v1\n\n## For the next Claude\n\n### Done\n- something\n\n"
+        f"### Opportunities\n{opportunities}\n\n## For Claudes to come\n\ntail\n"
+    )
+
+
+def test_age_string_uses_header_date_not_clone_mtime(tmp_path):
+    """A months-old handoff with a fresh mtime shows months, not 'just now'.
+
+    A clone flattens every mtime to checkout time, so mtime-derived age reads
+    as days-since-clone (bon-wakaju: a 2026-03-30 handoff shown as '26d ago')."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    old_day = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
+    write_handoff(tmp_path, handoff_headed(old_day, "- **test-solo**: a pick"))
+    result = run_open_context(tmp_path, STANDALONE)
+    assert result.returncode == 0
+    m = re.search(r"Last session \((\d+)d ago\)", result.stdout)
+    assert m, f"expected day-granularity age, got: {result.stdout[:200]!r}"
+    assert 89 <= int(m.group(1)) <= 91
+
+
+def test_age_same_day_keeps_fine_granularity(tmp_path):
+    """When mtime agrees with the header date, the finer mtime age survives."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    write_handoff(tmp_path, handoff_headed(today, "- **test-solo**: a pick"))
+    result = run_open_context(tmp_path, STANDALONE)
+    assert result.returncode == 0
+    assert re.search(r"Last session \((just now|\d+m ago|\d+h ago)\)", result.stdout)
+
+
+def test_suggested_drops_bullets_whose_items_closed(tmp_path):
+    """A suggestion naming only closed this-board items is omitted — and the
+    omission is stated, never silent (bon-mosase)."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    opportunities = (
+        "- **test-solo**: still-open pick\n"
+        "- **test-fini**: closed pick that must vanish\n"
+        "- foreign coordinate stays (zzz-abcdef)"
+    )
+    write_handoff(tmp_path, handoff_headed("2026-07-20", opportunities))
+    result = run_open_context(tmp_path, STANDALONE, DONE_STANDALONE)
+    assert result.returncode == 0
+    # Scope to the orientation skeleton: the handoff BODY (section 8) is
+    # emitted in full by design, so the original bullets reappear there.
+    skeleton = result.stdout.split("# Handoff —")[0]
+    assert "still-open pick" in skeleton
+    assert "closed pick that must vanish" not in skeleton
+    assert "foreign coordinate stays" in skeleton  # other boards can't be checked here
+    assert "1 omitted — their items have closed" in skeleton
+
+
+def test_all_suggestions_closed_says_so(tmp_path):
+    """Every named item closed → an honest one-liner, not a silent absence."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    write_handoff(
+        tmp_path, handoff_headed("2026-07-20", "- **test-fini**: finished pick")
+    )
+    result = run_open_context(tmp_path, STANDALONE, DONE_STANDALONE)
+    assert result.returncode == 0
+    skeleton = result.stdout.split("# Handoff —")[0]
+    assert "have since closed" in skeleton
+    assert "finished pick" not in skeleton
+
+
+def fat_opportunities() -> str:
+    return "\n".join(
+        f"- Fat opportunity number {i:02d} is here. Followed by a very long "
+        f"elaboration sentence that repeats itself at some length to model the "
+        f"wordy handoff bullets observed on the infra board on 2026-08-02."
+        for i in range(18)
+    )
+
+
+def test_fat_opportunities_are_bounded_and_say_so(tmp_path):
+    """Bullets trim to their first sentence, the count is capped, and the
+    remainder is stated (bon-wokapu: 18 wordy lines ate the whole preview)."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    write_handoff(tmp_path, handoff_headed("2026-07-20", fat_opportunities()))
+    result = run_open_context(tmp_path, STANDALONE)
+    assert result.returncode == 0
+    out = result.stdout
+    suggested_block = out.split("From the last handoff's Opportunities:")[1].split(
+        "\n\n"
+    )[0]
+    assert "Fat opportunity number 00 is here." in suggested_block
+    assert "Followed by a very long" not in suggested_block  # first sentence only
+    assert "… +12 more in the handoff" in suggested_block
+    assert "Fat opportunity number 17" not in suggested_block
+
+
+def test_fat_opportunities_keep_skeleton_in_budget(tmp_path):
+    """With a fat Opportunities section, the whole skeleton still previews."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    (tmp_path / ".bon" / "understanding.md").write_text("# Understanding\n")
+    write_handoff(tmp_path, handoff_headed("2026-07-20", fat_opportunities()))
+    result = run_open_context(tmp_path, OUTCOME, STANDALONE)
+    assert result.returncode == 0
+    preview = result.stdout[:PREVIEW_BUDGET]
+    assert "UNDERSTANDING=" in preview
+    assert "Outcomes we're working towards:" in preview
+    assert "Standalone actions:" in preview
+
+
+def test_suggested_label_names_its_source(tmp_path):
+    """The label says where the lines come from instead of vouching for them
+    (bon-dokahi: 3 of 4 'suggestions' were deliberate-inaction notes)."""
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    write_handoff(tmp_path, handoff_headed("2026-07-20", "- **test-solo**: a pick"))
+    result = run_open_context(tmp_path, STANDALONE)
+    assert result.returncode == 0
+    assert "From the last handoff's Opportunities:" in result.stdout
+    assert "Suggested:" not in result.stdout

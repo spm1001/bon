@@ -241,8 +241,9 @@ Risks are known dangers; this is honest doubt. Omit when empty.]
 - [What could go wrong with what we did, what could they trip up on?]
 
 ### Opportunities
-- [Directions for next session, what's the next piece of the puzzle? Include bon IDs where relevant.
-This list IS the baton — the next session's hook surfaces it as "Suggested".
+- [Actionable pointers ONLY: directions for next session, the next piece of the puzzle. Include bon IDs where relevant.
+This list IS the baton — the next session's hook surfaces it under "From the last handoff's Opportunities", trimmed to each bullet's FIRST SENTENCE, so lead with the point.
+Deliberate-inaction records ("left alone on purpose", "deliberately not created") and unverified caveats belong in Risks or Uncertain, not here — under a suggestion-shaped label they read as invitations to act (bon-dokahi).
 Don't write a separate Suggested section; that duplication is format drift.]
 
 ## For Claudes to come
