@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 23 commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), ~3200 LOC core (+700 optional Dolt module), 602 tests (14 are opt-in Dolt integration via BON_DOLT_TEST=1).
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 23 commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), ~3200 LOC core (+700 optional Dolt module), 647 tests (14 are opt-in Dolt integration via BON_DOLT_TEST=1).
 
 ## Versioning & releasing (suite-managed)
 
@@ -218,6 +218,8 @@ which made a shell-mangled closing note permanent.
 | Interactive mode untested | Test with `input=` parameter |
 | Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
 | Changing schema fields | bon-read.sh reads items.jsonl directly with jq |
+| Releasing a tactical claim | `bon work --release` keeps steps+current and sets `tactical.released`; `--clear` discards. `_tactical_is_active()` in storage.py is the single gate — released is not active, so it can't block, inject, or read as orphaned. The two raw-JSONL readers (`scripts/bon-read.sh`, `hooks/bon-tactical.sh`) each need the check independently; they bypass storage.py |
+| Adding a nested tactical key | Put it INSIDE the tactical object, not beside it as an item column. `tactical` round-trips as one opaque JSON value, so a nested key survives a write by an older client — where a new top-level column is stripped by the fixed `_ITEM_COLUMNS` list (the someday-decay lesson, one level deeper) |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |
 | Stale global install after code changes | `uv tool install` reuses a cached *build* of the local source, and `uv cache clean bon` does **not** clear it. Since bon's version is dynamic from `plugin.json` (hatchling regex-read), a bump touching only `plugin.json`/CLAUDE.md leaves `src/` byte-identical, so the old wheel is reused and the version never moves (verified 2026-06-17). Force a real rebuild with `--no-cache`: `uv tool install ~/repos/spm1001/bon --force --reinstall --no-cache --with pymysql` |
 | Calling `items_path()` in Dolt mode | Raises `BonError`. Check `_get_backend()` first, or use `load_items()`/`save_items()` which dispatch automatically. |

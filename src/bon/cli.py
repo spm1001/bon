@@ -29,6 +29,7 @@ from bon.storage import (
     find_by_id,
     find_no_complete_tactical,
     find_orphaned_tactical,
+    find_released_tactical,
     get_creator,
     get_session_identity,
     items_path,
@@ -1425,6 +1426,9 @@ def cmd_work(args):
     if "--clear" in positional:
         positional = [a for a in positional if a != "--clear"]
         args.clear = True
+    if "--release" in positional:
+        positional = [a for a in positional if a != "--release"]
+        args.release = True
     work_id = positional[0] if positional else None
     work_steps = positional[1:] if len(positional) > 1 else []
 
@@ -1435,16 +1439,73 @@ def cmd_work(args):
             active = find_no_complete_tactical(items, session=session)
         if not active:
             orphan = find_orphaned_tactical(items, session)
+            released = find_released_tactical(items, session=session)
             if orphan:
                 print(f"Orphaned tactical: {orphan['id']} ({orphan['title']})")
                 print(format_tactical(orphan["tactical"], action_status=orphan["status"]))
                 print(f"\nOld session no longer exists. Run `bon work {orphan['id']}` to re-claim.")
+            elif released:
+                print(f"Released tactical: {released['id']} ({released['title']})")
+                print(format_tactical(released["tactical"], action_status=released["status"]))
+                print(f"\nProgress kept, claim handed back. Resume with `bon work {released['id']}`.")
             else:
                 print("No active tactical steps. Run `bon work <id>` to start.")
             return
         print(f"Working on: {active['title']} ({active['id']})")
         print()
         print(format_tactical(active["tactical"], action_status=active["status"]))
+        return
+
+    # --release: hand back the claim WITHOUT losing the progress. The pair to
+    # --clear: release keeps the steps, clear discards them.
+    #
+    # Why this verb exists: a tactical can be parked on purpose — bon-jagoha
+    # sat at step 4 of 6 waiting for a scheduled review ceremony. The claim is
+    # keyed to the directory and serially enforced, so it refused every other
+    # `bon work` in that repo, and all three escapes destroyed the progress
+    # (done is a lie, `bon wait` silently discards tactical, `--clear` pops
+    # it). `bon someday` refuses outright on an active tactical, so the
+    # parking verb was the one thing that could not help (bon-kewimu).
+    #
+    # Deliberately NOT spelled --park: `someday` already owns "parked" in this
+    # codebase's vocabulary and means something different (the ITEM is
+    # Someday/Maybe and leaves the default view). A released tactical says
+    # nothing about the item, which stays exactly as visible as before.
+    if getattr(args, "release", False):
+        if work_id:
+            target = find_by_id(items, work_id, prefix)
+            if not target:
+                error(f"Item '{work_id}' not found")
+        else:
+            target = find_active_tactical(items, session=session)
+            if not target:
+                target = find_no_complete_tactical(items, session=session)
+            if not target:
+                error("No tactical claim in this session to release.")
+        tactical = target.get("tactical")
+        if not tactical:
+            error(f"{target['id']} has no tactical steps to release.")
+        if tactical.get("released"):
+            print(f"Already released: {target['id']}")
+            return
+        if target["status"] == "done":
+            error(f"{target['id']} is done — its tactical record is history, not a claim")
+        t_session = tactical.get("session")
+        if t_session and t_session != session and not args.force:
+            error(
+                f"{target['id']}'s tactical belongs to another session ({t_session}).\n"
+                f"Use `bon work --release {target['id']} --force` to release it anyway."
+            )
+        tactical["released"] = True
+        tactical["released_at"] = now_iso()
+        target["updated_at"] = now_iso()
+        target["updated_by"] = "released"
+        save_items(items)
+        done_count = tactical.get("current", 0)
+        total = len(tactical.get("steps", []))
+        print(f"Released: {target['id']} at step {done_count + 1} of {total} "
+              f"({done_count} complete, progress kept)")
+        print(f"Resume with `bon work {target['id']}` — no --force needed.")
         return
 
     # --clear: release a tactical claim. Bare form takes this session's
@@ -1522,7 +1583,11 @@ def cmd_work(args):
     # Serial enforcement scoped to THIS session
     active = find_active_tactical(items, session=session)
     if active and active["id"] != item["id"]:
-        error(f"{active['id']} has active steps. Complete it, wait it, or run `bon work --clear`")
+        error(
+            f"{active['id']} has active steps. Complete it, wait it, "
+            f"release it with `bon work --release` (keeps its progress), "
+            f"or discard it with `bon work --clear`"
+        )
 
     # Check for existing progress
     existing = item.get("tactical")
@@ -1536,6 +1601,21 @@ def cmd_work(args):
         print(f"Re-claimed from {old_session} (directory no longer exists)")
         print()
         print(format_tactical(item["tactical"]))
+        return
+    if existing and existing.get("released") and not args.force:
+        # Resuming a deliberately released tactical: progress is intact and
+        # picking it back up is the expected move, so this must NOT need
+        # --force (which restarts from step 1 and would throw the progress
+        # away — the very thing releasing existed to protect).
+        existing.pop("released", None)
+        existing.pop("released_at", None)
+        existing["session"] = session
+        item["updated_at"] = now_iso()
+        item["updated_by"] = "reclaimed"
+        save_items(items)
+        print(f"Resumed: {item['id']} (progress intact)")
+        print()
+        print(format_tactical(item["tactical"], action_status=item["status"]))
         return
     if existing and existing.get("current", 0) > 0 and not args.force:
         error(f"Steps in progress (step {existing['current'] + 1}). Run `bon work {work_id} --force` to restart")
@@ -2065,6 +2145,8 @@ def main():
     work_parser.add_argument("args", nargs=argparse.REMAINDER, help="Action ID followed by optional steps")
     work_parser.add_argument("--status", action="store_true", help="Show current tactical state")
     work_parser.add_argument("--clear", action="store_true", help="Clear tactical steps (bare: this session's claim, active or finished; with ID: that item's)")
+    work_parser.add_argument("--release", action="store_true",
+                             help="Hand back the claim but KEEP the progress (pair to --clear, which discards it)")
     work_parser.add_argument("--force", action="store_true", help="Restart steps even if in progress")
     work_parser.set_defaults(func=cmd_work)
 

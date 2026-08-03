@@ -42,7 +42,11 @@ try:
             if not line:
                 continue
             item = json.loads(line)
-            if item.get("tactical") and item.get("status") == "open":
+            # A released tactical keeps its progress but nobody holds the
+            # claim — injecting it would nag about work deliberately parked
+            # (bon-kewimu). Mirrors _tactical_is_active() in storage.py.
+            if (item.get("tactical") and item.get("status") == "open"
+                    and not item["tactical"].get("released")):
                 t = item["tactical"]
                 lines.append(f'Working: {item["title"]} ({item["id"]})')
                 for idx, step in enumerate(t.get("steps", [])):

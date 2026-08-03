@@ -12,7 +12,7 @@ from bon.ids import get_siblings
 KNOWN_VERBS = frozenset({
     "edited", "waited", "unwaited", "worked", "stepped",
     "cleared", "archived", "converted", "reopened", "reclaimed",
-    "moved", "parked", "unparked",
+    "moved", "parked", "unparked", "released",
 })
 
 # The message in a bottle: written into every board so an agent with none of
@@ -643,11 +643,27 @@ def get_session_identity() -> str:
 
 
 def _tactical_is_active(item: dict) -> bool:
-    """Check if an item has active (incomplete) tactical steps."""
+    """Check if an item has active (incomplete) tactical steps.
+
+    A RELEASED tactical is not active: its progress is intact but nobody is
+    holding the claim, so it must not block another action from being worked,
+    must not be injected into a session's prompt, and must not read as
+    orphaned. Gating here covers every caller at once — this is the single
+    definition of "someone is working on this" (bon-kewimu).
+
+    `released` lives INSIDE the tactical object rather than beside it as an
+    item column. Same reasoning as the `someday` field, one level deeper: an
+    older client rewriting the row round-trips `tactical` as one opaque JSON
+    value, so a nested key survives a write by a version that has never heard
+    of it — where a new top-level column would be stripped by the fixed
+    _ITEM_COLUMNS list.
+    """
     if item.get("status") != "open":
         return False
     tactical = item.get("tactical")
-    return bool(tactical and tactical.get("current", 0) < len(tactical.get("steps", [])))
+    if not tactical or tactical.get("released"):
+        return False
+    return tactical.get("current", 0) < len(tactical.get("steps", []))
 
 
 def _matches_session(item_session: str | None, session: str | None) -> bool:
@@ -686,8 +702,29 @@ def find_no_complete_tactical(items: list[dict], session: str | None = None) -> 
         if item.get("status") != "open" or not item.get("tactical"):
             continue
         tactical = item["tactical"]
+        if tactical.get("released"):
+            continue
         steps = tactical.get("steps", [])
         if not steps or tactical.get("current", 0) < len(steps):
+            continue
+        if _matches_session(tactical.get("session"), session):
+            return item
+    return None
+
+
+def find_released_tactical(items: list[dict], session: str | None = None) -> dict | None:
+    """Find a tactical this session released — progress intact, claim handed back.
+
+    `--status` reports it rather than saying "no active tactical steps": a
+    released tactical is deliberately parked work, and answering "nothing
+    here" would make it invisible exactly when someone is asking what they
+    were doing.
+    """
+    for item in items:
+        if item.get("status") != "open":
+            continue
+        tactical = item.get("tactical")
+        if not tactical or not tactical.get("released"):
             continue
         if _matches_session(tactical.get("session"), session):
             return item

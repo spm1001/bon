@@ -147,9 +147,13 @@ elif mode == "ready":
             print(f'  \u25cb {a["title"]} ({a["id"]})')
 
 elif mode == "current":
-    # Active tactical steps
+    # Active tactical steps. A RELEASED tactical is deliberately parked —
+    # progress intact, claim handed back — so it is not "current" and must
+    # not be reported as work in progress (bon-kewimu). Keep this in step
+    # with _tactical_is_active() in storage.py.
     for item in items:
-        if item.get("tactical") and item.get("status") == "open":
+        if (item.get("tactical") and item.get("status") == "open"
+                and not item["tactical"].get("released")):
             t = item["tactical"]
             print(f'Working: {item["title"]} ({item["id"]})')
             how = item.get("brief", {}).get("how")

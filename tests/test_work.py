@@ -661,3 +661,175 @@ class TestWorkOrphanedSession:
         assert "Re-claimed" not in result.stdout
         assert "→ 1. Fresh A [current]" in result.stdout
         assert "2. Fresh B" in result.stdout
+
+
+# --- --release: hand back a claim, keep the progress (bon-kewimu) ----------
+
+def _board(bon_dir) -> dict:
+    text = (bon_dir / ".bon" / "items.jsonl").read_text().strip()
+    return {i["id"]: i for i in (json.loads(ln) for ln in text.splitlines() if ln)}
+
+
+def _make_action(bon_dir, title: str, steps: str) -> str:
+    payload = json.dumps({
+        "type": "action", "title": title,
+        "brief": {"why": "w", "what": steps, "done": "d"},
+    })
+    result = run_bon("new", "-q", cwd=bon_dir, input=payload)
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+class TestWorkRelease:
+    """A tactical can be parked on purpose without losing its progress.
+
+    bon-jagoha sat at step 4 of 6 waiting for a scheduled review ceremony.
+    The claim is directory-keyed and serially enforced, so it refused every
+    other `bon work` in that repo — and all three escapes destroyed the
+    progress: done would be a lie, `bon wait` silently discards tactical,
+    `--clear` pops it. `bon someday` refuses outright on an active tactical,
+    so the parking verb was the one thing that could not help.
+    """
+
+    def test_release_keeps_steps_and_position(self, bon_dir):
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta 3. gamma 4. delta")
+        run_bon("work", a, cwd=bon_dir)
+        run_bon("step", cwd=bon_dir)
+        run_bon("step", cwd=bon_dir)
+
+        result = run_bon("work", "--release", cwd=bon_dir)
+        assert result.returncode == 0, result.stderr
+
+        tactical = _board(bon_dir)[a]["tactical"]
+        assert tactical["released"] is True
+        assert tactical["current"] == 2
+        assert tactical["steps"] == ["alpha", "beta", "gamma", "delta"]
+        assert _board(bon_dir)[a]["updated_by"] == "released"
+
+    def test_release_frees_the_session_to_claim_another_action(self, bon_dir):
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        b = _make_action(bon_dir, "Other job", "1. one 2. two")
+        run_bon("work", a, cwd=bon_dir)
+
+        blocked = run_bon("work", b, cwd=bon_dir)
+        assert blocked.returncode == 1
+        assert "--release" in blocked.stderr, "the block must name the non-destructive escape"
+
+        run_bon("work", "--release", cwd=bon_dir)
+        freed = run_bon("work", b, cwd=bon_dir)
+        assert freed.returncode == 0, freed.stderr
+
+    def test_released_tactical_is_not_injected_into_prompts(self, bon_dir):
+        """`bon show --current` feeds the UserPromptSubmit hook."""
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        run_bon("work", a, cwd=bon_dir)
+        assert "Working" in run_bon("show", "--current", cwd=bon_dir).stdout
+
+        run_bon("work", "--release", cwd=bon_dir)
+        assert run_bon("show", "--current", cwd=bon_dir).stdout.strip() == ""
+
+    def test_resume_needs_no_force_and_keeps_progress(self, bon_dir):
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta 3. gamma")
+        run_bon("work", a, cwd=bon_dir)
+        run_bon("step", cwd=bon_dir)
+        run_bon("work", "--release", cwd=bon_dir)
+
+        result = run_bon("work", a, cwd=bon_dir)
+        assert result.returncode == 0, result.stderr
+        assert "Resumed" in result.stdout
+
+        item = _board(bon_dir)[a]
+        assert item["tactical"]["current"] == 1, "resume must not restart at step 1"
+        assert "released" not in item["tactical"]
+        assert item["updated_by"] == "reclaimed"
+
+    def test_status_reports_a_released_tactical(self, bon_dir):
+        """Silence here would hide deliberately parked work."""
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        run_bon("work", a, cwd=bon_dir)
+        run_bon("work", "--release", cwd=bon_dir)
+
+        result = run_bon("work", "--status", cwd=bon_dir)
+        assert result.returncode == 0, result.stderr
+        assert "Released tactical" in result.stdout
+        assert a in result.stdout
+        assert "Resume with" in result.stdout
+
+    def test_step_after_release_reports_nothing_in_progress(self, bon_dir):
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        run_bon("work", a, cwd=bon_dir)
+        run_bon("work", "--release", cwd=bon_dir)
+
+        result = run_bon("step", cwd=bon_dir)
+        assert result.returncode == 1
+        assert "No steps in progress" in result.stderr
+
+    def test_release_by_explicit_id(self, bon_dir):
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        run_bon("work", a, cwd=bon_dir)
+
+        result = run_bon("work", "--release", a, cwd=bon_dir)
+        assert result.returncode == 0, result.stderr
+        assert _board(bon_dir)[a]["tactical"]["released"] is True
+
+    def test_release_is_idempotent(self, bon_dir):
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        run_bon("work", a, cwd=bon_dir)
+        run_bon("work", "--release", cwd=bon_dir)
+
+        result = run_bon("work", "--release", a, cwd=bon_dir)
+        assert result.returncode == 0
+        assert "Already released" in result.stdout
+
+    def test_release_with_nothing_claimed_says_so(self, bon_dir):
+        _make_action(bon_dir, "Unclaimed", "1. alpha")
+        result = run_bon("work", "--release", cwd=bon_dir)
+        assert result.returncode == 1
+        assert "No tactical claim" in result.stderr
+
+    def test_clear_still_discards(self, bon_dir):
+        """--release and --clear are a pair; --clear keeps its old meaning."""
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        run_bon("work", a, cwd=bon_dir)
+        run_bon("step", cwd=bon_dir)
+
+        run_bon("work", "--clear", cwd=bon_dir)
+        assert "tactical" not in _board(bon_dir)[a]
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_scoped_tactical"], indirect=True)
+    def test_releasing_another_sessions_claim_needs_force(self, bon_dir_with_fixture):
+        result = run_bon("work", "--release", "bon-child", cwd=bon_dir_with_fixture)
+        assert result.returncode == 1
+        assert "belongs to another session" in result.stderr
+
+        forced = run_bon("work", "--release", "bon-child", "--force", cwd=bon_dir_with_fixture)
+        assert forced.returncode == 0, forced.stderr
+        item = _board(bon_dir_with_fixture)["bon-child"]
+        assert item["tactical"]["released"] is True
+        assert item["tactical"]["current"] == 1, "another session's progress must survive too"
+
+
+class TestReleaseReaderParity:
+    """The raw-JSONL readers must agree with the CLI about what is current.
+
+    Both bypass storage.py — bon-read.sh serves no-CLI surfaces and
+    bon-tactical.sh falls back to raw JSONL when bon is not on PATH — so each
+    needs the released check independently. Blast radius lives in consumers.
+    """
+
+    def test_bon_read_sh_current_is_silent_after_release(self, bon_dir):
+        import subprocess
+        from pathlib import Path
+
+        a = _make_action(bon_dir, "Long job", "1. alpha 2. beta")
+        run_bon("work", a, cwd=bon_dir)
+
+        script = Path(__file__).parent.parent / "scripts" / "bon-read.sh"
+        before = subprocess.run(["bash", str(script), "current"], cwd=bon_dir,
+                                capture_output=True, text=True)
+        assert "Working" in before.stdout
+
+        run_bon("work", "--release", cwd=bon_dir)
+        after = subprocess.run(["bash", str(script), "current"], cwd=bon_dir,
+                               capture_output=True, text=True)
+        assert after.stdout.strip() == "", "a released tactical is not current work"

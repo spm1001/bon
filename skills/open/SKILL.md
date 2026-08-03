@@ -143,6 +143,11 @@ Then **draw-down** before touching code.
 - One active tactical per session (CWD) — different worktrees can run in parallel
 - Two CWDs cannot claim the same action
 - Context-switch: `bon wait <id> "reason"` (clears tactical — re-plan on return)
+- Parking work that's waiting on a scheduled event, not on a blocker: `bon work --release`
+  keeps the steps and your position, hands the claim back so the session can draw down
+  something else, and stops the step being injected into every prompt. `bon work <id>`
+  resumes at the same step, no `--force`. Reach for this over `--clear` (discards) or
+  `bon wait` (silently discards) whenever the progress is worth keeping.
 
 ### UserPromptSubmit Hook
 
@@ -292,7 +297,8 @@ bon unwait ID                # Clear waiting
 bon work ID                  # Init tactical from --what
 bon work ID "step1" "step2"  # Init with explicit steps
 bon work --status            # Current tactical state
-bon work --clear             # Clear without completing
+bon work --release           # Hand back the claim, KEEP the progress (resume with `bon work ID`)
+bon work --clear             # Clear without completing (discards the progress)
 bon step                     # Advance to next step
 bon step --skip "reason"     # Skip current step
 bon step --no-complete       # Final step: don't auto-complete
