@@ -142,16 +142,15 @@ is_container() {
     return 1
 }
 
-# Encoded path always starts with '-' — never use as bare arg; always prefix with absolute path
-ENCODED_PATH=$(echo "$CWD" | sed 's/[^a-zA-Z0-9-]/-/g')
-
 # Resolve where this session's handoff is written. The shared resolver walks
 # up to the board root and prefers a visible handoffs/ over the legacy
 # .bon/handoffs/ — the SAME resolution /open reads from, so a handoff is read
 # from exactly where it was written.
 HANDOFF_DIR=""
+HANDOFF_DIR_SOURCE=""
 if board_root "$CWD" >/dev/null 2>&1; then
     HANDOFF_DIR=$(handoff_write_dir "$CWD")
+    HANDOFF_DIR_SOURCE="board-walkup"
 fi
 
 # Walk-up missed — container dir (e.g. ~/Repos) where work happened in a child
@@ -161,6 +160,15 @@ if [ -z "$HANDOFF_DIR" ]; then
     BEST_REPO=""
     BEST_TIME=0
     while IFS= read -r bon_dir; do
+        # A vendored plugin/marketplace clone carries its own .bon. Routing a
+        # handoff there buries it in gitignored cache that marketplace sync
+        # then clobbers: /close from ~/.claude resolved HANDOFF_DIR into
+        # plugins/marketplaces/trousse-personal/.bon/handoffs (bon-suvise,
+        # 2026-07-06). Never a legitimate target, so prune before the git probe.
+        case "$bon_dir" in
+            */.claude/plugins/*|*/plugins/marketplaces/*|*/node_modules/*|*/.git/*)
+                continue ;;
+        esac
         repo_dir=$(dirname "$bon_dir")
         # Skip non-git dirs (e.g. pytest temp dirs)
         git -C "$repo_dir" rev-parse --git-dir &>/dev/null || continue
@@ -171,29 +179,90 @@ if [ -z "$HANDOFF_DIR" ]; then
             BEST_REPO="$repo_dir"
         fi
     done < <(find "$CWD" -maxdepth 4 -name ".bon" -type d 2>/dev/null)
-    [ -n "$BEST_REPO" ] && HANDOFF_DIR=$(handoff_write_dir "$BEST_REPO")
+    if [ -n "$BEST_REPO" ]; then
+        HANDOFF_DIR=$(handoff_write_dir "$BEST_REPO")
+        HANDOFF_DIR_SOURCE="scan-down:$BEST_REPO"
+    fi
 fi
 
-# Fallback: global bon handoffs (never legacy ~/.claude/handoffs/)
-[ -z "$HANDOFF_DIR" ] && HANDOFF_DIR="$HOME/.bon/handoffs"
+# Fallback: global bon handoffs (never legacy ~/.claude/handoffs/). Named
+# rather than silent — a handoff landing outside every repo never syncs, so
+# /close has to know it took this branch.
+if [ -z "$HANDOFF_DIR" ]; then
+    HANDOFF_DIR="$HOME/.bon/handoffs"
+    HANDOFF_DIR_SOURCE="global-fallback"
+fi
 
 # Always output HANDOFF_DIR and SESSION_ID - even containers need handoffs
 echo "HANDOFF_DIR=$HANDOFF_DIR"
-SESSION_ID=$(ls -t "$HOME/.claude/projects/$ENCODED_PATH"/*.jsonl 2>/dev/null \
-    | grep -v agent \
-    | head -1 \
-    | xargs -I{} basename {} .jsonl 2>/dev/null \
-    || true)
+echo "HANDOFF_DIR_SOURCE=$HANDOFF_DIR_SOURCE"
+
+# === SESSION IDENTITY ===
+# The harness hands every session its own id. Ambient state does not.
+#
+# This was `ls -t` over the project's JSONL dir, which returns whoever WROTE
+# most recently — a race readout, not an identity. Under concurrent sessions
+# it handed four sessions a stranger's id in nine days (bon-casovo) and
+# escaped destroying a completed handoff three times by luck. The id suffix
+# exists FOR transcript linkage, so a wrong id is strictly worse than no id:
+# it sends a future deglacer lookup confidently into the wrong conversation.
+#
+# CLAUDE_CODE_SESSION_ID is the caller's own id, verified present and correct
+# on the interactive `cli` surface from a clean parent environment (hublot,
+# 2026-08-03 — the value matched the session's own transcript filename, on
+# both a polluted and a scrubbed parent). The absent branch is therefore
+# vestigial, and it FAILS LOUD rather than guessing.
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -n "$SESSION_ID" ]; then
+    SESSION_ID_SOURCE="env:CLAUDE_CODE_SESSION_ID"
+else
+    SESSION_ID_SOURCE="unavailable"
+fi
 echo "SESSION_ID=${SESSION_ID}"
+echo "SESSION_ID_SOURCE=${SESSION_ID_SOURCE}"
 
 # Generate handoff filename: YYYY-MM-DD-{first 8 chars of session ID}.md
 TODAY=$(date +%Y-%m-%d)
 if [ -n "$SESSION_ID" ]; then
-    HANDOFF_FILE="${TODAY}-${SESSION_ID:0:8}.md"
+    HANDOFF_BASE="${TODAY}-${SESSION_ID:0:8}"
 else
-    HANDOFF_FILE="${TODAY}-$(date +%H%M).md"
+    HANDOFF_BASE="${TODAY}-$(date +%H%M)"
+    echo "SESSION_ID_CUE=could not determine this session's id — the filename carries a timestamp instead of a transcript-linkable id. Do NOT invent one: leave session_id blank in the handoff frontmatter and say so in the close summary."
+fi
+
+# Never hand back a path that already holds a handoff. The Write tool refuses
+# to clobber a file it has not read — but a session that COMPUTED the path has
+# not read it, so that protection does not apply and the guard has to live
+# here. With a real session id a collision means this session is closing twice
+# in one day, which is legitimate: suffix rather than refuse, and name the
+# collision so the other reading (something still deriving ids from ambient
+# state) stays visible instead of being silently absorbed.
+HANDOFF_FILE="${HANDOFF_BASE}.md"
+if [ -e "$HANDOFF_DIR/$HANDOFF_FILE" ]; then
+    echo "HANDOFF_FILE_TAKEN=$HANDOFF_FILE"
+    SUFFIX=2
+    while [ "$SUFFIX" -lt 100 ] && [ -e "$HANDOFF_DIR/${HANDOFF_BASE}-${SUFFIX}.md" ]; do
+        SUFFIX=$((SUFFIX + 1))
+    done
+    HANDOFF_FILE="${HANDOFF_BASE}-${SUFFIX}.md"
 fi
 echo "HANDOFF_FILE=$HANDOFF_FILE"
+
+# A repo can gitignore `.bon/` wholesale to keep volatile board state out of
+# git — which also catches handoffs and understanding.md. `git add` then
+# refuses, and the handoff is written to disk but never syncs, so the next
+# session on another machine cannot see it (bon-kizeje; live in mit-plongeur,
+# whose 13 handoffs are all force-added by hand). Detect it here so /close
+# force-adds deliberately rather than depending on someone noticing.
+IGNORE_PROBE="$HANDOFF_DIR"
+while [ ! -d "$IGNORE_PROBE" ] && [ "$IGNORE_PROBE" != "/" ]; do
+    IGNORE_PROBE=$(dirname "$IGNORE_PROBE")
+done
+if git -C "$IGNORE_PROBE" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+    && git -C "$IGNORE_PROBE" check-ignore -q "$HANDOFF_DIR/$HANDOFF_FILE" 2>/dev/null; then
+    echo "HANDOFF_GITIGNORED=true"
+    echo "HANDOFF_ADD_CMD=git add -f -- $HANDOFF_DIR/$HANDOFF_FILE"
+fi
 
 if is_container "$CWD"; then
     echo "IS_CONTAINER=true"

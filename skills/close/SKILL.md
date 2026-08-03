@@ -50,7 +50,14 @@ BON_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep 
 
 If the script isn't found, diagnose with `find ~/.claude/plugins/cache -name "close-context.sh"`. If unfixable, gather context manually — but closure should always result in a handoff, even without the script.
 
-The script outputs TIME, GIT, BON, LOCATION context, plus two values you'll need in Act: **HANDOFF_DIR** and **SESSION_ID**.
+The script outputs TIME, GIT, BON, LOCATION context, plus the values you'll need in Act: **HANDOFF_DIR**, **SESSION_ID** and **HANDOFF_FILE**. Four companion keys appear only when they apply, and each one changes what you do:
+
+| Key | Meaning | What to do |
+|---|---|---|
+| `SESSION_ID_SOURCE=unavailable` (with `SESSION_ID_CUE`) | The harness gave no session id, so the filename carries a timestamp | Leave `session_id:` blank in the frontmatter and say so in the close summary. Never substitute an id you inferred — the suffix exists for transcript linkage, so a wrong one sends a future reader into a stranger's conversation |
+| `HANDOFF_FILE_TAKEN=<name>` | The natural filename was already on disk; `HANDOFF_FILE` is suffixed | Normally just use the suffixed name — it means this session is closing twice today. Worth a sentence if you weren't expecting it |
+| `HANDOFF_GITIGNORED=true` (with `HANDOFF_ADD_CMD`) | The handoff lands under a gitignored `.bon/`, so a plain `git add` will refuse | Use `HANDOFF_ADD_CMD` verbatim at the commit step and say you had to |
+| `HANDOFF_DIR_SOURCE=global-fallback` | No board was found, so the handoff goes to `~/.bon/handoffs` | It won't sync anywhere. Say so, and consider whether it belongs on a real board instead |
 
 ### Which mode are you in?
 
@@ -305,12 +312,14 @@ For cross-repo handoffs, check the target `handoffs/` exists first.
 
 #### Filename
 
-Use HANDOFF_FILE from the script output — it generates `YYYY-MM-DD-{session-id-8}.md` (date-prefixed for chronological `ls`, session ID suffix for transcript linkage).
+Use HANDOFF_FILE from the script output verbatim — it generates `YYYY-MM-DD-{session-id-8}.md` (date-prefixed for chronological `ls`, session ID suffix for transcript linkage), and it has already checked that nothing sits at that path. Don't recompute it: the id comes from the harness, and deriving one yourself from what's on disk is the bug this guarantee replaced.
 
 
 ### Commit and go
 
 Stage relevant files (including the handoff), commit in modular commits with descriptive messages, and offer to push. If nothing's dirty, just move on — not every session produces code changes.
+
+**If the context script reported `HANDOFF_GITIGNORED=true`:** the repo ignores `.bon/` wholesale to keep volatile board state out of git, which catches the handoff too. A plain `git add` refuses and the handoff is written to disk but never syncs — so the next session on another machine cannot see it. Stage it with the `HANDOFF_ADD_CMD` the script printed (`git add -f -- <path>`), and check whether `understanding.md` needs the same treatment. Say that you had to force-add: it's a property of that repo worth surfacing, not a detail to absorb silently.
 
 **Candidate mode has no commit step.** There's no writer and usually no git in the sandbox — the handoff you wrote to the mount *is* the deliverable, and a writer-bearing session sweeps and mints its candidates at the next open. Leave it uncommitted; say so, so the next full-fat session knows to look.
 
