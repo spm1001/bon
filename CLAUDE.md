@@ -184,6 +184,27 @@ EOF
 bon new "Quick fix" --why w --what x --done d -q   # Flags (stubs only)
 ```
 
+### `bon edit` Input Modes (bon-cefisu)
+
+Same auto-detection, same reason — flag quoting mangles briefs carrying quotes,
+backticks or `$`, and a mangled field looks exactly like an edited one.
+
+1. **JSON stdin (default for piped input)**: No edit flag + stdin piped → reads JSON.
+2. **Flags**: any of `--title/--outcome/--why/--how/--what/--done/--note/--order`.
+3. **Explicit `--json`**: forces the stdin path; an empty stdin errors here rather
+   than falling through.
+
+Only keys **present** in the JSON are applied. Brief subfields are accepted nested
+under `brief` *or* flat at the top level, because Claude's prior is the flat form and
+a silently-dropped key would print `Updated` having changed nothing. An unknown key is
+a hard error for the same reason. `edit_args_from_stdin()` overlays the parsed JSON
+onto `args`, so exactly one apply path runs whichever way the edit arrived — add new
+editable fields to `EDIT_TOP_KEYS`/`EDIT_BRIEF_KEYS` **and** `edit_flags_given()`.
+
+`--note` writes `done_note` and requires the item to be done. It exists because
+`cmd_done` refuses to overwrite an existing note (cli.py, the `Already done` branch),
+which made a shell-mangled closing note permanent.
+
 ## Gotchas
 
 | Gotcha | Fix |

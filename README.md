@@ -100,7 +100,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `unwait ID` | Clear waiting status |
 | `someday ID CONDITION` | Park Someday/Maybe with a revisit condition (leaves default views) |
 | `unsomeday ID` | Unpark a Someday item |
-| `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order) |
+| `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order, closing note) — or pipe JSON to stdin |
 | `work ID [STEPS...] [--status\|--clear\|--force]` | Manage tactical steps for an action |
 | `step` | Complete current step, advance to next |
 | `convert ID [--outcome P] [--force]` | Convert outcome↔action |

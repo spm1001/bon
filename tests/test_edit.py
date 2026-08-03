@@ -339,3 +339,209 @@ class TestEditUpdatedAt:
         item = json.loads((bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert "updated_at" in item
         assert ISO_RE.match(item["updated_at"])
+
+
+# --- JSON on stdin (bon-cefisu) --------------------------------------------
+
+def _items(bon_dir) -> dict:
+    """Every item in the board, keyed by id."""
+    text = (bon_dir / ".bon" / "items.jsonl").read_text().strip()
+    return {i["id"]: i for i in (json.loads(ln) for ln in text.splitlines() if ln)}
+
+
+# Nested quotes, a backtick command substitution, $VAR, a newline and a
+# trailing backslash — the content that mangles silently through flags.
+# infra's iw-kaliwu brief is the real instance behind this shape.
+HOSTILE = (
+    'Run `curl -H "Content-Type: application/json" -d \'{"q":"$VAR"}\' https://x/api`\n'
+    "then check $HOME/.config — 'single' and \"double\" quotes, a backtick ` "
+    "and a $dollar.\nTrailing backslash: \\\\"
+)
+
+
+class TestEditJsonStdin:
+    """bon edit reads JSON from a pipe, so shell quoting can't mangle a brief.
+
+    bon new got this path because flag quoting silently corrupts technical
+    content; edit had the identical exposure and no escape hatch. The failure
+    is invisible — a mangled field looks exactly like an edited one.
+    """
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_piped_json_needs_no_flag(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"how": "Use Redis locks"}')
+        assert result.returncode == 0, result.stderr
+        assert _items(bon_dir_with_fixture)["bon-aaa"]["brief"]["how"] == "Use Redis locks"
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_hostile_content_survives_byte_identical(self, bon_dir_with_fixture):
+        """The done criterion: quotes, backticks and a shell variable round-trip."""
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input=json.dumps({"how": HOSTILE}))
+        assert result.returncode == 0, result.stderr
+        assert _items(bon_dir_with_fixture)["bon-aaa"]["brief"]["how"] == HOSTILE
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_brief_fields_accepted_nested(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"brief": {"why": "nested reason"}}')
+        assert result.returncode == 0, result.stderr
+        assert _items(bon_dir_with_fixture)["bon-aaa"]["brief"]["why"] == "nested reason"
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_brief_fields_accepted_flat(self, bon_dir_with_fixture):
+        """A flat key must apply, not be silently dropped.
+
+        Claude's prior is item["why"] over item["brief"]["why"]. Ignoring the
+        flat form would apply nothing and still print "Updated" — a no-op
+        wearing a success message, which is worse than any error.
+        """
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"why": "flat reason"}')
+        assert result.returncode == 0, result.stderr
+        assert _items(bon_dir_with_fixture)["bon-aaa"]["brief"]["why"] == "flat reason"
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_absent_keys_are_left_alone(self, bon_dir_with_fixture):
+        before = _items(bon_dir_with_fixture)["bon-aaa"]
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"how": "only this"}')
+        assert result.returncode == 0, result.stderr
+        after = _items(bon_dir_with_fixture)["bon-aaa"]
+        assert after["brief"]["why"] == before["brief"]["why"]
+        assert after["brief"]["what"] == before["brief"]["what"]
+        assert after["brief"]["done"] == before["brief"]["done"]
+        assert after["title"] == before["title"]
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_title_and_order_via_json(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"title": "Renamed", "order": 3}')
+        assert result.returncode == 0, result.stderr
+        item = _items(bon_dir_with_fixture)["bon-aaa"]
+        assert item["title"] == "Renamed"
+        assert item["order"] == 3
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_empty_how_clears_the_field(self, bon_dir_with_fixture):
+        run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture, input='{"how": "temp"}')
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture, input='{"how": ""}')
+        assert result.returncode == 0, result.stderr
+        assert "how" not in _items(bon_dir_with_fixture)["bon-aaa"]["brief"]
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_flags_take_the_flag_path_even_with_a_pipe(self, bon_dir_with_fixture):
+        """A flag means the caller chose flags; stdin must not be consumed."""
+        result = run_bon("edit", "bon-aaa", "--title", "By flag",
+                         cwd=bon_dir_with_fixture, input='{"why": "ignored"}')
+        assert result.returncode == 0, result.stderr
+        item = _items(bon_dir_with_fixture)["bon-aaa"]
+        assert item["title"] == "By flag"
+        assert item["brief"]["why"] == "New devs struggling with auth setup"
+
+
+class TestEditJsonStdinGuards:
+    """A JSON edit that changes nothing must never report success."""
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_unknown_key_is_an_error_not_a_silent_drop(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"wyh": "typo"}')
+        assert result.returncode == 1
+        assert "Unknown field" in result.stderr
+        assert "wyh" in result.stderr
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_same_key_flat_and_nested_is_refused(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"why": "a", "brief": {"why": "b"}}')
+        assert result.returncode == 1
+        assert "pick one" in result.stderr
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_non_string_value_is_refused(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"why": ["a list"]}')
+        assert result.returncode == 1
+        assert "must be a string" in result.stderr
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_non_object_json_is_refused(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture, input='["why"]')
+        assert result.returncode == 1
+        assert "must be an object" in result.stderr
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_malformed_json_is_refused(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture, input='{"why": ')
+        assert result.returncode == 1
+        assert "Invalid JSON" in result.stderr
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_explicit_json_flag_with_empty_stdin_says_so(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-aaa", "--json", cwd=bon_dir_with_fixture, input="")
+        assert result.returncode == 1
+        assert "stdin was empty" in result.stderr
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_empty_pipe_falls_through_to_the_flag_message(self, bon_dir_with_fixture):
+        """An empty pipe is no input at all, not malformed JSON."""
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture, input="")
+        assert result.returncode == 1
+        assert "At least one edit flag required" in result.stderr
+
+
+class TestEditNote:
+    """--note is the repair path for a closing note damaged by shell quoting.
+
+    `bon done --note` refuses to overwrite an existing note, so before this
+    flag a mangled done_note was permanent on the item (bon-cefisu, second
+    witness: a backticked identifier inside double quotes was command-
+    substituted away by the shell, the word vanished, and the command
+    exited 0).
+    """
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["mixed_done_open"], indirect=True)
+    def test_note_sets_the_closing_note_on_a_done_item(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-bbb", "--note", "Closed after review",
+                         cwd=bon_dir_with_fixture)
+        assert result.returncode == 0, result.stderr
+        assert _items(bon_dir_with_fixture)["bon-bbb"]["done_note"] == "Closed after review"
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["mixed_done_open"], indirect=True)
+    def test_note_repairs_a_note_done_would_refuse_to_overwrite(self, bon_dir_with_fixture):
+        """The whole point: done won't replace it, so edit must."""
+        run_bon("edit", "bon-bbb", "--note", "mangled  text", cwd=bon_dir_with_fixture)
+        # bon done refuses to touch an existing note on an already-done item
+        again = run_bon("done", "bon-bbb", "--note", "the real note",
+                        cwd=bon_dir_with_fixture)
+        assert "Already done" in again.stdout
+        assert _items(bon_dir_with_fixture)["bon-bbb"]["done_note"] == "mangled  text"
+        # edit --note is the way back
+        fixed = run_bon("edit", "bon-bbb", "--note", "the real note",
+                        cwd=bon_dir_with_fixture)
+        assert fixed.returncode == 0, fixed.stderr
+        assert _items(bon_dir_with_fixture)["bon-bbb"]["done_note"] == "the real note"
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["mixed_done_open"], indirect=True)
+    def test_note_via_json_survives_hostile_content(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-bbb", cwd=bon_dir_with_fixture,
+                         input=json.dumps({"note": HOSTILE}))
+        assert result.returncode == 0, result.stderr
+        assert _items(bon_dir_with_fixture)["bon-bbb"]["done_note"] == HOSTILE
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["mixed_done_open"], indirect=True)
+    def test_empty_note_clears_it(self, bon_dir_with_fixture):
+        run_bon("edit", "bon-bbb", "--note", "temp", cwd=bon_dir_with_fixture)
+        result = run_bon("edit", "bon-bbb", "--note", "", cwd=bon_dir_with_fixture)
+        assert result.returncode == 0, result.stderr
+        assert "done_note" not in _items(bon_dir_with_fixture)["bon-bbb"]
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["mixed_done_open"], indirect=True)
+    def test_note_on_an_open_item_is_refused_with_the_right_verb(self, bon_dir_with_fixture):
+        result = run_bon("edit", "bon-ccc", "--note", "premature",
+                         cwd=bon_dir_with_fixture)
+        assert result.returncode == 1
+        assert "still open" in result.stderr
+        assert "bon done bon-ccc --note" in result.stderr

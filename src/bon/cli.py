@@ -792,22 +792,116 @@ def cmd_status(args):
         print(f"Standalone: {len(open_standalone)} open")
 
 
-def cmd_edit(args):
-    """Edit item fields via flags (no interactive editor)."""
-    check_initialized()
+# Fields `bon edit` accepts as JSON on stdin.
+#
+# Brief subfields are accepted BOTH nested under "brief" and flat at the top
+# level. Claude's training prior is flat — understanding.md keeps a
+# field-name mapping table because of it — and a flat key silently ignored
+# would apply nothing while printing "Updated": a no-op edit wearing a
+# success message, which is the exact failure class this path exists to
+# remove. Unknown keys are a hard error for the same reason; a typo that
+# quietly drops a field is worse than one that stops.
+EDIT_BRIEF_KEYS = ("why", "how", "what", "done")
+EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief")
 
-    # Require at least one edit flag
-    has_edit = any([
+
+def edit_args_from_stdin(args, *, explicit: bool = False):
+    """Overlay a JSON object from stdin onto `args`.
+
+    Mutates `args` so the flag-driven apply logic in cmd_edit runs unchanged:
+    one code path applies the edit however it arrived.
+    """
+    raw = sys.stdin.read()
+    if not raw.strip():
+        # An empty pipe is not malformed JSON — it is no input at all, which
+        # is the same situation as passing no flags. Fall through so the
+        # caller gets the "which flags exist" message rather than a JSON
+        # complaint about a format they may not have been reaching for.
+        if explicit:
+            error("--json given but stdin was empty. Pipe a JSON object.")
+        return
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        error(f"Invalid JSON on stdin: {e}")
+    if not isinstance(data, dict):
+        error('JSON on stdin must be an object, e.g. {"how": "..."}')
+
+    brief = data.get("brief", {})
+    if not isinstance(brief, dict):
+        error("'brief' must be an object")
+
+    unknown = (set(data) | set(brief)) - set(EDIT_TOP_KEYS) - set(EDIT_BRIEF_KEYS)
+    if unknown:
+        error(
+            f"Unknown field(s): {', '.join(sorted(unknown))}\n"
+            "Valid: title, outcome (or parent), order, note, "
+            "brief{why, how, what, done} — brief fields may also be given flat."
+        )
+
+    for key in EDIT_BRIEF_KEYS:
+        if key in data and key in brief:
+            error(f"'{key}' given both flat and inside 'brief' — pick one")
+
+    for key in EDIT_BRIEF_KEYS:
+        if key in brief or key in data:
+            value = brief[key] if key in brief else data[key]
+            if not isinstance(value, str):
+                error(f"'{key}' must be a string, got {type(value).__name__}")
+            setattr(args, key, value)
+
+    if "title" in data:
+        if not isinstance(data["title"], str):
+            error("'title' must be a string")
+        args.title = data["title"]
+    if "parent" in data or "outcome" in data:
+        value = data.get("parent", data.get("outcome"))
+        if value is None:
+            value = "none"
+        if not isinstance(value, str):
+            error("'parent' must be a string (or 'none' to make standalone)")
+        args.parent = value
+    if "order" in data:
+        if not isinstance(data["order"], int) or isinstance(data["order"], bool):
+            error("'order' must be an integer")
+        args.order = data["order"]
+    if "note" in data:
+        if not isinstance(data["note"], str):
+            error("'note' must be a string")
+        args.note = data["note"]
+
+
+def edit_flags_given(args) -> bool:
+    """True when the caller asked for at least one field change."""
+    return any([
         args.title,
         args.parent is not None,
         args.why,
         args.how is not None,
         args.what,
         args.done,
+        getattr(args, "note", None) is not None,
         args.order is not None,
     ])
-    if not has_edit:
-        error("At least one edit flag required: --title, --outcome, --why, --how, --what, --done, --order")
+
+
+def cmd_edit(args):
+    """Edit item fields via flags or piped JSON (no interactive editor)."""
+    check_initialized()
+
+    # JSON on stdin is the default when no edit flag was given and stdin is
+    # piped — the same convention as `bon new`, adopted for the same reason:
+    # flag quoting mangles briefs carrying quotes, backticks or $, silently,
+    # and a mangled field looks exactly like an edited one (bon-cefisu).
+    explicit_json = getattr(args, "json_input", False)
+    if explicit_json or (not edit_flags_given(args) and not sys.stdin.isatty()):
+        edit_args_from_stdin(args, explicit=explicit_json)
+
+    if not edit_flags_given(args):
+        error(
+            "At least one edit flag required: --title, --outcome, --why, --how, "
+            "--what, --done, --note, --order — or pipe JSON to stdin"
+        )
 
     items = load_items()
     prefix = load_prefix()
@@ -854,6 +948,19 @@ def cmd_edit(args):
         edited["brief"]["done"] = args.done
     if args.order is not None:
         edited["order"] = args.order
+    if getattr(args, "note", None) is not None:
+        # The repair path for a mangled closing note. `bon done --note` refuses
+        # to overwrite an existing one, so before this flag a note damaged by
+        # shell quoting was permanent on the item (bon-cefisu, second witness).
+        if item["status"] != "done":
+            error(
+                f"--note sets the closing note, and {item['id']} is still open.\n"
+                f"Close it with one instead: bon done {item['id']} --note \"...\""
+            )
+        if args.note:
+            edited["done_note"] = args.note
+        else:
+            edited.pop("done_note", None)
 
     # Validate
     validate_edit(item, edited, items, prefix)
@@ -1943,6 +2050,9 @@ def main():
     edit_parser.add_argument("--what", help="New brief.what")
     edit_parser.add_argument("--done", help="New brief.done")
     edit_parser.add_argument("--order", type=int, help="New order within parent")
+    edit_parser.add_argument("--note", help="New closing note (done items only; '' clears)")
+    edit_parser.add_argument("--json", action="store_true", dest="json_input",
+                             help="Read fields as JSON from stdin (the default when stdin is piped and no flag is given)")
     add_output_flags(edit_parser, quiet=True)
     edit_parser.set_defaults(func=cmd_edit)
 
