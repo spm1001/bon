@@ -181,6 +181,29 @@ Collect subagent results and present a clear, actionable summary. **Output as te
 - **FOLD** — merge into a living sibling outcome; close the absorbed one with a pointer to where it went.
 - **CONVERT** — a task-shaped "outcome" that's really one step: `bon convert <id>` demotes it to an action. Honest shrinkage without losing the work.
 
+**Falsifier pass (outcomes carrying `brief.badly`):** where an outcome has a
+pre-registered falsifier, check the work against **that**, not only against
+`--done`. It is the one criterion in the brief the implementing Claude did not
+author and cannot quietly move — which makes it the sharpest tool in the review
+and the direct antidote to a green that was satisfied by construction. Three
+readings, and each is a real verdict:
+
+- **Falsifier tripped** — the work met `--done` and the failure the human named
+  happened anyway. This outranks any truth-verdict in the item tables. Surface it
+  first; the outcome is not done, whatever its children say.
+- **Falsifier holds** — say so explicitly. An examined "the named failure did not
+  occur" is a much stronger close than a `--done` tick, and it is worth one line.
+- **No falsifier on a big or ambiguous outcome** — a gap, not an error. Offer to
+  ask for one now, in the human's own words. Never fill it in on their behalf,
+  including retrospectively: a falsifier written by the implementer after the fact
+  is `--done` in a hat with a time machine.
+
+A VEIL's reopening condition and a falsifier are the same kind of object pointed
+in opposite directions — one says what would make us pick this back up, the other
+what would show we were wrong to start. When veiling an outcome that carries a
+`--badly`, reuse its wording in the reopening condition rather than inventing a
+fresh trigger; the human already told you what mattered.
+
 **Someday re-check pass:** every review sweeps the parked list (`bon list --someday`, or the survey's `someday` field on items) and re-checks each revisit condition. Condition fired → `bon unsomeday <id>` and triage it live this round. Condition unreadable or stale → ask, don't guess. A parked item whose condition is never re-checked is the hitene failure (a cleared gate sat unnoticed seven weeks behind a title prefix) wearing a nicer costume.
 
 For smaller estates (<100 items), the item tables below ARE the review surface — present them directly.

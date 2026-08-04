@@ -81,6 +81,8 @@ A backend without the tactical tier still satisfies the category — the rite de
 | Artifact | Owner | Why |
 |----------|-------|-----|
 | Items, briefs, statuses, archive | Docket | The work memory itself |
+| The falsifier *field* (`brief.badly`) | Docket | Optional, outcomes-shaped; stored, rendered and emitted like any brief subfield |
+| Falsifier *authorship* (who may write it, and when) | Rite | The data layer cannot know who typed a string — see below |
 | Tactical claims (steps, position, session identity) | Docket | Coordination state — must be visible to all sessions |
 | Claim *surfacing* (hooks, prompt injection, UI) | Rite, per vehicle | Each vehicle projects state its own way: CC via UserPromptSubmit hook, programmatic vehicles natively |
 | Handoffs (`.bon/handoffs/`, fond-v1) | Vehicle | Session memory, not registry data — see HANDOFF-CONTRACT.md |
@@ -88,6 +90,27 @@ A backend without the tactical tier still satisfies the category — the rite de
 | The "For Claudes to come" zone | Vehicle | Ditto |
 | The probe | Rite | Detection-gating is rite behaviour |
 | Session identity *scheme* | Contract seam | See below |
+
+## The falsifier seam
+
+`brief.badly` is an optional brief subfield: what would show this outcome went
+**wrong**, as against `--done`'s "how do we know it's complete". It restores the
+principles half of GTD's first planning phase, which bon's four-field brief had
+collapsed to purpose alone.
+
+The field is docket-side and behaves like every other brief subfield — validated,
+rendered, `--json`-emitted (absent normalises to `null` at the read boundary; no
+backfill of existing items). **The rule that gives it its value is not.** A
+falsifier is only worth anything if the party doing the work did not author it,
+and no schema can enforce that: the docket sees a string, not a hand. So the rule
+lives in the rite — *the vehicle asks the delegator for it, records the answer
+verbatim, and leaves the field absent when there is no answer rather than
+composing one.* An absent falsifier is an honest gap; a self-authored one is
+`--done` wearing a hat, and the docket would happily store it.
+
+A vehicle that skips the asking is still contract-conformant; it just doesn't get
+the benefit. Stated here so a future vehicle implements the discipline
+deliberately rather than discovering the field and filling it in.
 
 ## The session-identity seam
 

@@ -17,7 +17,7 @@ Bon tracks work as **Outcomes** (desired results) and **Actions** (concrete next
 
 ## The Brief
 
-Every bon item answers four questions. Three are required, one optional:
+Every bon item answers up to five questions. Three are required, two optional:
 
 | Flag | Question | Required |
 |------|----------|----------|
@@ -25,6 +25,20 @@ Every bon item answers four questions. Three are required, one optional:
 | `--how` | How will we approach it? | No |
 | `--what` | What will we produce? | Yes |
 | `--done` | How do we know it's complete? | Yes |
+| `--badly` | What would show this went wrong? | No — outcomes, and **the human writes it** |
+
+**`--badly` is the falsifier, and it is not a fifth flag bolted onto a four-field
+form** — it restores the half of GTD's first planning phase that bon dropped
+(purpose *and principles*). `--done` asks how we know the work is complete, which
+a Claude can satisfy by construction and routinely does; `--badly` asks what
+would show it went wrong. Those catch different failures, and "met the criteria
+but built the wrong thing" is now the more common one.
+
+It only works if the implementer didn't author it. **If you are filing the item,
+leave `--badly` absent** — an absent falsifier is an honest, visible gap, while
+one you wrote is `--done` in a hat: a test that cannot fail. `/plan` asks the
+human for it, in their words, verbatim. `/review` checks work against it.
+Outcomes only; the CLI nudges if it lands on an action.
 
 `--how` captures approach, strategy, constraints, and sequencing — things that don't belong in `--what` (deliverables) or `--why` (motivation). For simple work, skip it. For anything with technology choices, ordering dependencies, or coordination needs, include it.
 

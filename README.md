@@ -91,7 +91,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | Command | Description |
 |---------|-------------|
 | `init [--prefix P] [--backend {jsonl\|dolt}]` | Initialize `.bon/` directory |
-| `new [TITLE] [--outcome PARENT] --why W --what X --done D` | Create outcome or action (JSON stdin or flags) |
+| `new [TITLE] [--outcome PARENT] --why W --what X --done D [--how H] [--badly B]` | Create outcome or action (JSON stdin or flags). `--badly` is the pre-registered falsifier — outcomes, written by whoever wants the answer |
 | `list [--ready\|--waiting\|--all] [--limit N]` | Show items hierarchically |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
@@ -291,7 +291,7 @@ Bon stores work in `.bon/items.jsonl` (or a Dolt database) as two item types:
   "id": "bon-abcdef",
   "type": "outcome",
   "title": "Users can export data",
-  "brief": { "why": "...", "what": "...", "done": "..." },
+  "brief": { "why": "...", "how": "...", "what": "...", "done": "...", "badly": "..." },
   "status": "open"
 }
 ```
@@ -304,7 +304,7 @@ Bon stores work in `.bon/items.jsonl` (or a Dolt database) as two item types:
   "title": "Add export button",
   "parent": "bon-abcdef",
   "waiting_for": null,
-  "brief": { "why": "...", "what": "...", "done": "..." },
+  "brief": { "why": "...", "how": "...", "what": "...", "done": "...", "badly": "..." },
   "status": "open"
 }
 ```

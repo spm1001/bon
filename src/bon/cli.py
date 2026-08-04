@@ -206,10 +206,16 @@ def prompt_brief() -> dict:
     return brief
 
 
-def require_brief_flags(why: str | None, what: str | None, done: str | None, how: str | None = None) -> dict:
+def require_brief_flags(
+    why: str | None,
+    what: str | None,
+    done: str | None,
+    how: str | None = None,
+    badly: str | None = None,
+) -> dict:
     """Validate brief flags for non-interactive creation.
 
-    --why, --what, --done are required. --how is optional.
+    --why, --what, --done are required. --how and --badly are optional.
     """
     missing = []
     if not why:
@@ -225,7 +231,32 @@ def require_brief_flags(why: str | None, what: str | None, done: str | None, how
     brief = {"why": why, "what": what, "done": done}
     if how:
         brief["how"] = how
+    if badly:
+        brief["badly"] = badly
     return brief
+
+
+def check_falsifier_placement(item_type: str, badly: str | None) -> None:
+    """Nudge, don't refuse, when a falsifier lands on an action.
+
+    GTD's Natural Planning Model puts purpose AND PRINCIPLES in phase 1, and
+    bon's brief kept the purpose half (--why) while dropping principles. The
+    falsifier restores it — but principles are a property of a *direction*,
+    which is what an outcome is. "Fix the racing temp path" needs no
+    pre-registered falsifier; "Concurrent sessions can't corrupt each other's
+    bookkeeping" very much does.
+
+    Coaching rather than validation deliberately: the data layer has no
+    business refusing a field someone had a reason to write, and a hard error
+    here would be the tracker second-guessing the delegator.
+    """
+    if badly and item_type == "action":
+        warn(
+            "--badly on an action. A falsifier is usually an outcome-level object —\n"
+            "  it says what would show the whole direction was wrong, and that is what\n"
+            "  a reviewer checks it against. Keeping it, but consider whether it belongs\n"
+            "  on the parent outcome instead."
+        )
 
 
 # Activity verbs that suggest an outcome title describes work, not achievement.
@@ -284,6 +315,7 @@ def cmd_new(args):
             brief_data.get("what"),
             brief_data.get("done"),
             brief_data.get("how"),
+            brief_data.get("badly"),
         )
     else:
         if not args.title:
@@ -297,7 +329,10 @@ def cmd_new(args):
         if sys.stdin.isatty() and not (args.why and args.what and args.done):
             brief = prompt_brief()
         else:
-            brief = require_brief_flags(args.why, args.what, args.done, getattr(args, 'how', None))
+            brief = require_brief_flags(
+                args.why, args.what, args.done,
+                getattr(args, 'how', None), getattr(args, 'badly', None),
+            )
 
     # Normalize title: single line, trimmed
     title = " ".join(title.split())
@@ -316,6 +351,8 @@ def cmd_new(args):
     # Lint outcome titles for activity language (skip for actions)
     if not is_action:
         check_outcome_language(title)
+
+    check_falsifier_placement("action" if is_action else "outcome", brief.get("badly"))
 
     if parent:
         # Validate parent exists and is an outcome
@@ -479,6 +516,10 @@ def cmd_show(args):
             print(f"   --how: {brief['how']}")
         print(f"   --what: {brief.get('what', 'N/A')}")
         print(f"   --done: {brief.get('done', 'N/A')}")
+        # Beside --done deliberately: complete, then wrong-way-round. The pair
+        # is the point — --done is satisfiable by construction, --badly is not.
+        if brief.get("badly"):
+            print(f"   --badly: {brief['badly']}")
 
     # Tactical steps (actions only)
     if item.get("tactical"):
@@ -802,7 +843,7 @@ def cmd_status(args):
 # success message, which is the exact failure class this path exists to
 # remove. Unknown keys are a hard error for the same reason; a typo that
 # quietly drops a field is worse than one that stops.
-EDIT_BRIEF_KEYS = ("why", "how", "what", "done")
+EDIT_BRIEF_KEYS = ("why", "how", "what", "done", "badly")
 EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief")
 
 
@@ -881,6 +922,7 @@ def edit_flags_given(args) -> bool:
         args.how is not None,
         args.what,
         args.done,
+        getattr(args, "badly", None) is not None,
         getattr(args, "note", None) is not None,
         args.order is not None,
     ])
@@ -947,6 +989,12 @@ def cmd_edit(args):
         edited["brief"]["what"] = args.what
     if args.done:
         edited["brief"]["done"] = args.done
+    if getattr(args, "badly", None) is not None:
+        if args.badly:
+            edited["brief"]["badly"] = args.badly
+        else:
+            edited["brief"].pop("badly", None)
+        check_falsifier_placement(item["type"], args.badly)
     if args.order is not None:
         edited["order"] = args.order
     if getattr(args, "note", None) is not None:
@@ -2059,6 +2107,7 @@ def main():
     new_parser.add_argument("--how", help="Brief: how will we approach it? (optional)")
     new_parser.add_argument("--what", help="Brief: what will we produce?")
     new_parser.add_argument("--done", help="Brief: how do we know it's done?")
+    new_parser.add_argument("--badly", help="Brief: what would show this went wrong? (optional, outcomes)")
     add_output_flags(new_parser, quiet=True)
     new_parser.set_defaults(func=cmd_new)
 
@@ -2129,6 +2178,7 @@ def main():
     edit_parser.add_argument("--how", help="New brief.how (approach/strategy)")
     edit_parser.add_argument("--what", help="New brief.what")
     edit_parser.add_argument("--done", help="New brief.done")
+    edit_parser.add_argument("--badly", help="New brief.badly — the pre-registered falsifier ('' clears)")
     edit_parser.add_argument("--order", type=int, help="New order within parent")
     edit_parser.add_argument("--note", help="New closing note (done items only; '' clears)")
     edit_parser.add_argument("--json", action="store_true", dest="json_input",

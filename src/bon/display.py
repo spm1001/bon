@@ -7,7 +7,13 @@ from bon.queries import filter_ready, filter_waiting, open_child_parent_ids, som
 # Optional brief fields with their default values for JSON output.
 # Required fields (why, what, done) are always present; optional ones
 # get normalized to their default when missing from stored data.
-OPTIONAL_BRIEF_FIELDS = {"how": None}
+#
+# `badly` is the pre-registered falsifier — what would show this went WRONG,
+# written by whoever wants the answer, before work starts. Normalizing it here
+# rather than backfilling stored data is the jejuge precedent: the contract
+# lives at the read boundary, so a read-time default covers every existing
+# outcome for free and there is no bulk mutation of a shared store.
+OPTIONAL_BRIEF_FIELDS = {"how": None, "badly": None}
 
 
 def _normalize_brief(item: dict) -> dict:

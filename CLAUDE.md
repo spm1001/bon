@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 23 commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), ~3200 LOC core (+700 optional Dolt module), 647 tests (14 are opt-in Dolt integration via BON_DOLT_TEST=1).
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 23 commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), ~3200 LOC core (+700 optional Dolt module), 666 tests (14 are opt-in Dolt integration via BON_DOLT_TEST=1).
 
 ## Versioning & releasing (suite-managed)
 
@@ -66,7 +66,9 @@ Items live in `.bon/items.jsonl` (or a Dolt database when using the optional bac
 - **Outcome**: Desired result (has children)
 - **Action**: Concrete step (has parent, waiting_for)
 
-Both require `brief: {why, what, done}` — all three non-empty. Optional `how` field captures approach/strategy.
+Both require `brief: {why, what, done}` — all three non-empty. Two optional subfields: `how` captures approach/strategy, and `badly` carries a **pre-registered falsifier** — what would show the work went wrong, as against `--done`'s "how do we know it's complete".
+
+`badly` is outcomes-shaped (the CLI *warns* on an action via `check_falsifier_placement()` but accepts it — coaching, not validation), additive, and never backfilled: it joins `OPTIONAL_BRIEF_FIELDS` in `display.py` so `--json` emits `null` when absent, the jejuge read-boundary precedent. No Dolt work was needed — `brief` is a single JSON column serialised whole (`dolt.py`), verified before implementing, so a new subfield also survives a write by an older client. **The authorship rule is rite-side, not schema:** the data layer cannot know who wrote a string, so `/plan` asks the human and leaves the field absent when unanswered. A Claude-authored falsifier is `--done` in a hat.
 
 Open items can be **parked Someday/Maybe**: the optional `someday` field holds a required revisit condition (`bon someday ID "condition"` / `bon unsomeday ID`). It's a flag, not a status — status stays open/done so older clients never lose sight of the item. Parked subtrees leave default views at read time (children inherit, no mutation) and `bon list` states the parked count in a tail line; `bon list --someday` is the parked view.
 

@@ -104,12 +104,41 @@ For each outcome:
 - **--how:** Strategy and approach at the outcome level.
 - **--what:** What will be true when achieved.
 - **--done:** Verifiable completion criteria.
+- **--badly:** The falsifier — **ask the user for it, never write it yourself.** See below.
 - **--order:** Sequence position in the narrative.
 
 **The narrative test:** Read all outcome titles in order. Ask the user:
 "does this read as a story?" Reorder or reword until it does.
 
 Create outcomes sequentially, not in parallel.
+
+#### Asking for the falsifier
+
+`--done` says how we'll know the work is **complete**. `--badly` says what would
+show it went **wrong** — and the two are not the same question. A Claude can
+satisfy `--done` by construction, and reliably does; "met the criteria but built
+the wrong thing" is now a more common failure than "didn't finish". A falsifier
+only catches that if the person who wants the answer wrote it, before work started.
+
+This is ordinary GTD delegation, not an AI-era invention. It restores the half of
+the Natural Planning Model's first phase that bon dropped: purpose *and
+principles*. Allen's elicitation is the delegator's own sentence — *"I would give
+others totally free rein to do this as long as they…"* — completed until you'd be
+happy handing the project over.
+
+So ask, in the user's own frame:
+
+> "What would tell you this went wrong, even if I ticked every box in `--done`?"
+
+Then **record the answer verbatim.** Their wording is the artefact; paraphrasing
+it into criteria-speak is how it turns back into `--done`.
+
+**If they don't answer, leave it absent.** A falsifier you wrote is `--done` in a
+hat — it tests what you already intended to do, which is exactly the thing that
+needed independent checking. An empty `--badly` is an honest, visible gap; an
+invented one is a test that cannot fail. Don't chase it either: ask once per
+outcome, at planning time, and move on. Outcomes only — an action like "fix the
+racing temp path" needs no pre-registered falsifier, and the CLI will say so.
 
 ### Phase 4: Detail
 
