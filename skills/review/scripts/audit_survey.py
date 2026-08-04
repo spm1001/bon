@@ -286,7 +286,12 @@ def item_record(item: dict) -> dict:
         if flag:
             record["age_flag"] = flag
     brief = item.get("brief") or {}
-    for field in ("why", "how", "what", "done"):
+    # `badly` rides here or the review's falsifier pass is inert — the skill
+    # tells the reviewer to check work against the falsifier, and this record
+    # is the only thing the verification subagents see. Exactly how `how` was
+    # lost on the first big run (0 of 650 items carried it); add new brief
+    # subfields to this tuple when they land.
+    for field in ("why", "how", "what", "done", "badly"):
         if brief.get(field):
             record[field] = brief[field]
     return record

@@ -93,6 +93,33 @@ Open items can be **parked Someday/Maybe**: the optional `someday` field holds a
 
 4. Update README.md command table
 
+## Adding a Brief Subfield
+
+Every touchpoint below is a place a new subfield gets silently dropped — and
+silently is the operative word: the field stores and displays fine while some
+consumer never sees it. `how` was lost this way on the first big review run
+(0 of 650 items carried it), and `badly` nearly repeated it in the same file.
+
+1. **`display.py` → `OPTIONAL_BRIEF_FIELDS`** — gives `--json` a `null` default at
+   the read boundary, so every existing item is covered with no backfill.
+2. **`cli.py` → `require_brief_flags()`** — accept it on `bon new` (flag + JSON stdin).
+3. **`cli.py` → `EDIT_BRIEF_KEYS` and `edit_flags_given()`** — `bon edit` needs both,
+   or the field is accepted and then fails the at-least-one-flag check.
+4. **`cli.py` → `cmd_show`** — render it, and decide where; position carries meaning.
+5. **Both parsers** — `new_parser` and `edit_parser`.
+6. **`skills/review/scripts/audit_survey.py` → the `item_record` field tuple** — the
+   review's verification subagents see ONLY this record. Omit it and any skill
+   guidance that references the field is inert.
+7. **`scripts/bon-read.sh`** — only if the mode you care about renders briefs;
+   today `list`/`ready` render titles only, so usually a no-op. Check, don't assume.
+8. **Docs:** `docs/CONTRACT.md` (it is contract surface), CLAUDE.md's Data Model,
+   README's command table and JSON shape, and the brief table in `skills/open/SKILL.md`.
+
+**No Dolt work is needed** — `brief` is a single JSON column serialised whole, so a
+new subfield needs no migration *and* survives a write by an older client (unlike a
+new top-level column, which the fixed `_ITEM_COLUMNS` list strips). Verify that still
+holds before relying on it.
+
 ## Critical Behaviors
 
 ### Unblock on Done
