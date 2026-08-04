@@ -149,7 +149,19 @@ Sameer's "should we just use GitHub Issues?" angst was entertained properly and 
 
 The load-bearing fact, verified empirically (2026-07-21, scratch repo `spm1001/issueform-probe`): **GitHub cannot enforce a brief.** Issue Forms' `required:` fields bind only the web UI — the REST API and `gh issue create` both sailed past a form with all three fields required and blank issues disabled. An issue is title + free markdown + metadata; the form schema is a property of one client, not the object, and GitHub is patching clients one at a time (Copilot issue creation, Jan 2026) rather than the data model. Enforcement-by-Action is remediation after creation, not refusal at write. Bon's brief is schema in the data layer — every write path refuses an empty why/what/done. That moat is architectural, not preferential.
 
-Tripwires for re-litigation (don't reopen without one): GitHub's "agent issue assignment progress and session management" reaching GA (open roadmap item as of 2026-07 — the first tactical-shaped thing on Issues); a second regular human collaborator across the core estate; or the maintenance ratio inverting (bon-plumbing sessions outnumbering quiet-use sessions). The stranger-legibility half of the angst shipped as the message-in-a-bottle (bon-miheza, 2026-07-21, suite 1.17.0) — see "The legible substrate" below.
+Tripwires for re-litigation (don't reopen without one): GitHub's "agent issue assignment progress and session management" reaching GA (open roadmap item as of 2026-07 — the first tactical-shaped thing on Issues); a second regular human collaborator across the core estate; or the maintenance ratio inverting (bon-plumbing sessions outnumbering quiet-use sessions).
+
+**The maintenance-ratio tripwire now has a measured baseline, and it is nowhere near firing (2026-08-04).** Full-corpus pass over 6,011 session transcripts, Jan–Aug 2026 (2,527 substantive at ≥3 assistant turns), counting bon invocations only from Bash `tool_use` command fields — never prose:
+
+| | sessions | share of substantive |
+|---|---|---|
+| ran ≥1 bon CLI command | 1,005 | **40%** (54–80% every month since March) |
+| used bon, never touched its source | 931 | 37% |
+| edited bon's own source | 78 | 3.1% |
+
+**Pure-use : any-maintenance = 11.9 : 1**, and per-month it has ranged 7:1 to 92:1 since February without ever inverting. 940 of the 1,005 bon-using sessions ran in some *other* repo — 147 distinct repos in all. Intensity rules out token gestures: 19,561 invocations, mean 19.5 per bon-using session, median 15, busiest 153, and 63% of bon-using sessions made ten or more calls. **So a board dominated by bon's own plumbing outcomes is not evidence of a maintenance-heavy estate** — it is the expected shape of a tool whose backlog lives in its own repo while its use is spread across everything else. Don't infer the ratio from the board's composition; the board is the numerator's home and says nothing about the denominator.
+
+Two method notes, because the first version of this measurement was wrong in both. **The maintenance detector must key on the repo's shape, not its path** — keyed on `spm1001/bon/` it reported 31 sessions and zero maintenance before June 2026, which is purely an artefact of the repo having lived at `~/Repos/bon` and `~/Repos/batterie/bon` first; keyed on `…/bon/{src,tests,skills,…}` it reports 78 across the whole period. Print the set of matched repo roots as a control — that is what surfaced three edits to `Repos/batterie/batterie/plugins/bon`, i.e. someone editing the *vendored marketplace copy* rather than the source. And **`.bon/` edits are use, not maintenance** — writing `understanding.md` or a handoff is performing the rite, so folding those in would have inflated maintenance several-fold. Regeneration recipe and the full qualitative breakdown: `docs/adoption-2026-08-04.md`. The stranger-legibility half of the angst shipped as the message-in-a-bottle (bon-miheza, 2026-07-21, suite 1.17.0) — see "The legible substrate" below.
 
 ## GTD for Claudes (bon-cadomu, adjudicated 2026-08-02)
 
