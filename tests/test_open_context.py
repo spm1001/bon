@@ -172,18 +172,46 @@ def test_big_handoff_skeleton_fits_the_preview_budget(tmp_path):
     assert "From the last handoff's Opportunities:" in preview
 
 
-def test_big_handoff_body_comes_after_the_skeleton(tmp_path):
-    """The body is still emitted in full — just last, where the cut is safe."""
+def test_big_handoff_body_is_not_emitted_at_all(tmp_path):
+    """The body has an address, so it is not emitted — bon-tebete.
+
+    Emitting it last was not enough: it still blew the budget from the back,
+    and it was 78% of this repo's own hook output (9425 of 12183 bytes,
+    measured 2026-08-04). It is doubly redundant — the script already extracts
+    the purpose line and the Opportunities bullets, and /open step 1 reads the
+    file itself for the "For Claudes to come" synthesis.
+    """
     (tmp_path / ".bon").mkdir(exist_ok=True)
-    write_handoff(tmp_path, big_handoff_text())
-    result = run_open_context(tmp_path, OUTCOME)
+    path = write_handoff(tmp_path, big_handoff_text())
+    # STANDALONE is test-solo, which the Opportunities bullet names — without it
+    # the mosase liveness filter correctly drops the bullet as a closed item.
+    result = run_open_context(tmp_path, OUTCOME, STANDALONE)
     assert result.returncode == 0
 
     out = result.stdout
-    assert "DURABLE_KNOWLEDGE_TAIL_MARKER" in out, "body must not be dropped"
-    assert out.index("Outcomes we're working towards:") < out.index(
-        "Did a fairly wordy thing number 0"
-    ), "orientation skeleton must precede the handoff body"
+    assert "DURABLE_KNOWLEDGE_TAIL_MARKER" not in out, "body must not be inlined"
+    assert "Did a fairly wordy thing number 0" not in out, "Done bullets must not be inlined"
+    assert "# Handoff —" not in out, "no handoff header means no body"
+    # Delivery is the path, and the extracted hot parts.
+    assert f"HANDOFF={path}" in out
+    assert "A big session that produced a long handoff" in out
+    assert "the suggested pick that must survive truncation" in out
+
+
+def test_whole_output_fits_the_budget_even_with_a_big_handoff(tmp_path):
+    """Not just the skeleton — the ENTIRE emission stays small (bon-tebete).
+
+    This is the property that stops the persist-and-preview from firing, which
+    is what forced a remedial Read of the hook's own output file.
+    """
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    (tmp_path / ".bon" / "understanding.md").write_text("# Understanding\n")
+    write_handoff(tmp_path, big_handoff_text())
+    result = run_open_context(tmp_path, OUTCOME, STANDALONE)
+    assert result.returncode == 0
+    assert len(result.stdout) < PREVIEW_BUDGET, (
+        f"whole output must fit the preview, got {len(result.stdout)} bytes"
+    )
 
 
 def test_handoff_path_is_emitted(tmp_path):
@@ -242,6 +270,41 @@ def test_short_standalone_list_has_no_cap_line(tmp_path):
     result = run_open_context(tmp_path, STANDALONE)
     assert result.returncode == 0
     assert "Fix the widget" in result.stdout
+    assert "more — full list" not in result.stdout
+
+
+def test_long_outcome_list_is_capped_and_says_so(tmp_path):
+    """Outcomes cap like standalone does — bon-tebete closes the asymmetry.
+
+    bon-wokapu capped the standalone pile and left outcomes uncapped: the same
+    growing list with the same failure mode. Inert on a small board; a guard
+    against a large one.
+    """
+    many = [
+        {
+            "id": f"test-o{i:02d}",
+            "type": "outcome",
+            "title": f"Outcome number {i} is true",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "status": "open",
+            "order": i,
+        }
+        for i in range(20)
+    ]
+    result = run_open_context(tmp_path, *many)
+    assert result.returncode == 0
+    out = result.stdout
+    assert "Outcomes we're working towards:" in out
+    assert "… +8 more — full list: bon list" in out
+    assert "Outcome number 0 is true" in out
+    assert "Outcome number 19 is true" not in out
+
+
+def test_short_outcome_list_has_no_cap_line(tmp_path):
+    """Under the cap, no residue — this board has 10 outcomes, so it must stay quiet."""
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "Users can frobnicate" in result.stdout
     assert "more — full list" not in result.stdout
 
 

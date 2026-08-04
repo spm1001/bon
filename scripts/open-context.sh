@@ -19,10 +19,16 @@ else
     epoch_day() { date -r "$1" +%Y-%m-%d; }
 fi
 
-# === PREVIEW BUDGET (bon-peluge) ===
-# Claude Code previews only the first ~2KB of hook output. Sections that can
-# grow without bound are either capped here or emitted last.
+# === PREVIEW BUDGET (bon-peluge, bon-tebete) ===
+# Claude Code previews only the first ~2KB of hook output. Every section that
+# can grow with the board is capped here; nothing is emitted unbounded (the
+# handoff body was the last such section — see section 8). Measured 2026-08-04
+# on this board: the whole briefing is 2666 bytes, and 2600 bytes of output was
+# observed arriving inline and complete, so ~2KB is the PREVIEW size and the
+# persist threshold sits above it. Caps are therefore guards against a much
+# larger board, not trims of this one.
 STANDALONE_MAX=12
+OUTCOME_MAX=12
 SUGGESTED_MAX=6
 
 # === PATHS ===
@@ -254,13 +260,14 @@ fi
 echo "Good $TIME_OF_DAY. It's $(date '+%-d %b %Y, %H:%M')."
 echo ""
 
-# --- 2. Handoff pointer (body is emitted last — see section 8) ---
+# --- 2. Handoff pointer (the body itself is not emitted — see section 8) ---
 # Claude Code persists oversized hook output and previews only the first ~2KB.
 # The handoff body used to sit HERE, spending that entire budget on its Done
 # bullets and pushing UNDERSTANDING=, the item list and Suggested past the cut
 # (bon-peluge; observed on spm1001/passe 2026-07-21 at 10.4KB, again
-# 2026-07-27). Skeleton first, body last, path stated up front — the body is on
-# disk either way, so a truncated preview stays navigable.
+# 2026-07-27). Moving it last was not enough — it still blew the budget from the
+# back, so it is gone entirely (bon-tebete). This line is now the ONLY delivery
+# of the handoff: state the path, and let the reader Read it.
 if [ -n "$LATEST_FILE" ]; then
     echo "Last session ($LATEST_STR): $LATEST_PURPOSE"
     echo "HANDOFF=$LATEST_FILE"
@@ -357,10 +364,18 @@ if [ "$BON_BACKEND" != "none" ]; then
         OUTCOME_LINES=$(echo "$BON_LIST_OUTPUT" | grep -E '^○' || true)
         STANDALONE_LINES=$(echo "$BON_LIST_OUTPUT" | awk '/^Standalone:/{f=1;next} /^[^ ]/{f=0} f && /^  ○/' || true)
         if [ -n "$OUTCOME_LINES" ]; then
+            # Capped, and the cap says so — same discipline as the standalone
+            # pile below. bon-wokapu capped standalone and left outcomes
+            # uncapped, which is the same growing list with the same failure
+            # mode; tebete closes the asymmetry.
+            OUTCOME_COUNT=$(printf '%s\n' "$OUTCOME_LINES" | wc -l | tr -d ' ')
             echo "Outcomes we're working towards:"
-            echo "$OUTCOME_LINES" | while IFS= read -r line; do
+            printf '%s\n' "$OUTCOME_LINES" | head -n "$OUTCOME_MAX" | while IFS= read -r line; do
                 echo "  $line"
             done
+            if [ "$OUTCOME_COUNT" -gt "$OUTCOME_MAX" ]; then
+                echo "  … +$((OUTCOME_COUNT - OUTCOME_MAX)) more — full list: bon list"
+            fi
             echo ""
         fi
         if [ -n "$STANDALONE_LINES" ]; then
@@ -403,10 +418,22 @@ if [ -d ".bon/contributions" ]; then
     fi
 fi
 
-# --- 8. Latest handoff, in full ---
-# Deliberately last: this is the only unbounded section, so it is the only one
-# that should ever fall past a preview cut. Its path is already printed above.
-if [ -n "$LATEST_FILE" ]; then
-    cat "$LATEST_FILE"
-    echo ""
-fi
+# --- 8. The handoff body is deliberately NOT emitted (bon-tebete) ---
+# Do not "restore" this — it was measured, not guessed. On 2026-08-04 this
+# board's hook output was 12183 bytes, of which the body was 9425 (78%) and the
+# curated briefing 2666. The body was the only reason the output crossed the
+# persist-and-preview threshold, and the 2KB preview then cut four outcomes, all
+# four standalone items and the active-work line — the exact content bon-wokapu
+# and bon-peluge fought to protect.
+#
+# bon-peluge's rule was "anything unbounded goes last, with its address stated
+# up front". tebete is the next step: an unbounded section that HAS an address
+# does not need emitting at all. The body is doubly redundant — this script
+# already extracts its two hot parts (the purpose: line in section 2 and
+# ### Opportunities in section 4), and /open step 1 reads the file itself for the
+# "For Claudes to come" synthesis. So HANDOFF= is the whole delivery mechanism.
+#
+# The trade, stated: a session that never invokes /open now gets the skeleton and
+# a path rather than the body. That is not a regression — in the truncated case
+# it got neither. If it becomes a real cost, the fix is making /open fire
+# unbidden (bon-zuvocu), not re-inflating this hook.
