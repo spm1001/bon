@@ -133,12 +133,19 @@ So ask, in the user's own frame:
 Then **record the answer verbatim.** Their wording is the artefact; paraphrasing
 it into criteria-speak is how it turns back into `--done`.
 
-**If they don't answer, leave it absent.** A falsifier you wrote is `--done` in a
-hat — it tests what you already intended to do, which is exactly the thing that
-needed independent checking. An empty `--badly` is an honest, visible gap; an
-invented one is a test that cannot fail. Don't chase it either: ask once per
-outcome, at planning time, and move on. Outcomes only — an action like "fix the
-racing temp path" needs no pre-registered falsifier, and the CLI will say so.
+A falsifier you wrote is `--done` in a hat — it tests what you already intended to
+do, which is exactly the thing that needed independent checking. So an invented
+`--badly` is a test that cannot fail, and an empty one is an honest gap.
+
+**But if they don't answer, the question is unasked — not declined.** Silence means
+*"I didn't see it"*, never *"I don't care"* (a documented rule about how Sameer
+communicates; the previous version of this section said "leave it absent and move
+on", which institutionalises the wrong reading and predicts its own empty column).
+So an empty `--badly` is honest only while it is a **stated** gap: name the
+outcomes that have no falsifier yet, on their own line near the end of the turn
+where a question is actually visible, and raise it again next time rather than
+letting it lapse. Outcomes only — an action like "fix the racing temp path" needs
+no pre-registered falsifier, and the CLI will say so.
 
 ### Phase 4: Detail
 
