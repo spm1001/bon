@@ -299,3 +299,43 @@ class TestStepNoComplete:
         assert result.returncode == 0
         assert "All steps done" in result.stdout
         assert "--no-complete" in result.stdout
+
+
+class TestStepExpect:
+    """CAS guard (bon-tedabo): --expect refuses without writing when the board moved."""
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_expect_match_advances(self, bon_dir_with_fixture, monkeypatch):
+        """Correct --expect (1-based displayed number) advances normally."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+        result = run_bon("step", "--expect", "2", cwd=bon_dir_with_fixture)
+        assert result.returncode == 0
+        assert "→ 3. Step three [current]" in result.stdout
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_expect_mismatch_refuses_without_writing(self, bon_dir_with_fixture, monkeypatch):
+        """Wrong --expect exits 1, names both positions, writes nothing."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+        result = run_bon("step", "--expect", "3", cwd=bon_dir_with_fixture)
+        assert result.returncode == 1
+        assert "Tactical moved" in result.stderr
+        assert "expected step 3" in result.stderr
+        assert "at step 2" in result.stderr
+        assert "bon work --status" in result.stderr
+        lines = (bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        child = next(json.loads(l) for l in lines if '"bon-child"' in l)
+        assert child["tactical"]["current"] == 1  # unchanged
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_plain_step_still_works(self, bon_dir_with_fixture, monkeypatch):
+        """No --expect: legacy behaviour unchanged."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+        result = run_bon("step", cwd=bon_dir_with_fixture)
+        assert result.returncode == 0
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["action_with_tactical"], indirect=True)
+    def test_output_carries_next_recipe(self, bon_dir_with_fixture, monkeypatch):
+        """Every in-progress render ends with the next CAS invocation."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+        result = run_bon("step", cwd=bon_dir_with_fixture)
+        assert "When complete: bon step --expect 3" in result.stdout

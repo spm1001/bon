@@ -1731,6 +1731,17 @@ def cmd_step(args):
     current = tactical["current"]
     steps = tactical["steps"]
 
+    # CAS guard (bon-tedabo): refuse, loudly and without writing, when the
+    # board moved under the caller — the lomede race generalised. Equality
+    # check only; --expect is the 1-based number every surface displays.
+    expect = getattr(args, "expect", None)
+    if expect is not None and expect != current + 1:
+        error(
+            f"Tactical moved: you expected step {expect} but {active['id']} is at "
+            f"step {current + 1} of {len(steps)} — another session may have advanced it.\n"
+            f"Nothing was written. Re-read before acting: bon work --status"
+        )
+
     # Record skip if requested
     skip_reason = getattr(args, "skip", None)
     if skip_reason:
@@ -1902,6 +1913,42 @@ def cmd_update(args):
         print(f"Updated: {new_version}")
 
 
+STALE_CLAIM_DAYS = 7
+
+
+def _stale_claim_lines(items, days=STALE_CLAIM_DAYS):
+    """Advisory lines for active tactical claims untouched for `days`.
+
+    Visibility only, never reclamation (bon-tedabo, adjudicated 2026-08-08):
+    long-idle sessions are normal on this estate and an idle-but-alive
+    session emits no heartbeat, so TTL auto-reclaim would hand a live
+    session's claim to a sibling. Taking over stays a deliberate act.
+    """
+    from datetime import datetime, timezone
+
+    lines = []
+    now = datetime.now(timezone.utc)
+    for item in items:
+        if not _tactical_is_active(item):
+            continue
+        stamp = item.get("updated_at") or item.get("created_at") or ""
+        try:
+            then = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        age = (now - then).days
+        if age >= days:
+            t = item["tactical"]
+            steps = t.get("steps", [])
+            lines.append(
+                f"{item['id']} held by {t.get('session') or 'unscoped'} — untouched {age}d "
+                f"at step {min(t.get('current', 0) + 1, len(steps))}/{len(steps)}. "
+                f"If that session is gone: `bon work --release` from its cwd keeps the progress, "
+                f"or `bon work {item['id']} --force` here takes over."
+            )
+    return lines
+
+
 def cmd_doctor(args):
     """Check items.jsonl for health issues."""
     check_initialized()
@@ -1942,6 +1989,11 @@ def cmd_doctor(args):
             print(f"\n{len(issues)} issue(s) found.")
         else:
             print(f"Dolt backend: {len(items)} items, {len(archived)} archived. All clear.")
+        stale = _stale_claim_lines(items)
+        if stale:
+            print("\nStale claims (advisory — not counted as issues):")
+            for line in stale:
+                print(f"  {line}")
         return
 
     path = items_path()
@@ -2081,6 +2133,12 @@ def cmd_doctor(args):
     else:
         print("All clear.")
 
+    stale = _stale_claim_lines(valid_items)
+    if stale:
+        print("\nStale claims (advisory — not counted as issues):")
+        for line in stale:
+            print(f"  {line}")
+
 
 def main():
     """Main CLI entry point."""
@@ -2204,6 +2262,7 @@ def main():
     step_parser = subparsers.add_parser("step", help="Complete current step, advance to next")
     step_parser.add_argument("--skip", metavar="REASON", help="Skip current step with a reason instead of completing it")
     step_parser.add_argument("--no-complete", action="store_true", help="Don't auto-complete action on final step")
+    step_parser.add_argument("--expect", type=int, metavar="N", help="1-based step number you believe you're completing; refuses without writing if the board moved")
     step_parser.set_defaults(func=cmd_step)
 
     # convert

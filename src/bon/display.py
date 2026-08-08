@@ -70,6 +70,11 @@ def format_tactical(tactical: dict, action_status: str | None = None) -> str:
     if action_status == "open" and current >= len(steps) and steps:
         lines.append("\nAll steps done — action left open (--no-complete)")
 
+    # The CAS recipe rides every render of an in-progress tactical, so the
+    # convenient path carries the guard (bon-tedabo). Done items skip it.
+    if action_status != "done" and steps and current < len(steps):
+        lines.append(f"\nWhen complete: bon step --expect {current + 1}")
+
     return "\n".join(lines)
 
 

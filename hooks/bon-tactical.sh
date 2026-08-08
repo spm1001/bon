@@ -59,6 +59,10 @@ try:
                         mark = " "
                     suffix = " [current]" if idx == current else ""
                     lines.append(f"{mark} {idx + 1}. {step}{suffix}")
+                cur = t.get("current", 0)
+                if cur < len(t.get("steps", [])):
+                    # Mirrors format_tactical's CAS recipe (bon-tedabo)
+                    lines.append(f"When complete: bon step --expect {cur + 1}")
                 break
 except Exception:
     pass
@@ -74,5 +78,5 @@ fi
 escaped=$(echo "$tactical" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
 
 cat <<EOF
-{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "🎯 Active bon tactical:\n${escaped}\n\nWork on the CURRENT step. Run 'bon step' when it's complete before moving on."}}
+{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": "🎯 Active bon tactical:\n${escaped}\n\nWork on the CURRENT step. When it's complete, run the shown 'bon step --expect N' — the guard refuses the write if another session moved the board."}}
 EOF

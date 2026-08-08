@@ -1,4 +1,6 @@
 """Tests for bon doctor command."""
+import json
+
 import pytest
 
 from conftest import run_bon
@@ -148,3 +150,60 @@ def test_doctor_fix_noop_when_current(bon_dir_with_fixture):
     assert result.returncode == 0
     assert "Refreshed" not in result.stdout
     assert "All clear." in result.stdout
+
+
+def test_doctor_reports_stale_claim(bon_dir):
+    """An active tactical untouched for 7+ days surfaces as an advisory, not an issue."""
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(days=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    item = {
+        "id": "bon-stale1", "type": "action", "title": "Stale claim",
+        "brief": {"why": "w", "what": "x", "done": "d"},
+        "status": "open", "order": 1,
+        "created_at": old, "created_by": "test",
+        "updated_at": old, "updated_by": "stepped",
+        "tactical": {"steps": ["a", "b"], "current": 1, "session": "/dead/path"},
+    }
+    (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+    result = run_bon("doctor", cwd=bon_dir)
+    assert result.returncode == 0
+    assert "Stale claims (advisory" in result.stdout
+    assert "bon-stale1 held by /dead/path" in result.stdout
+    assert "untouched 10d" in result.stdout
+    assert "All clear." in result.stdout  # advisory does not dirty the health verdict
+
+
+def test_doctor_fresh_claim_not_stale(bon_dir):
+    """A recently-touched claim stays out of the advisory."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    item = {
+        "id": "bon-fresh1", "type": "action", "title": "Fresh claim",
+        "brief": {"why": "w", "what": "x", "done": "d"},
+        "status": "open", "order": 1,
+        "created_at": now, "created_by": "test",
+        "updated_at": now, "updated_by": "worked",
+        "tactical": {"steps": ["a"], "current": 0, "session": "/live/path"},
+    }
+    (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+    result = run_bon("doctor", cwd=bon_dir)
+    assert result.returncode == 0
+    assert "Stale claims" not in result.stdout
+
+
+def test_doctor_released_claim_not_stale(bon_dir):
+    """A released tactical is not an active claim — never advisory material."""
+    from datetime import datetime, timedelta, timezone
+    old = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    item = {
+        "id": "bon-parked", "type": "action", "title": "Released claim",
+        "brief": {"why": "w", "what": "x", "done": "d"},
+        "status": "open", "order": 1,
+        "created_at": old, "created_by": "test",
+        "updated_at": old, "updated_by": "released",
+        "tactical": {"steps": ["a", "b"], "current": 1, "session": "/x", "released": True},
+    }
+    (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+    result = run_bon("doctor", cwd=bon_dir)
+    assert result.returncode == 0
+    assert "Stale claims" not in result.stdout
