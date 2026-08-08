@@ -41,6 +41,10 @@ If the error instead *names the move* (error 9999, "bon Dolt moved to tube"), yo
 
 If a repo has both `.bon/backend=dolt` and a stale `items.jsonl`, the JSONL file is a pre-migration ghost — bon ignores it.
 
+## Commit Citation
+
+A commit doing work tracked by a bon cites it: trailing `(bon-ID)` in the subject or body (e.g. `fix(close): resolve session id from env (bon-casovo)`). This is the link the orphans check reads — an open item no commit ever cites, or a commit citing an unknown ID, is a review-time signal. Untracked work commits normally; don't invent an item just to have an ID.
+
 ## Discoverability
 
 `bon show ID --json` and `bon list --json` already pretty-print (indent=2). Pipe direct — no need to wrap in `python3 -m json.tool` or `json.dumps(d, indent=2)`.

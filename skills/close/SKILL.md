@@ -317,7 +317,7 @@ Use HANDOFF_FILE from the script output verbatim — it generates `YYYY-MM-DD-{s
 
 ### Commit and go
 
-Stage relevant files (including the handoff), commit in modular commits with descriptive messages, and offer to push. If nothing's dirty, just move on — not every session produces code changes.
+Stage relevant files (including the handoff), commit in modular commits with descriptive messages, and offer to push. Each commit cites the bon it serves — trailing `(bon-ID)` in the subject or body — when the work was tracked; untracked work commits without one. If nothing's dirty, just move on — not every session produces code changes.
 
 **If the context script reported `HANDOFF_GITIGNORED=true`:** the repo ignores `.bon/` wholesale to keep volatile board state out of git, which catches the handoff too. A plain `git add` refuses and the handoff is written to disk but never syncs — so the next session on another machine cannot see it. Stage it with the `HANDOFF_ADD_CMD` the script printed (`git add -f -- <path>`), and check whether `understanding.md` needs the same treatment. Say that you had to force-add: it's a property of that repo worth surfacing, not a detail to absorb silently.
 

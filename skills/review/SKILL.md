@@ -87,6 +87,14 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse pass
 
 Alongside the pyramid, give the survey's one-line vitals: total open, `visibility_note` (a headline jump is usually clones appearing, not work), old-item flags, orphaned prefixes.
 
+**Citation cross-check (orphans).** For boards with a local clone, run:
+
+```bash
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/orphans.py --repo <clone-path>
+```
+
+The convention (bon-nenine, 2026-08-08): commits doing tracked work cite their bon as a trailing `(bon-ID)`. CITED-BUT-OPEN items are close-candidates to fold into Phases 2–4 — a commit already claims the work moved, so the question is desire, not truth. UNKNOWN-ID entries are typos to fix now. The coverage percentage is adoption telemetry for the convention itself — low numbers are expected on history that predates it (bon's own baseline was 14% organic).
+
 **STOP here.** Adjudicate the pyramid in conversational Q&A clusters (recommendation first — his preferred shape), and wait for scope confirmation before verification. His wordings apply verbatim; his edits fold back into the draft.
 
 ### Phase 2: Verify (the hard part)
@@ -376,3 +384,4 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 - `references/pyramid-format.md` — The Phase 1 pyramid: document shape, jobs display mapping, alignment block, dispatch grammar, ceremony mechanics
 - `references/verification-patterns.md` — How to verify different brief types
 - `scripts/audit_survey.py` — Hybrid estate survey (Dolt-global + JSONL sweep) with recent wins, git signal, jobs grouping, age flags
+- `scripts/orphans.py` — Per-clone citation cross-check: commits vs board (CITED-BUT-OPEN close-candidates, UNKNOWN-ID typos, coverage telemetry)

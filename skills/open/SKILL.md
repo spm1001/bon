@@ -179,6 +179,7 @@ A hook injects the current tactical step into every prompt. When you see a `<use
 2. **Include concrete details** — file paths, API endpoints, error messages
 3. **Number steps in `--what`** — these become extractable tactical steps
 4. **Define `--done` clearly** — verifiable criteria, not vague "it works"
+5. **Name the progenitor** — an item discovered mid-work opens `--why` with where it came from ("Discovered while working bon-A"). Write-once provenance: it never rots, grep finds it, and the genealogy survives without a schema field
 
 **The test:** Could a Claude with zero context execute this from the brief alone?
 
