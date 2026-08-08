@@ -165,7 +165,7 @@ Then **draw-down** before touching code.
 
 ### UserPromptSubmit Hook
 
-A hook injects the current tactical step into every prompt. When you see a `<user-prompt-submit-hook>` mentioning bon tactical, work on the current step and run `bon step` when complete.
+A hook injects the current tactical step into every prompt. When you see a `<user-prompt-submit-hook>` mentioning bon tactical, work on the current step and, when complete, run the `bon step --expect N` invocation the hook prints — the guard refuses without writing if another session moved the board (re-read with `bon work --status`).
 
 **The injected tactical may belong to another live session.** Session identity is CWD-keyed, so a parallel session in the same repo (a bg fork, a second roster session, a dispatched agent) sees — and is invited to advance — a tactical it didn't claim. If the injected step doesn't match work you've been asked to do, leave it alone: it's another Claude's thread, and stepping it desynchronises their bookkeeping (observed 2026-06-10: an email-dispatched session finished a tester's tactical and closed an item under them).
 
@@ -315,6 +315,7 @@ bon work --status            # Current tactical state
 bon work --release           # Hand back the claim, KEEP the progress (resume with `bon work ID`)
 bon work --clear             # Clear without completing (discards the progress)
 bon step                     # Advance to next step
+bon step --expect N          # Advance with CAS guard — refuses if the board moved (use the printed N)
 bon step --skip "reason"     # Skip current step
 bon step --no-complete       # Final step: don't auto-complete
 bon edit ID --title/--why/--how/--what/--done/--note/--order  # Edit fields
