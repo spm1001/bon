@@ -65,6 +65,8 @@ Bon is being split into two artifacts (bon-kepuko). The **docket** is the core �
 
 ## Storage backends
 
+**Dolt came from the beads lineage too** (Sameer, 2026-08-08): Yegge mentioned Dolt, Sameer had it investigated, bon tried it — inheritance, not convergent evolution, even though beads later went Dolt-*only* while bon kept JSONL as the default. The full family history (bon is a fork of practice off Yegge's beads, Oct 2025 – Jan 2026, via arc) is in `docs/beads-comparison-2026-08-08.md`.
+
 **Dolt is the majority backend, not the universal one.** The April 2026 migration moved the then-existing repos to a single shared Dolt database on hezza (~19 boards carry `backend=dolt`), but boards created since then default to JSONL and stay there — a 2026-06-11 sweep found 12+ implicit-JSONL boards including active ones (cornichon, ~/notes, carnet, dragram, bestiary, piano, several itv/ repos). Code paths, scripts, and new verbs must treat both backends as live production. A `.bon/` with no `backend` file is JSONL. Cross-repo writes to JSONL boards (e.g. `bon move`) leave the target repo's items.jsonl uncommitted — the CLI warns about this.
 
 **How Dolt works:** MySQL-compatible database with git semantics. Items scoped by prefix — all projects share one database, filtered by `id LIKE prefix-%`. Each write produces a Dolt commit. Requires `pymysql` (`pip install bon[dolt]`). Connection via env vars or `~/.config/bon/dolt.toml`.
