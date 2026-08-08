@@ -276,6 +276,29 @@ class TestLoadPrefix:
 
         assert prefix == "myproject"
 
+    @pytest.mark.parametrize("written", ["crn\n", "crn\r\n", " crn ", "\ncrn\n\n"])
+    def test_hand_written_prefix_is_stripped(self, bon_dir, monkeypatch, written):
+        """Whitespace around a hand-written prefix never reaches an id.
+
+        `echo crn > .bon/prefix` adds a trailing newline; unstripped it lands
+        INSIDE every minted id (`crn\\n-kemize`), which prefix-tolerant lookup
+        then cannot resolve. Cornichon carried three such ids (bon-nuduta).
+        """
+        monkeypatch.chdir(bon_dir)
+        (bon_dir / ".bon" / "prefix").write_text(written)
+
+        prefix = load_prefix()
+
+        assert prefix == "crn"
+        assert not any(c.isspace() for c in prefix)
+
+    def test_whitespace_only_prefix_falls_back(self, bon_dir, monkeypatch):
+        """A prefix file holding only whitespace is not a prefix."""
+        monkeypatch.chdir(bon_dir)
+        (bon_dir / ".bon" / "prefix").write_text("\n")
+
+        assert load_prefix() == "bon"
+
 
 class TestNowIso:
     def test_format(self):

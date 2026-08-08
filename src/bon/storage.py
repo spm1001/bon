@@ -373,10 +373,18 @@ def load_prefix() -> str:
     """Load prefix from local .bon/prefix file, default to 'bon'.
 
     Even in Dolt mode, prefix is local — it scopes which items to load.
+
+    Stripped on read: `bon init` writes the file without a trailing newline
+    (cli.py), but a hand-written `echo crn > .bon/prefix` adds one, and the
+    newline then lands INSIDE every id minted afterwards — `crn\\n-kemize`,
+    which `bon show crn-kemize` cannot resolve. Cornichon carried three such
+    ids for a week and the failure read as a missing item (bon-nuduta).
+    Strip both ends: leading whitespace from a hand-edit is just as wrong,
+    and a prefix is never legitimately padded.
     """
     path = _data_dir() / "prefix"
     if path.exists():
-        return path.read_text()
+        return path.read_text().strip() or "bon"
     return "bon"
 
 
