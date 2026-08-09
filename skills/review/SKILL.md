@@ -149,6 +149,14 @@ Classify each item:
   = you know exactly, it just lives somewhere this repo can't see.)
 - UNCLEAR: cannot determine programmatically, needs human judgment
 
+For EVERY item, also write a `repricing` when the brief misprices what remains:
+one or two sentences stating what is actually left, ready to land in the brief.
+Null when the brief is accurately priced. Briefs rot toward pessimism — they say
+pending after the thing shipped, blocked after the gate opened, five steps when
+one remains — so expect repricings to outnumber every other verdict. Put the
+evidence (commit, file:line, date) inside the repricing text itself: it will
+stand alone in the brief as a dated correction.
+
 Items to verify:
 {json_items}
 
@@ -161,7 +169,8 @@ Write your result to {run_dir}/{repo_label}.json AS SOON as you finish
     "classification": "DONE|STALE|ACTIVE|BLOCKED|EXTERNAL_SURFACE|UNCLEAR",
     "external_surface": "(only for EXTERNAL_SURFACE) where to check — e.g. 'Drive: <doc>', 'Confluence', 'Adalyser dashboard'",
     "reasoning": "one line explanation",
-    "evidence": "what you checked that led to this conclusion"
+    "evidence": "what you checked that led to this conclusion",
+    "repricing": "what actually remains, with evidence inline — or null if the brief is accurately priced"
   }}
 ]
 
@@ -174,6 +183,8 @@ bon commands. The only file you create is your result JSON in {run_dir}.
 ### Phase 3: Summarize (Orient)
 
 Collect subagent results and present a clear, actionable summary. **Output as text in your response, not via Bash** (Bash output collapses behind Ctrl+O).
+
+**Expect repricing, not closure, to be the headline yield.** The 2026-08-08 pass measured 5 closures against 172 repricings across 243 items (2% vs 71%) — a brief is written at the moment of least knowledge about the work and rots toward pessimism from there. A run reporting few closures and many corrections succeeded; write the summary that way rather than apologising for it.
 
 **The review has two orthogonal axes — keep them separate.** Verification (Phase 2) answered TRUTH: does each brief still match the code? Only the human can answer DESIRE: is the thing still wanted? A git-quiet board reads identically as "finished and in daily use" and "abandoned" — no substrate distinguishes them, so **never infer desire from staleness**. Truth is per-item and mechanical; desire triages at **repo/outcome level**.
 
@@ -221,7 +232,7 @@ For smaller estates (<100 items), the item tables below ARE the review surface �
 ```
 ## Audit Summary — {date}
 
-Scanned {N} open items across {M} boards.
+Scanned {N} open items across {M} boards. {R} carry a repricing — queued for Phase 4 write-back.
 
 ### Ready to Close ({count})
 
@@ -275,8 +286,10 @@ facteur/mise-armed session) can tick them in one pass instead of digging.
 |------|------|-------|----------|
 | ... | ... | ... | ... |
 
-Which items should I close? (Say "close all ready", name specific IDs,
-or move items between categories.)
+Which items should I close, and shall I land the {R} repricings? (Say
+"close all ready and land the repricings", name specific IDs, or move
+items between categories. Repricings apply batched by repo — you skim a
+sample, not every row; any that touch --done come back to you by name.)
 ```
 
 (For big estates these tables are the *backing detail* — the desire conversation above is the review surface. Don't paste all of them at the user; surface a category on request or once desire has narrowed the boards in play.)
@@ -339,7 +352,13 @@ git commit -m "bon: audit — close {count} completed/stale items"
 
 Push per the estate's standing practice. Unpushed JSONL closures are invisible to other machines until pushed.
 
-**For stale items the user wants updated:** Note for a future session. Audit is triage, not rework.
+**Land the repricings — they are the audit's main product** (adjudicated 2026-08-09, bon-zewake; measured at 71% of yield against 2% closures on the 2026-08-08 run). A verifier-produced repricing is a bounded, already-written correction; applying it is closer to `bon done` than to rewriting a brief. Behind the same approval gate as closures — batched by repo, skimmed rather than read row-by-row — write each one back, per field:
+
+- **`--why` / `--how`**: append one dated block to the end of the field — `CORRECTION {verified-date} ({source}): {repricing}`. One correction block per field: a later audit's block *replaces* it, and superseded text stays recoverable in Dolt/git history.
+- **`--what`**: when the step list itself is what rotted, rewrite it — `bon work` turns these steps into a live tactical checklist, so a stale step gets executed, not just read.
+- **`--done`**: propose changes to the user by name, item by item, and apply only what they approve. The done-criterion is the clause a Claude can satisfy by construction — the same reason the falsifier is human-authored.
+
+Apply via `bon edit {id}` with JSON stdin (read-modify-write; use the subprocess arg-list form for scripted batches, and read one back to confirm the write landed). Composing fresh brief prose beyond what the verifier wrote is a different job — file it for its own session.
 
 ### Phase 5: Snapshot (Remember)
 
@@ -366,7 +385,7 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 | In-context-only subagent results | A bg'd session loses them | Subagents Write result files as they finish |
 | Auto-closing stale items | Stale brief ≠ stale intent | Flag stale, let human decide |
 | Mixing audit with active work | Context thrashing | Audit is a dedicated session activity |
-| Editing briefs during audit | Scope creep | Note needed updates, do them later |
+| Composing new brief prose during audit | Unbounded rework | Apply verifier-written repricings (Phase 4, gated); fresh thinking gets its own session |
 | Skipping Phase 5 snapshot | Loses the before/after delta | Always report the delta and archive the run |
 | Bash output for summary | User can't see it (Ctrl+O collapse) | Output as text in response |
 
