@@ -112,6 +112,11 @@ A vehicle that skips the asking is still contract-conformant; it just doesn't ge
 the benefit. Stated here so a future vehicle implements the discipline
 deliberately rather than discovering the field and filling it in.
 
+Two rites ask in this estate today: `/plan` at outcome creation, and `/review` at
+the ceremony's apex (top-N outcomes only — adopted 2026-08-09, bon-hipapu, after
+adoption measured 2/134 with /plan as the sole venue). Both record the answer
+verbatim and leave silence absent.
+
 ## The session-identity seam
 
 Tactical claims are keyed by a session identity that the vehicle supplies and the docket stores and validates. Current convention: realpath of the `.bon` root, hostname-prefixed on shared backends. This conscripts parallel sessions in the same repo — any co-located session holds the same claim (bon-hibehi tracks sharpening, e.g. vehicle-supplied session lineage).
