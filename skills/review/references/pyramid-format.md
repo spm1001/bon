@@ -46,6 +46,8 @@ The survey emits `job` slugs (from Dolt `repos.job` via `bon register --job`, or
 
 Boards in `jobs_unassigned` get a one-line "Unassigned — where do these live?" list at the bottom of the pyramid; agree placement with Sameer, then persist it (`bon register --job <slug>` from the clone for Dolt boards; write `.bon/job` for JSONL boards). Never guess a group silently.
 
+**The jobs-groups are not Sameer's Todoist carve, and shouldn't be forced to match it.** His Projects - Toolmaking is one Todoist project whose DOs span all five jobs-groups (the bon review skill is batterie, the meeting-note DO is knowledge-work, Cornichon is apps-research, network configs are estate-infra). The mapping is many-to-many and the alignment block below IS the join — render it, don't mirror either carve onto the other (settled 2026-08-09, bon-jagoha step 6).
+
 ## Line grain
 
 One line per repo, plain English at human grain: "mit-plongeur: Handed over to Flore Data", not item IDs or counts. Derive Recent Progress lines from `recent_dones` (titles + done_notes) and `git.last_commit`, compressed by judgment — pick what a Monday-morning Sameer would want to know, drop the plumbing. Desired Outcomes lines come from open outcomes at their own wording, tightened. Headline counts are **Desired Outcomes, not items** — an item count is workshop trivia; a DO count is a commitment count.
@@ -66,6 +68,10 @@ The block's product is the two orphan lists — they ARE the reconciliation:
 
 - **Workshop motion with no Sameer-DO** → drift, or an uncaptured commitment he should adopt.
 - **Sameer-DO with no workshop motion** → desire stalling invisibly; file a bon vessel or park it consciously.
+
+## Falsifier ask (apex outcomes)
+
+Once the top-N is settled at adjudication, ask Sameer for a `--badly` falsifier — in his words, verbatim — on any apex outcome that lacks one. One ask per outcome per ceremony, at the apex only; no nagging further down the board, and /plan remains the venue for new outcomes. Never draft the falsifier for him — a Claude-authored one is `--done` in a hat (the bon-meliga authorship rule). Venue adopted 2026-08-09 (bon-hipapu): at the field's 5-day mark adoption was 2 of 134 open outcomes, both via /plan — the mechanism works, the venue was just narrow.
 
 ## Dispatch queue proposal
 
