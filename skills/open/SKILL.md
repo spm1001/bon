@@ -123,13 +123,38 @@ the second session was one unnoticed glance from presenting a different repo's
 board as its own (bon-potipe). Wrong-board orientation fails silently, so the
 collision-proof path is the whole guard.
 
-### 4. Pick Direction
+### 4. Toolmaking Compass
 
-Assess which ready items align with what's already in context — files read, handoff content, understanding document. State your reasoning briefly. When context is thin, just present the list.
+Sameer's session-boundary guide — where this session sits in his intentions. Render it right after the hierarchy, before picking direction: the compass informs the pick. (Origin and contract: bon-leturo; his framing — "the high level guide for me and a reminder of what we're going to do together.")
+
+```bash
+accomplis tasks --project "& Toolmaking" 2>/dev/null          # his dispatch queue
+accomplis tasks --project "Projects - Toolmaking" 2>/dev/null # his DOs (root = active; Someday section = parked)
+```
+
+Render exactly three lines — the budget is fixed, do not grow it:
+
+```
+🧭 Toolmaking compass (read-only, HH:MM)
+→ This repo: <queue lines pointing here> — or "nothing points here"
+→ His P1 DOs: <priority-4 root tasks in Projects - Toolmaking, one clause each>
+→ Queue: <N> lines; <one nudge — e.g. the oldest line with no matching board motion>
+```
+
+Matching "points here": the dispatch grammar is `Open <repo> → <desire> (<bon-id>)` — match the repo name against this repo, and any cited bon-id against this board's prefix. NB the Todoist API inverts the app's priority scale: the UI's P1 arrives as `priority: 4`.
+
+Rules:
+- **Gate on the CLI.** `command -v accomplis` absent → skip silently (not our estate, not his book). Present but erroring → render `🧭 Toolmaking compass: Todoist unreachable — not shown`. A missing compass must be visible, never silent.
+- **The tap never writes.** Two reads, three lines. Writes to the queue are deliberate session acts under the tell-after norm — they live in /close's tap, never here.
+- Cost: two CLI calls, ~2–3s. Invoke `accomplis:coaching` first if the session will touch Todoist beyond these two reads.
+
+### 5. Pick Direction
+
+Assess which ready items align with what's already in context — files read, handoff content, understanding document, the compass. State your reasoning briefly. When context is thin, just present the list.
 
 User picks direction.
 
-### 5. Read the Room
+### 6. Read the Room
 
 In a **multi-room repo** — one with a `rooms.md` index, or nested `CLAUDE.md` files below the root — read the tissue of the room you'll actually work in *before* touching its files: its `CLAUDE.md`, its `understanding.md`, and its recent `handoffs/`. Do this with the Read tool, yourself — the harness won't. It loads a subtree `CLAUDE.md` only on-demand (and Cowork not at all), and it *never* autoloads understanding.md or handoffs on any launch. A session that skips this works a room half-blind and mints twins — the `notes` egta twin was a duplicate room built beside its unread predecessor, caught twelve days later.
 

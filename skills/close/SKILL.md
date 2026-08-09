@@ -178,6 +178,22 @@ Now sort the remaining actions into three buckets:
 
 3. **For Claudes to come** — what one thing did you learn or discover that should be contributed to the stock of future Claude understanding; an architectural insight, a taste judgment, a decision with real alternatives, a mistake not to be repeated, a trick you discovered which would save us significant time. A shard of wisdom gleaned.
 
+### Toolmaking tap — compass out
+
+Before proposing the close-out, read Sameer's dispatch queue and check the session against it. Gate and failure mode as in /open's compass: skip only when `accomplis` is absent; unreachable renders as "not shown", never silence.
+
+```bash
+accomplis tasks --project "& Toolmaking" 2>/dev/null
+```
+
+Three checks, rendered as one 🧭 block inside the close-out proposal:
+
+- **Tickable:** queue lines whose work this session completed — name them; he ticks by hand on his phone.
+- **Propose-and-add (sanctioned, tell-after):** when a clean case exists — a queue line's bon closed with an obvious successor, or the session minted dispatch-shaped work he ranked — ADD the line (`accomplis add "Open <repo> → <desire> (<bon-id>)" --project "& Toolmaking"`) and TELL him in the block: "added: …". Never ask first; never add speculative lines — clean cases only, his grammar, his grain. (Norm: Sameer, 2026-08-09 review ceremony — "I'd like you to tell me, but doing it is fine"; recorded in bon-leturo's `--how`.)
+- **Stalling:** a queue line pointing at a board with no motion for 30+ days — one nudge, max one.
+
+The tap reads and, only in the propose-and-add case, writes single dispatch lines. It never edits or completes his tasks, never touches other projects — Todoist stays his book (the kuwivo treaty-table rule).
+
 Propose these to the user:
 
 > "Here's how I suggest we close out:
@@ -187,6 +203,8 @@ Propose these to the user:
 > **Bons to file for next:** [list of future work with an explanation of what's at stake]
 >
 > **Empty outcomes:** [only when Orient flagged any — per outcome: break down now, file a first action, or confirm it's intentionally a sketch]
+>
+> **🧭 Toolmaking:** [tickable lines · lines added under the norm · the one stall nudge — or "unreachable, not shown"]
 >
 > **Insight to capture for the future:** [one dense paragraph to contribute]
 >
