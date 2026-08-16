@@ -278,3 +278,135 @@ def test_doctor_released_claim_not_stale(bon_dir):
     result = run_bon("doctor", cwd=bon_dir)
     assert result.returncode == 0
     assert "Stale claims" not in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Duplicate sibling orders — detection, and repair via --fix (bon-tagoje)
+# ---------------------------------------------------------------------------
+
+def _new_standalone(bon_dir, title):
+    r = run_bon("new", "-q", cwd=bon_dir,
+                input=json.dumps({"type": "action", "title": title,
+                                  "brief": {"why": "w", "what": "x", "done": "d"}}))
+    assert r.returncode == 0, r.stderr
+    return r.stdout.strip()
+
+
+def _set_fields(bon_dir, item_id, **fields):
+    """Hand-edit stored fields — mint the dup the mover can't repair."""
+    path = bon_dir / ".bon" / "items.jsonl"
+    lines = []
+    for line in path.read_text().splitlines():
+        item = json.loads(line)
+        if item["id"] == item_id:
+            item.update(fields)
+        lines.append(json.dumps(item, ensure_ascii=False))
+    path.write_text("\n".join(lines) + "\n")
+
+
+def _orders(bon_dir):
+    path = bon_dir / ".bon" / "items.jsonl"
+    return {json.loads(l)["id"]: json.loads(l).get("order")
+            for l in path.read_text().splitlines()}
+
+
+class TestOrderDupRepair:
+    def _minted_dup(self, bon_dir):
+        """Four standalones at 1,2,3,4; drag C onto 2 → 1,2,2,3 (B,C share 2).
+
+        created_at is hand-spaced: bon stamps second-resolution timestamps, so
+        same-second twins would otherwise tie and fall to the id lottery —
+        the semantic under test is 'older twin keeps the lower rung'.
+        """
+        a = _new_standalone(bon_dir, "A")
+        b = _new_standalone(bon_dir, "B")
+        c = _new_standalone(bon_dir, "C")
+        d = _new_standalone(bon_dir, "D")
+        for i, item_id in enumerate([a, b, c, d]):
+            _set_fields(bon_dir, item_id, created_at=f"2026-08-16T12:00:0{i}Z")
+        _set_fields(bon_dir, c, order=2)
+        _set_fields(bon_dir, d, order=3)
+        return a, b, c, d
+
+    def test_single_move_reminfs_the_dup(self, bon_dir):
+        """The mover assumes unique orders: repairing a dup with one move
+        re-mints it one rung down (the mit-commons incident, 2026-08-16).
+        This test documents WHY the repair lives in doctor, not the mover."""
+        a, b, c, d = self._minted_dup(bon_dir)
+        r = run_bon("edit", c, "--order", "4", cwd=bon_dir)
+        assert r.returncode == 0, r.stderr
+        orders = _orders(bon_dir)
+        # C escaped to 4, but D was pulled onto the vacated rung where B sits
+        assert orders[b] == 2 and orders[d] == 2, orders
+        vals = sorted(orders.values())
+        assert vals.count(2) == 2  # the dup survives, one rung down
+
+    def test_doctor_reports_dup_with_fix_hint(self, bon_dir):
+        self._minted_dup(bon_dir)
+        r = run_bon("doctor", cwd=bon_dir)
+        assert r.returncode == 0
+        assert "duplicate order values [2]" in r.stdout
+        assert "--fix" in r.stdout  # the issue line names its remedy
+
+    def test_doctor_fix_resequences(self, bon_dir):
+        a, b, c, d = self._minted_dup(bon_dir)
+        r = run_bon("doctor", "--fix", cwd=bon_dir)
+        assert r.returncode == 0, r.stderr
+        assert "Resequenced" in r.stdout
+        orders = _orders(bon_dir)
+        assert sorted(orders.values()) == [1, 2, 3, 4]
+        # (order, created_at) sort: B keeps 2, C (later-created twin) takes 3
+        assert orders[a] == 1 and orders[b] == 2 and orders[c] == 3 and orders[d] == 4
+        # clean on re-run
+        r = run_bon("doctor", cwd=bon_dir)
+        assert "duplicate order" not in r.stdout
+        assert "All clear." in r.stdout
+
+    def test_fix_stamps_only_changed_items(self, bon_dir):
+        a, b, c, d = self._minted_dup(bon_dir)
+        run_bon("doctor", "--fix", cwd=bon_dir)
+        path = bon_dir / ".bon" / "items.jsonl"
+        by_id = {json.loads(l)["id"]: json.loads(l) for l in path.read_text().splitlines()}
+        assert by_id[c]["updated_by"] == "repaired"
+        assert by_id[d]["updated_by"] == "repaired"
+        assert by_id[a].get("updated_by") != "repaired"  # untouched rungs unstamped
+        assert by_id[b].get("updated_by") != "repaired"
+
+    def test_fix_skipped_when_file_unparseable(self, bon_dir):
+        """A repair must not rewrite a file it can't fully read — a malformed
+        line would be silently dropped by a parsed-items rewrite."""
+        self._minted_dup(bon_dir)
+        path = bon_dir / ".bon" / "items.jsonl"
+        before = path.read_text() + "{not json\n"
+        path.write_text(before)
+        r = run_bon("doctor", "--fix", cwd=bon_dir)
+        assert r.returncode == 0
+        assert "malformed JSON" in r.stdout
+        assert "Resequenced" not in r.stdout
+        assert path.read_text() == before  # file untouched
+        assert "duplicate order values" in r.stdout  # still reported, unfixed
+
+    def test_fix_normalises_none_orders_in_group(self, bon_dir):
+        """A resequenced group comes out fully 1..N — None-order siblings
+        sort last and gain real rungs."""
+        a, b, c, d = self._minted_dup(bon_dir)
+        path = bon_dir / ".bon" / "items.jsonl"
+        lines = []
+        for line in path.read_text().splitlines():
+            item = json.loads(line)
+            if item["id"] == a:
+                item.pop("order", None)
+            lines.append(json.dumps(item, ensure_ascii=False))
+        path.write_text("\n".join(lines) + "\n")
+        run_bon("doctor", "--fix", cwd=bon_dir)
+        orders = _orders(bon_dir)
+        assert sorted(orders.values()) == [1, 2, 3, 4]
+        assert orders[a] == 4  # None sorts last
+
+    def test_done_siblings_untouched(self, bon_dir):
+        a, b, c, d = self._minted_dup(bon_dir)
+        run_bon("done", a, cwd=bon_dir)
+        run_bon("doctor", "--fix", cwd=bon_dir)
+        orders = _orders(bon_dir)
+        assert orders[a] == 1  # done item keeps its historical order
+        assert sorted(v for k, v in orders.items() if k != a) == [1, 2, 3]

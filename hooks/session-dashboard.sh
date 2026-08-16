@@ -77,6 +77,14 @@ TRANSCRIPT=$(echo "$HOOK_INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
 SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 PERM_MODE=$(echo "$HOOK_INPUT" | jq -r '.permission_mode // "default"' 2>/dev/null)
 
+# Fallback: CC exports CLAUDE_CODE_SESSION_ID into the session environment
+# (verified live in a plain interactive `cli`-entrypoint session, 2026-08-16).
+# Without it, an empty stdin session_id drops the state key to $$ — a fresh
+# PID every invocation — so state never persists: the turn counter freezes at
+# max-sibling+1 and the one-time "Session restarted" banner fires every turn
+# (bon-numise; the litter tell is a pile of /tmp/.claude-dashboard-<pid> files).
+[ -z "$SESSION_ID" ] && SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+
 # Fallback: if CC didn't provide transcript_path, reconstruct it from session_id.
 # This guards against older CC versions or edge cases where stdin is incomplete.
 if [ -z "$TRANSCRIPT" ] || [ ! -f "$TRANSCRIPT" ]; then
@@ -113,13 +121,15 @@ if [ ! -f "$STATE_FILE" ]; then
         # efficiently, so the accuracy of exact turn counts is worth it.
         PROJECT_DIR="$HOME/.claude/projects/$(pwd | tr '/' '-')"
         if [ -d "$PROJECT_DIR" ]; then
+            # `|| true`: a project dir with no *.jsonl leaves ls at exit 2,
+            # which pipefail would turn into a silent whole-hook death.
             SIBLING_TURNS=$(ls -t "$PROJECT_DIR"/*.jsonl 2>/dev/null \
                 | head -5 \
                 | while read -r f; do
                     [ "$f" = "$TRANSCRIPT" ] && continue
                     jq -r 'select(.type == "user" and (.isMeta | not) and (.toolUseResult == null) and (.message.content | type) == "string") | .type' "$f" 2>/dev/null | wc -l
                 done \
-                | sort -rn | head -1 | tr -d ' ')
+                | sort -rn | head -1 | tr -d ' ' || true)
             if [ "${SIBLING_TURNS:-0}" -gt 5 ] 2>/dev/null; then
                 # There's a substantial recent transcript — this is a resume
                 RECOVERED_TURN=$SIBLING_TURNS
@@ -236,7 +246,12 @@ if [ "$TOTAL_IN" -gt 0 ] 2>/dev/null; then
 fi
 
 # --- Uncommitted files ---
-UNCOMMITTED=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+# `|| true`: outside a git repo `git status` exits 128, pipefail carries it
+# through the substitution, and the ERR trap silently killed the WHOLE hook —
+# every non-repo session ran dashboard-less and fails-open hid it (bon-numise
+# bycatch, 2026-08-16). wc still prints 0 on git's empty stderr-swallowed output.
+UNCOMMITTED=$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ' || true)
+UNCOMMITTED=${UNCOMMITTED:-0}
 
 # --- Current git branch ---
 CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")

@@ -279,11 +279,17 @@ This is what /open synthesizes into understanding.md — repo, craft, and
 architecture knowledge belongs here, including how Claude's own functional
 patterns played out in this work. Lessons that belong in the always-on
 guidance corpus (a trap keyed on its discriminating command, a
-verification-family instance) route differently: don't edit that corpus
-mid-close — it's a live-config repo, one writer at a time. File a bon item
-on the corpus's own board (in this estate: ~/.claude) carrying the proposed
-row text, or a handoff candidate when no writer is reachable. If a lesson is
-genuinely both, split it rather than double-filing.
+verification-family instance) split by what the edit IS (ratified 2026-08-13,
+bon-vinije). A NEW row defers to intake: file a bon item on the corpus's own
+board (in this estate: ~/.claude) carrying the proposed row text, or a
+handoff candidate when no writer is reachable — because intake is the
+corpus's only valve (append-only, no eviction pass) and close-time is the
+documented worst moment for residence judgement (completion drive, token
+pressure, the warm glow). A MECHANICAL CORRECTION of an existing entry — a
+vocabulary row, a dead link, a value that changed — goes straight in: the
+judgement was made at the original intake, and deferring a correction just
+leaves the corpus wrong for longer. If a lesson is genuinely both, split it
+rather than double-filing.
 The test: would future Claudes benefit from knowing this?
 If nothing qualifies, omit this section — filler dilutes understanding.md over time.]
 ```

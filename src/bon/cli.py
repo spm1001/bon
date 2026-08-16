@@ -287,6 +287,30 @@ def check_outcome_language(title: str) -> None:
             return
 
 
+def item_not_found(item_id: str, prefix: str, noun: str = "Item"):
+    """Lookup-miss error that names the board searched and where it resolved.
+
+    A wrong-cwd read returns a clean null that reads exactly like a real
+    absence — the session that filed this had reported a done item as
+    missing because an earlier cd had quietly moved the board under it
+    (bon-vomuzi). Naming the board makes the null self-diagnosing; when the
+    id's own prefix isn't this board's, say the likelier truth outright.
+    """
+    if not prefix:
+        # A caller without board context (validate_edit's default) still errors
+        # cleanly rather than naming a board 'None'.
+        error(f"{noun} '{item_id}' not found")
+    board = f"board '{prefix}' (cwd: {os.getcwd()})"
+    id_prefix = item_id.rsplit("-", 1)[0] if "-" in item_id else None
+    if id_prefix and id_prefix != prefix:
+        error(
+            f"{noun} '{item_id}' not found on {board} — id prefix "
+            f"'{id_prefix}' doesn't match this board: wrong directory?"
+        )
+    error(f"{noun} '{item_id}' not found on {board}")
+
+
+
 # Top-level keys the JSON creation path honours. Anything else is a hard
 # error (bon-gezela): a silently-dropped key looks exactly like success —
 # the contract bon edit already holds (bon-cefisu). Brief subfields
@@ -422,7 +446,7 @@ def cmd_new(args):
         # Validate parent exists and is an outcome
         parent_item = find_by_id(items, parent, prefix)
         if not parent_item:
-            error(f"Parent '{parent}' not found")
+            item_not_found(parent, prefix, noun="Parent")
         if parent_item["type"] != "outcome":
             error(f"Parent must be an outcome, got {parent_item['type']}")
 
@@ -579,7 +603,7 @@ def cmd_show(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
 
     if args.json:
         item_copy = _normalize_brief(item)
@@ -667,7 +691,7 @@ def cmd_done(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
 
     if item["status"] == "done":
         # Don't silently discard a note — when another session (or an
@@ -748,7 +772,7 @@ def cmd_wait(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
 
     # Clear tactical if present (long blocks warrant re-planning)
     if item.get("tactical"):
@@ -793,7 +817,7 @@ def cmd_unwait(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
 
     blocker = getattr(args, "blocker", None)
     if blocker:
@@ -840,7 +864,7 @@ def cmd_someday(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
     if item["status"] == "done":
         error(f"{item['id']} is done — Someday is for open items still wanted, not now")
     # bon wait silently discards tactical progress (a documented landmine);
@@ -882,7 +906,7 @@ def cmd_unsomeday(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
     if not item.get("someday"):
         print(f"{item['id']} is not parked — nothing to do.")
         return
@@ -927,7 +951,7 @@ def validate_edit(original: dict, edited: dict, all_items: list[dict], prefix: s
     if edited.get("parent"):
         parent = find_by_id(all_items, edited["parent"], prefix)
         if not parent:
-            error(f"Parent '{edited['parent']}' not found")
+            item_not_found(edited['parent'], prefix, noun="Parent")
         if parent["type"] != "outcome":
             error(f"Parent must be an outcome, got {parent['type']}")
 
@@ -1106,7 +1130,7 @@ def cmd_edit(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
 
     # Outcomes can't have parents
     if args.parent is not None and item["type"] == "outcome":
@@ -1129,7 +1153,7 @@ def cmd_edit(args):
         else:
             parent_item = find_by_id(items, args.parent, prefix)
             if not parent_item:
-                error(f"Parent '{args.parent}' not found")
+                item_not_found(args.parent, prefix, noun="Parent")
             if parent_item["type"] != "outcome":
                 error(f"Parent must be an outcome, got {parent_item['type']}")
             edited["parent"] = parent_item["id"]
@@ -1212,7 +1236,7 @@ def cmd_convert(args):
     item = find_by_id(items, args.id, prefix)
 
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
 
     if item["type"] == "outcome":
         # Validate parent if given
@@ -1220,7 +1244,7 @@ def cmd_convert(args):
         if args.parent:
             parent = find_by_id(items, args.parent, prefix)
             if not parent:
-                error(f"Parent '{args.parent}' not found")
+                item_not_found(args.parent, prefix, noun="Parent")
             if parent["type"] != "outcome":
                 error(f"Parent must be an outcome, got {parent['type']}")
             new_parent = parent["id"]
@@ -1298,7 +1322,7 @@ def cmd_move(args):
 
     item = find_by_id(items, args.id, prefix)
     if not item:
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
     if item["status"] == "done":
         error(f"{item['id']} is already done — nothing to move")
 
@@ -1410,7 +1434,7 @@ def cmd_archive(args):
         for item_id in args.ids:
             item = find_by_id(items, item_id, prefix)
             if not item:
-                error(f"Item '{item_id}' not found")
+                item_not_found(item_id, prefix)
             if item["status"] != "done":
                 error(f"Cannot archive '{item_id}' — status is {item['status']}, not done")
             to_archive.append(item)
@@ -1476,7 +1500,7 @@ def cmd_reopen(args):
             save_items(items)
             print(f"Reopened: {archive_item['id']} (restored from archive)")
             return
-        error(f"Item '{args.id}' not found")
+        item_not_found(args.id, prefix)
 
     if item["status"] != "done":
         error(f"Item '{args.id}' is already open")
@@ -1686,7 +1710,7 @@ def cmd_work(args):
         if work_id:
             target = find_by_id(items, work_id, prefix)
             if not target:
-                error(f"Item '{work_id}' not found")
+                item_not_found(work_id, prefix)
         else:
             target = find_active_tactical(items, session=session)
             if not target:
@@ -1728,7 +1752,7 @@ def cmd_work(args):
         if work_id:
             target = find_by_id(items, work_id, prefix)
             if not target:
-                error(f"Item '{work_id}' not found")
+                item_not_found(work_id, prefix)
             tactical = target.get("tactical")
             if not tactical:
                 return  # Silent success
@@ -1759,7 +1783,7 @@ def cmd_work(args):
 
     item = find_by_id(items, work_id, prefix)
     if not item:
-        error(f"Item '{work_id}' not found")
+        item_not_found(work_id, prefix)
     if item["type"] == "outcome":
         # Helpful error: show child actions or suggest creating one
         children = sorted(
@@ -2112,6 +2136,47 @@ def _stale_claim_lines(items, days=STALE_CLAIM_DAYS):
     return lines
 
 
+def _order_dup_groups(items):
+    """Sibling groups (open actions, keyed by parent) holding duplicate orders.
+
+    Returns {parent_id_or_None: (siblings, sorted_dup_values)}.
+    """
+    from collections import defaultdict
+    groups: dict = defaultdict(list)
+    for item in items:
+        if item.get("type") == "action" and item.get("status") == "open":
+            groups[item.get("parent")].append(item)
+    dup_groups = {}
+    for parent_id, siblings in groups.items():
+        orders = [s.get("order") for s in siblings if s.get("order") is not None]
+        dupes = sorted({o for o in orders if orders.count(o) > 1})
+        if dupes:
+            dup_groups[parent_id] = (siblings, dupes)
+    return dup_groups
+
+
+def _resequence_siblings(siblings):
+    """Renumber a sibling group 1..N by (order, created_at); returns changed items.
+
+    The mover (apply_reorder) legitimately assumes unique sibling orders, so a
+    repair built from single moves re-mints the dup one rung down — three
+    times in a row in the live incident (bon-tagoje). The repair is therefore
+    a whole-group renumber where detection lives. None orders sort last and
+    gain real rungs, so a repaired group comes out fully 1..N.
+    """
+    ordered = sorted(siblings, key=lambda s: (
+        s.get("order") if s.get("order") is not None else DEFAULT_ORDER,
+        s.get("created_at") or "",
+        s.get("id") or "",  # created_at is second-resolution — same-second twins need a deterministic tie-break
+    ))
+    changed = []
+    for n, s in enumerate(ordered, 1):
+        if s.get("order") != n:
+            s["order"] = n
+            changed.append(s)
+    return changed
+
+
 def cmd_doctor(args):
     """Check items.jsonl for health issues."""
     check_initialized()
@@ -2146,6 +2211,19 @@ def cmd_doctor(args):
             parent_id = item.get("parent")
             if parent_id and parent_id not in all_ids:
                 issues.append(f"{item['id']}: parent '{parent_id}' does not exist")
+        dup_groups = _order_dup_groups(items)
+        if dup_groups and getattr(args, "fix", False):
+            for parent_id, (siblings, dupes) in sorted(dup_groups.items(), key=lambda kv: str(kv[0])):
+                for it in _resequence_siblings(siblings):
+                    it["updated_at"] = now_iso()
+                    it["updated_by"] = "repaired"
+                label = parent_id or "standalone"
+                print(f"Resequenced {len(siblings)} sibling(s) under {label} (duplicate orders were {dupes}).")
+            save_items(items)
+        elif dup_groups:
+            for parent_id, (_siblings, dupes) in sorted(dup_groups.items(), key=lambda kv: str(kv[0])):
+                label = parent_id or "standalone"
+                issues.append(f"under {label}: duplicate order values {dupes} — `bon doctor --fix` resequences")
         if issues:
             for issue in issues:
                 print(f"  {issue}")
@@ -2175,6 +2253,9 @@ def cmd_doctor(args):
     # --- Phase 1: Raw-file checks ---
     seen_ids: dict[str, list[int]] = {}  # id -> list of line numbers
     parsed_items: list[tuple[int, dict]] = []  # (line_num, item)
+    # Any phase-1 hit makes a rewrite unsafe: a repair that saves parsed items
+    # would silently drop the very lines doctor couldn't read.
+    file_unsafe = False
 
     for line_num, line in enumerate(lines, 1):
         stripped = line.strip()
@@ -2184,6 +2265,7 @@ def cmd_doctor(args):
         # Git conflict markers
         if stripped.startswith(("<<<<<<", "======", ">>>>>>")):
             issues.append(f"line {line_num}: git conflict marker")
+            file_unsafe = True
             continue
 
         # Malformed JSON
@@ -2191,6 +2273,7 @@ def cmd_doctor(args):
             item = json.loads(stripped)
         except json.JSONDecodeError as e:
             issues.append(f"line {line_num}: malformed JSON — {e}")
+            file_unsafe = True
             continue
 
         parsed_items.append((line_num, item))
@@ -2205,6 +2288,7 @@ def cmd_doctor(args):
         if len(line_nums) > 1:
             nums = ", ".join(str(n) for n in line_nums)
             issues.append(f"duplicate ID '{item_id}' on lines {nums}")
+            file_unsafe = True
 
     # --- Phase 2: Per-item schema checks ---
     valid_items: list[dict] = []
@@ -2291,19 +2375,31 @@ def cmd_doctor(args):
                 if b.rsplit("-", 1)[0] in board_prefixes and b not in all_ids:
                     issues.append(f"{item['id']}: waiting_for '{b}' does not exist")
 
-    # Check order gaps/duplicates among siblings
-    from collections import defaultdict
-    siblings_by_parent: dict[str | None, list[dict]] = defaultdict(list)
-    for item in valid_items:
-        if item.get("type") == "action" and item.get("status") == "open":
-            siblings_by_parent[item.get("parent")].append(item)
-
-    for parent_id, siblings in siblings_by_parent.items():
-        orders = [s.get("order") for s in siblings if s.get("order") is not None]
-        if len(orders) != len(set(orders)):
-            dupes = [o for o in orders if orders.count(o) > 1]
+    # Duplicate orders among siblings (open actions per parent-group). Repair
+    # lives here, with detection, because the mover can't do it: bon edit
+    # --order assumes unique sibling orders and re-mints the dup one rung
+    # down (bon-tagoje).
+    dup_groups = _order_dup_groups(valid_items)
+    if dup_groups and getattr(args, "fix", False) and not file_unsafe:
+        # Repair through the canonical load/save path (atomic, deduped) —
+        # safe exactly because phase 1 found nothing it couldn't parse.
+        fresh = load_items()
+        for parent_id, (siblings, dupes) in sorted(
+            _order_dup_groups(fresh).items(), key=lambda kv: str(kv[0])
+        ):
+            for it in _resequence_siblings(siblings):
+                it["updated_at"] = now_iso()
+                it["updated_by"] = "repaired"
             label = parent_id or "standalone"
-            issues.append(f"under {label}: duplicate order values {sorted(set(dupes))}")
+            print(f"Resequenced {len(siblings)} sibling(s) under {label} (duplicate orders were {dupes}).")
+        save_items(fresh)
+    elif dup_groups:
+        if getattr(args, "fix", False) and file_unsafe:
+            print("Skipping order resequence: fix the file-level issues above first "
+                  "(a rewrite would drop what doctor can't parse).")
+        for parent_id, (_siblings, dupes) in sorted(dup_groups.items(), key=lambda kv: str(kv[0])):
+            label = parent_id or "standalone"
+            issues.append(f"under {label}: duplicate order values {dupes} — `bon doctor --fix` resequences")
 
     # --- Output ---
     if issues:

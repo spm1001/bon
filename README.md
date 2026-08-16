@@ -95,7 +95,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `list [--ready\|--waiting\|--all] [--limit N] [--group-by area] [--area A]` | Show items hierarchically, optionally grouped or filtered by area |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
-| `doctor [--fix]` | Check board health; `--fix` refreshes a stale `.bon/README.md` |
+| `doctor [--fix]` | Check board health; `--fix` refreshes a stale `.bon/README.md` and resequences duplicate sibling orders |
 | `wait ID REASON [--replace]` | Mark as waiting — appends to existing blockers and prints the resulting list; `--replace` overwrites them |
 | `unwait ID [BLOCKER] [--note]` | Clear waiting status; `--note` records why the block lifted (stored as `released_note`, cleared by the next `wait`) |
 | `someday ID CONDITION` | Park Someday/Maybe with a revisit condition (leaves default views) |

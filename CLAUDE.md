@@ -259,6 +259,7 @@ which made a shell-mangled closing note permanent.
 | Interactive mode untested | Test with `input=` parameter |
 | Mixed-case IDs (bon-huHida) | Pre-lowercase legacy. IDs are immutable — don't try to rename |
 | Changing schema fields | bon-read.sh reads items.jsonl directly with jq |
+| Repairing duplicate sibling orders with `bon edit --order` | `--order` is a positional MOVE, not raw assignment — it assumes unique sibling orders, so each single-move "repair" re-mints the dup one rung down. `bon doctor --fix` resequences the group 1..N (by order, then created_at); repair lives with detection (bon-tagoje) |
 | Releasing a tactical claim | `bon work --release` keeps steps+current and sets `tactical.released`; `--clear` discards. `_tactical_is_active()` in storage.py is the single gate — released is not active, so it can't block, inject, or read as orphaned. The two raw-JSONL readers (`scripts/bon-read.sh`, `hooks/bon-tactical.sh`) each need the check independently; they bypass storage.py |
 | Adding a nested tactical key | Put it INSIDE the tactical object, not beside it as an item column. `tactical` round-trips as one opaque JSON value, so a nested key survives a write by an older client — where a new top-level column is stripped by the fixed `_ITEM_COLUMNS` list (the someday-decay lesson, one level deeper) |
 | Tactical lookup ignoring session | Always pass `session=os.getcwd()` to `find_active_tactical()`. Omitting it returns only unscoped (legacy) tacticals. |

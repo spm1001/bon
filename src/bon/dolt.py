@@ -14,6 +14,7 @@ from bon.storage import (
     _most_recent_timestamp,
     error,
     get_creator,
+    load_prefix,
     now_iso,
     validate_item,
 )
@@ -445,7 +446,7 @@ def dolt_load_items(prefix: str | None = None) -> list[dict]:
     Deduplicates by ID (same contract as JSONL load_items).
     """
     conn = _get_connection()
-    prefix = prefix or _dolt_load_prefix_local()
+    prefix = prefix or load_prefix()
 
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM items WHERE id LIKE %s", (f"{prefix}-%",))
@@ -476,7 +477,7 @@ def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
     Other projects' items are untouched. Produces a Dolt commit.
     """
     conn = _get_connection()
-    prefix = prefix or _dolt_load_prefix_local()
+    prefix = prefix or load_prefix()
 
     # Deduplicate (same contract as JSONL save_items)
     seen: dict[str, dict] = {}
@@ -531,7 +532,7 @@ def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
 def dolt_load_archive(prefix: str | None = None) -> list[dict]:
     """Load archived items for a project prefix from Dolt (default: current repo's)."""
     conn = _get_connection()
-    prefix = prefix or _dolt_load_prefix_local()
+    prefix = prefix or load_prefix()
 
     with conn.cursor() as cur:
         cur.execute("SELECT * FROM archive WHERE id LIKE %s", (f"{prefix}-%",))
@@ -555,7 +556,7 @@ def dolt_append_archive(items: list[dict]) -> None:
         else:
             seen[item_id] = item
 
-    prefix = _dolt_load_prefix_local()
+    prefix = load_prefix()
     rows = [_item_to_row(item, _ARCHIVE_COLUMNS)
             for item in sorted(seen.values(), key=lambda i: i.get("id", ""))]
     for row in rows:
@@ -607,20 +608,6 @@ def dolt_remove_from_archive(item_id: str, prefix: str | None = None) -> dict | 
                 (f"bon reopen {item['id']}", author),
             )
     return item
-
-
-# ---------- prefix ----------
-
-def _dolt_load_prefix_local() -> str:
-    """Load prefix from the local .bon/prefix file.
-
-    Even in Dolt mode, prefix is local — it identifies which project's
-    items to load from the shared database.
-    """
-    path = _data_dir() / "prefix"
-    if path.exists():
-        return path.read_text()
-    return "bon"
 
 
 # ---------- repos mapping table ----------
@@ -698,7 +685,7 @@ def dolt_register_repo(prefix: str | None = None, job: str | None = None) -> boo
     dolt_save_items. Returns True when the row changed.
     """
     conn = _get_connection()
-    prefix = prefix or _dolt_load_prefix_local()
+    prefix = prefix or load_prefix()
     with _write_transaction(conn, "repo registration"):
         with conn.cursor() as cur:
             changed = _register_repo(cur, prefix, job=job)

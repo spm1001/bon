@@ -494,7 +494,7 @@ class TestSaveItemsAtomicity:
 
         cur.execute.side_effect = fail_second_insert
         with patch.object(dolt_mod, "_get_connection", return_value=conn), \
-             patch.object(dolt_mod, "_dolt_load_prefix_local", return_value="test"):
+             patch.object(dolt_mod, "load_prefix", return_value="test"):
             with pytest.raises(BonError, match="rolled back"):
                 dolt_mod.dolt_save_items([self._item("aaa"), self._item("bbb")])
         conn.rollback.assert_called_once()
@@ -506,7 +506,7 @@ class TestSaveItemsAtomicity:
         bad = self._item("aaa")
         bad["title"] = "x" * 501
         with patch.object(dolt_mod, "_get_connection", return_value=conn), \
-             patch.object(dolt_mod, "_dolt_load_prefix_local", return_value="test"):
+             patch.object(dolt_mod, "load_prefix", return_value="test"):
             with pytest.raises(BonError, match="title"):
                 dolt_mod.dolt_save_items([bad])
         conn.cursor.assert_not_called()

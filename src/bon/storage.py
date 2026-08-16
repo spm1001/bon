@@ -12,7 +12,7 @@ from bon.ids import get_siblings
 KNOWN_VERBS = frozenset({
     "edited", "waited", "unwaited", "worked", "stepped",
     "cleared", "archived", "converted", "reopened", "reclaimed",
-    "moved", "parked", "unparked", "released",
+    "moved", "parked", "unparked", "released", "repaired",
 })
 
 # The message in a bottle: written into every board so an agent with none of
