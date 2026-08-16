@@ -26,7 +26,7 @@ class TestSessionIsolation:
             cwd=base,
         )
         assert result.returncode == 0
-        second_id = result.stdout.strip().replace("Created: ", "")
+        second_id = result.stdout.strip().split()[-1]
 
         # Session A (base dir): work on bon-ccc
         result = run_bon("work", "bon-ccc", "Step A1", "Step A2", cwd=base)

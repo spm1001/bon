@@ -231,7 +231,7 @@ Same auto-detection, same reason — flag quoting mangles briefs carrying quotes
 backticks or `$`, and a mangled field looks exactly like an edited one.
 
 1. **JSON stdin (default for piped input)**: No edit flag + stdin piped → reads JSON.
-2. **Flags**: any of `--title/--outcome/--why/--how/--what/--done/--note/--order`.
+2. **Flags**: any of `--title/--outcome/--why/--how/--append-how/--what/--done/--note/--order/--area`.
 3. **Explicit `--json`**: forces the stdin path; an empty stdin errors here rather
    than falling through.
 

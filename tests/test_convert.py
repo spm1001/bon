@@ -346,3 +346,25 @@ class TestConvertUpdatedAt:
 
         assert "updated_at" in items["bon-ccc"]
         assert ISO_RE.match(items["bon-ccc"]["updated_at"])
+
+
+def test_convert_quiet_prints_id_only(bon_dir):
+    r = run_bon("new", "Shrinking promise", "--why", "w", "--what", "x",
+                "--done", "d", "-q", cwd=bon_dir)
+    oid = r.stdout.strip()
+    r = run_bon("convert", oid, "-q", cwd=bon_dir)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == oid
+
+
+def test_convert_outcome_none_means_standalone(bon_dir):
+    """`none` means standalone in `bon edit --parent none` — convert honours
+    the same spelling instead of looking up an item called 'none' (siciri)."""
+    r = run_bon("new", "Meant as an action", "--why", "w", "--what", "x",
+                "--done", "d", "-q", cwd=bon_dir)
+    oid = r.stdout.strip()
+    r = run_bon("convert", oid, "--outcome", "none", cwd=bon_dir)
+    assert r.returncode == 0, r.stderr
+    r = run_bon("show", oid, "--json", cwd=bon_dir)
+    d = json.loads(r.stdout)
+    assert d["type"] == "action" and d["parent"] is None

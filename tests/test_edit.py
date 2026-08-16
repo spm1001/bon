@@ -545,3 +545,65 @@ class TestEditNote:
         assert result.returncode == 1
         assert "still open" in result.stderr
         assert "bon done bon-ccc --note" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# --append-how — atomic annotation (bon-siciri verdict b)
+# ---------------------------------------------------------------------------
+# Annotating an item used to mean hand-rolled read-modify-write on --how,
+# whose failure mode is silent replacement (carte-vudusu). Append is a verb.
+
+def _mk(bon_dir, how=None):
+    args = ["new", "Annotated things stay whole", "--why", "w", "--what", "x",
+            "--done", "d", "-q"]
+    if how:
+        args += ["--how", how]
+    r = run_bon(*args, cwd=bon_dir)
+    assert r.returncode == 0, r.stderr
+    return r.stdout.strip()
+
+
+def _how_of(bon_dir, item_id):
+    r = run_bon("show", item_id, "--json", cwd=bon_dir)
+    return json.loads(r.stdout)["brief"]["how"]
+
+
+class TestAppendHow:
+    def test_append_to_existing(self, bon_dir):
+        oid = _mk(bon_dir, how="Original approach.")
+        r = run_bon("edit", oid, "--append-how", "UPDATE: new fact.", cwd=bon_dir)
+        assert r.returncode == 0, r.stderr
+        assert _how_of(bon_dir, oid) == "Original approach.\n\nUPDATE: new fact."
+
+    def test_append_to_absent_sets(self, bon_dir):
+        oid = _mk(bon_dir)
+        r = run_bon("edit", oid, "--append-how", "First note.", cwd=bon_dir)
+        assert r.returncode == 0, r.stderr
+        assert _how_of(bon_dir, oid) == "First note."
+
+    def test_append_via_json_stdin(self, bon_dir):
+        oid = _mk(bon_dir, how="Base.")
+        r = run_bon("edit", oid, cwd=bon_dir,
+                    input='{"append_how": "Quotes \\"survive\\" the pipe."}')
+        assert r.returncode == 0, r.stderr
+        assert _how_of(bon_dir, oid) == 'Base.\n\nQuotes "survive" the pipe.'
+
+    def test_conflict_with_how_errors(self, bon_dir):
+        oid = _mk(bon_dir, how="Base.")
+        r = run_bon("edit", oid, "--how", "X", "--append-how", "Y", cwd=bon_dir)
+        assert r.returncode == 1
+        assert "ambiguous" in r.stderr
+        assert _how_of(bon_dir, oid) == "Base."  # untouched
+
+    def test_empty_append_errors(self, bon_dir):
+        oid = _mk(bon_dir, how="Base.")
+        r = run_bon("edit", oid, "--append-how", "  ", cwd=bon_dir)
+        assert r.returncode == 1
+        assert _how_of(bon_dir, oid) == "Base."
+
+    def test_works_on_done_items(self, bon_dir):
+        oid = _mk(bon_dir, how="Base.")
+        run_bon("done", oid, cwd=bon_dir)
+        r = run_bon("edit", oid, "--append-how", "Post-close note.", cwd=bon_dir)
+        assert r.returncode == 0, r.stderr
+        assert _how_of(bon_dir, oid).endswith("Post-close note.")

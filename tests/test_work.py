@@ -232,7 +232,7 @@ class TestWorkSerialEnforcement:
         assert result.returncode == 0
 
         # Get the new action ID
-        new_id = result.stdout.strip().replace("Created: ", "")
+        new_id = result.stdout.strip().split()[-1]
 
         # Now try to work on the new action
         result = run_bon("work", new_id, "Step 1", cwd=bon_dir_with_fixture)

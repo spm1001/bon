@@ -88,7 +88,7 @@ class TestStepUnblocksWaiters:
             cwd=bon_dir_with_fixture
         )
         assert result.returncode == 0
-        waiter_id = result.stdout.strip().replace("Created: ", "")
+        waiter_id = result.stdout.strip().split()[-1]
 
         # Mark it as waiting for bon-child
         result = run_bon("wait", waiter_id, "bon-child", cwd=bon_dir_with_fixture)
@@ -254,7 +254,7 @@ class TestStepNoComplete:
             "--why", "Test", "--what", "Test", "--done", "Test",
             cwd=bon_dir_with_fixture
         )
-        waiter_id = result.stdout.strip().replace("Created: ", "")
+        waiter_id = result.stdout.strip().split()[-1]
         run_bon("wait", waiter_id, "bon-child", cwd=bon_dir_with_fixture)
 
         # Complete all steps with --no-complete

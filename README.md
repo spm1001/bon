@@ -100,10 +100,10 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `unwait ID [BLOCKER] [--note]` | Clear waiting status; `--note` records why the block lifted (stored as `released_note`, cleared by the next `wait`) |
 | `someday ID CONDITION` | Park Someday/Maybe with a revisit condition (leaves default views) |
 | `unsomeday ID` | Unpark a Someday item |
-| `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order, area, closing note) — or pipe JSON to stdin |
+| `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order, area, closing note) — or pipe JSON to stdin. `--append-how` annotates atomically |
 | `work ID [STEPS...] [--status\|--release\|--clear\|--force]` | Manage tactical steps for an action (`--release` hands back the claim keeping progress; `--clear` discards it) |
 | `step` | Complete current step, advance to next |
-| `convert ID [--outcome P] [--force]` | Convert outcome↔action |
+| `convert ID [--outcome P\|none] [--force] [-q]` | Convert outcome↔action (`none` = standalone, as in edit) |
 | `move ID --to REPO` | Move item to another repo's board (new ID there, source closed with cross-reference) |
 | `archive [IDs...] [--all]` | Move done items to archive.jsonl |
 | `log [-n N]` | Show recent activity (creations, completions, archives) |

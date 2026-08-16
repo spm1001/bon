@@ -74,6 +74,40 @@ Every edge-tier verb supports `--json`. Rendered text is for humans and text-fir
 
 A backend without the tactical tier still satisfies the category — the rite degrades to edge-only (orientation and capture, no draw-down). A vehicle that finds the tier present may use it; one that doesn't loses checkpointing, not correctness.
 
+## The caller-mistake ladder
+
+The surface's only users are models, so how a verb behaves when its caller's
+priors misfire is contract, not polish (adjudicated 2026-08-16, bon-siciri,
+triangulated against the tool-ergonomics room's diagnostic — 300,637 estate
+tool calls). Four responses, ascending:
+
+1. **Absorb silently — never.** A silently-accepted mistake looks exactly like
+   success, and worse: the forgiving harness is the training mechanism behind
+   slop itself — malformed calls that still complete still get rewarded
+   (Ronacher, "Better Models: Worse Tools"). Absorbing mistakes manufactures
+   the next generation's bad priors.
+2. **Refuse loudly, naming the right move.** The floor, and it is cheap:
+   measured estate-wide, 76% of genuine errors succeed on the very next call —
+   a clean refusal costs one retry. The error text is the teaching surface;
+   no skill text is guaranteed loaded.
+3. **Coach.** Accept, warn, proceed — for input the caller might genuinely
+   mean (a falsifier on an action, an area on a parented action).
+4. **Bend the grammar to the prior — and say so.** Earned only when the prior
+   is strong and the intent unambiguous (JSON-on-stdin; `--parent` aliasing
+   `--outcome`; `convert --outcome none`, a prior bon's own `edit` taught).
+   A repair must be REPORTED in the tool result ("accepted `oldText` as
+   `old`; canonical is `old`") — the tool result is the only channel that
+   reaches the next cold session. Silent bending is rung 1 by another route.
+
+Choosing a rung from evidence: a **stable** wrong grammar across callers is a
+naming mismatch — bend to it; a **zoo** of different mistakes is a structural
+ambiguity — refuse better. And a mistake that produces no error at all (the
+bare-`new` outcome-mint) is invisible to transcript mining, so its fix is
+announcement — making the outcome watchable is instrumentation, not courtesy.
+
+Theory and estate measurements: `~/notes/practices/tool-ergonomics/brief.md`
+and `diagnostic-2026-08-16.md` in that room.
+
 ## Ownership
 
 `.bon/` is shared real estate: the docket owns the registry files inside it; the vehicle parks its session tissue there for git-tracking convenience. Ownership is by artifact, not by directory.

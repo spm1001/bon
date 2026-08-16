@@ -18,7 +18,7 @@ class TestNewOutcome:
         )
 
         assert result.returncode == 0
-        assert "Created:" in result.stdout
+        assert "Created" in result.stdout
 
         # Verify the item was saved
         items = json.loads((bon_dir / ".bon" / "items.jsonl").read_text().strip())
@@ -182,7 +182,7 @@ class TestOutcomeLanguageLint:
         )
 
         assert result.returncode == 0
-        assert "Created:" in result.stdout
+        assert "Created" in result.stdout
         assert "activity, not achievement" in result.stderr
 
     def test_achievement_language_no_warning(self, bon_dir, monkeypatch):
@@ -253,7 +253,7 @@ class TestOutcomeLanguageLint:
         )
 
         assert result.returncode == 0
-        assert "Created:" in result.stdout
+        assert "Created" in result.stdout
 
         item = json.loads((bon_dir / ".bon" / "items.jsonl").read_text().strip())
         assert item["title"] == "Add rate limiting"
@@ -274,7 +274,7 @@ class TestNewJsonStdin:
         result = run_bon("new", "--json", cwd=bon_dir, input=data)
 
         assert result.returncode == 0
-        assert "Created:" in result.stdout
+        assert "Created" in result.stdout
 
         item = json.loads((bon_dir / ".bon" / "items.jsonl").read_text().strip())
         assert item["type"] == "outcome"
@@ -363,7 +363,7 @@ class TestNewJsonStdin:
 
         assert result.returncode == 0
         assert result.stdout.strip().startswith("bon-")
-        assert "Created:" not in result.stdout
+        assert "Created" not in result.stdout
 
     def test_json_with_how(self, bon_dir, monkeypatch):
         """Optional how field preserved via JSON."""
@@ -409,7 +409,7 @@ class TestNewJsonStdin:
         result = run_bon("new", cwd=bon_dir, input=data)
 
         assert result.returncode == 0
-        assert "Created:" in result.stdout
+        assert "Created" in result.stdout
 
         item = json.loads((bon_dir / ".bon" / "items.jsonl").read_text().strip())
         assert item["title"] == "Implicit JSON"
@@ -447,7 +447,7 @@ class TestNewJsonStdin:
 
         assert result.returncode == 0
         assert result.stdout.strip().startswith("bon-")
-        assert "Created:" not in result.stdout
+        assert "Created" not in result.stdout
 
 
 class TestStandaloneAction:
@@ -753,3 +753,24 @@ class TestNewJsonKeyContract:
         created = next(i for i in _read_items(bon_dir) if i["title"] == "Child via alias")
         assert created["type"] == "action"
         assert created["parent"] == outcome_id
+
+
+class TestSpeciesAnnouncement:
+    """A bare `bon new TITLE` mints an OUTCOME with no error — the species in
+    the confirmation is the only signal (bon-siciri verdict c)."""
+
+    def test_outcome_named(self, bon_dir):
+        r = run_bon("new", "Things improve", "--why", "w", "--what", "x",
+                    "--done", "d", cwd=bon_dir)
+        assert "Created outcome:" in r.stdout
+
+    def test_action_named(self, bon_dir):
+        r = run_bon("new", cwd=bon_dir,
+                    input='{"type":"action","title":"Loud action","brief":{"why":"w","what":"x","done":"d"}}')
+        assert "Created action:" in r.stdout
+
+    def test_quiet_still_id_only(self, bon_dir):
+        r = run_bon("new", "Quiet outcome", "--why", "w", "--what", "x",
+                    "--done", "d", "-q", cwd=bon_dir)
+        assert r.stdout.strip().startswith("bon-")
+        assert "Created" not in r.stdout

@@ -224,21 +224,24 @@ printf '%s' '{"how": "Redis locks. Do not touch auth middleware."}' | bon edit b
 ```
 
 Brief fields work nested under `"brief"` or flat at the top level; an unrecognised key
-is an error rather than a silent no-op. `"how": ""` clears the field. Appending to an
-existing field is a read-modify-write — and note the stdin collision the shell-escaping
-section below describes, so read the current value with `python3 -c`, never a heredoc:
+is an error rather than a silent no-op. `"how": ""` clears the field.
+
+**Annotating an item — appending to `--how` — is its own verb, never a
+read-modify-write:**
 
 ```bash
-bon show bon-zovili --json | python3 -c '
-import json, subprocess, sys
-how = json.load(sys.stdin)["brief"]["how"] + "\n\nUPDATE: ..."
-subprocess.run(["bon", "edit", "bon-zovili", "--how", how], check=True)'
+bon edit bon-zovili --append-how "UPDATE: blocked on the API rename, resuming after."
+printf '%s' '{"append_how": "Text with \"quotes\" survives the pipe."}' | bon edit bon-zovili
 ```
 
-That `subprocess.run` with an argument **list** is the belt-and-braces form for
-scripted edits: no shell is involved, so quotes and backticks cannot be reinterpreted
-by anything. Read the field back and assert it matches — intent to encode is not
-execution of encoding.
+The append is atomic (sets the field when absent, joins with a blank line when
+present). The old recipe — read the field, concatenate in python, write it back
+with `--how` — silently REPLACES the field when any step misfires, which is how
+a correction once destroyed the accurate half of another session's brief
+(carte-vudusu). If you must script other whole-field edits, call bon via
+`subprocess.run` with an argument **list** (no shell, so quotes can't be
+reinterpreted), and read the field back — intent to encode is not execution
+of encoding.
 
 **Repairing a closing note:** `bon done ID --note` refuses to overwrite a note that's
 already there, so a note mangled by shell quoting used to be permanent. `bon edit ID

@@ -507,9 +507,14 @@ def cmd_new(args):
     if args.quiet:
         print(item["id"])
     elif waiting_for:
-        print(f"Created: {item['id']} (waiting for: {', '.join(waiting_for)})")
+        # The species leads: a bare `bon new TITLE` mints an OUTCOME, and a
+        # caller who meant an action gets no error — the announcement is the
+        # only signal that converts that silent absorption into a watchable
+        # outcome (bon-siciri; the mistake class is invisible to transcript
+        # mining precisely because nothing fails).
+        print(f"Created {item['type']}: {item['id']} (waiting for: {', '.join(waiting_for)})")
     else:
-        print(f"Created: {item['id']}")
+        print(f"Created {item['type']}: {item['id']}")
 
 
 def cmd_list(args):
@@ -1014,7 +1019,7 @@ def cmd_status(args):
 # remove. Unknown keys are a hard error for the same reason; a typo that
 # quietly drops a field is worse than one that stops.
 EDIT_BRIEF_KEYS = ("why", "how", "what", "done", "badly")
-EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief", "area")
+EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief", "area", "append_how")
 
 
 def edit_args_from_stdin(args, *, explicit: bool = False):
@@ -1047,7 +1052,7 @@ def edit_args_from_stdin(args, *, explicit: bool = False):
     if unknown:
         error(
             f"Unknown field(s): {', '.join(sorted(unknown))}\n"
-            "Valid: title, outcome (or parent), order, note, area, "
+            "Valid: title, outcome (or parent), order, note, area, append_how, "
             "brief{why, how, what, done} — brief fields may also be given flat."
         )
 
@@ -1089,6 +1094,10 @@ def edit_args_from_stdin(args, *, explicit: bool = False):
         if not isinstance(value, str):
             error("'area' must be a string (or null/'' to clear)")
         args.area = value
+    if "append_how" in data:
+        if not isinstance(data["append_how"], str):
+            error("'append_how' must be a string")
+        args.append_how = data["append_how"]
 
 
 def edit_flags_given(args) -> bool:
@@ -1103,6 +1112,7 @@ def edit_flags_given(args) -> bool:
         getattr(args, "badly", None) is not None,
         getattr(args, "note", None) is not None,
         getattr(args, "area", None) is not None,
+        getattr(args, "append_how", None) is not None,
         args.order is not None,
     ])
 
@@ -1122,7 +1132,7 @@ def cmd_edit(args):
     if not edit_flags_given(args):
         error(
             "At least one edit flag required: --title, --outcome, --why, --how, "
-            "--what, --done, --note, --order, --area — or pipe JSON to stdin"
+            "--append-how, --what, --done, --note, --order, --area — or pipe JSON to stdin"
         )
 
     items = load_items()
@@ -1164,6 +1174,18 @@ def cmd_edit(args):
             edited["brief"]["how"] = args.how
         else:
             edited["brief"].pop("how", None)
+    if getattr(args, "append_how", None) is not None:
+        # Annotating an item used to mean a hand-rolled read-modify-write on
+        # --how, whose failure mode is silently replacing the field (the
+        # carte-vudusu destruction shape). This does the append atomically.
+        if args.how is not None:
+            error("--how and --append-how together are ambiguous — pick one")
+        if not args.append_how.strip():
+            error("--append-how needs text (to clear the field, use --how '')")
+        existing = edited["brief"].get("how")
+        edited["brief"]["how"] = (
+            f"{existing}\n\n{args.append_how}" if existing else args.append_how
+        )
     if args.what:
         edited["brief"]["what"] = args.what
     if args.done:
@@ -1239,8 +1261,13 @@ def cmd_convert(args):
         item_not_found(args.id, prefix)
 
     if item["type"] == "outcome":
-        # Validate parent if given
+        # Validate parent if given. "none" means standalone, matching
+        # `bon edit --parent none` — bon taught that spelling, so rejecting
+        # it here was our own grammar contradicting itself (bon-siciri: the
+        # rejection sent a session on a needless three-verb dance).
         old_parent = None
+        if args.parent and args.parent.lower() == "none":
+            args.parent = None
         if args.parent:
             parent = find_by_id(items, args.parent, prefix)
             if not parent:
@@ -1291,7 +1318,10 @@ def cmd_convert(args):
     item["updated_at"] = now_iso()
     item["updated_by"] = "converted"
     save_items(items)
-    print(f"Converted {item['id']} to {item['type']}")
+    if getattr(args, "quiet", False):
+        print(item["id"])
+    else:
+        print(f"Converted {item['id']} to {item['type']}")
 
 
 def _resolve_target_repo(to: str) -> Path:
@@ -2522,6 +2552,8 @@ def main():
     edit_parser.add_argument("--order", type=int, help="New order within parent")
     edit_parser.add_argument("--note", help="New closing note (done items only; '' clears)")
     edit_parser.add_argument("--area", help="New area ('' clears)")
+    edit_parser.add_argument("--append-how", dest="append_how",
+                             help="Append a paragraph to brief.how (atomic — no read-modify-write)")
     edit_parser.add_argument("--json", action="store_true", dest="json_input",
                              help="Read fields as JSON from stdin (the default when stdin is piped and no flag is given)")
     add_output_flags(edit_parser, quiet=True)
@@ -2552,6 +2584,7 @@ def main():
     convert_parser = subparsers.add_parser("convert", help="Convert outcome↔action")
     convert_parser.add_argument("id", help="Item ID to convert")
     convert_parser.add_argument("--outcome", "--parent", "-p", dest="parent", help="Parent outcome (required for outcome→action)")
+    add_output_flags(convert_parser, quiet=True)
     convert_parser.add_argument("--force", "-f", action="store_true",
                                 help="Allow converting outcome with children (makes them standalone)")
     convert_parser.set_defaults(func=cmd_convert)
