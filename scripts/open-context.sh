@@ -14,9 +14,11 @@ fi
 if date -d '2000-01-01' +%s &>/dev/null; then
     date_to_epoch() { date -d "$1" +%s; }
     epoch_day() { date -d "@$1" +%Y-%m-%d; }
+    epoch_hhmm() { date -d "@$1" +%H%M; }
 else
     date_to_epoch() { date -j -f '%Y-%m-%d' "$1" +%s; }
     epoch_day() { date -r "$1" +%Y-%m-%d; }
+    epoch_hhmm() { date -r "$1" +%H%M; }
 fi
 
 # === PREVIEW BUDGET (bon-peluge, bon-tebete) ===
@@ -95,18 +97,24 @@ LATEST_PURPOSE=""
 LATEST_STR=""
 
 # Rank by the date in the handoff header ("# Handoff — YYYY-MM-DD"), with
-# mtime only breaking same-day ties: a fresh clone flattens every mtime to
-# checkout time, so mtime-first picks an arbitrary (often ancient) handoff.
+# write-time breaking same-day ties: the filename's HHMM where the v4 scheme
+# (YYYY-MM-DD-HHMM-…) carries one, else HHMM derived from mtime, then raw
+# mtime. Never mtime-first: a fresh clone flattens every mtime to checkout
+# time, so mtime-first picks an arbitrary (often ancient) handoff — and the
+# same flattening is why a filename HHMM outranks the mtime-derived one on
+# same-day ties (notes-sovike).
 # Emits "sortkey|path"; header-less files rank by mtime alone at the bottom.
 find_latest_in() {
-    local dir="$1" best_key="" best_file="" f d mt key
+    local dir="$1" best_key="" best_file="" f d mt hm key
     [ -d "$dir" ] || return 0
     for f in "$dir"/*.md; do
         [ -e "$f" ] || continue
         d=$(sed -n 's/^# Handoff — \([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/p' "$f" 2>/dev/null | head -1)
         [ -z "$d" ] && d="0000-00-00"
         mt=$(file_mtime "$f")
-        key=$(printf '%s.%012d' "$d" "$mt")
+        hm=$(basename "$f" | sed -n 's/^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-\([0-9]\{4\}\)\(-.*\)\{0,1\}\.md$/\1/p')
+        [ -z "$hm" ] && hm=$(epoch_hhmm "$mt")
+        key=$(printf '%s.%s.%012d' "$d" "$hm" "$mt")
         if [ -z "$best_key" ] || [ "$key" \> "$best_key" ]; then
             best_key="$key"
             best_file="$f"

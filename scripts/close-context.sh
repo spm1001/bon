@@ -221,12 +221,19 @@ fi
 echo "SESSION_ID=${SESSION_ID}"
 echo "SESSION_ID_SOURCE=${SESSION_ID_SOURCE}"
 
-# Generate handoff filename: YYYY-MM-DD-{first 8 chars of session ID}.md
+# Generate handoff filename: YYYY-MM-DD-HHMM-{first 8 chars of session ID}.md
+# (v4, notes-sovike: HHMM so same-day siblings sort chronologically under a
+# plain `ls` — the id8 is random, so without it the SUPERSEDED file could sort
+# last. The reader also prefers this filename time over mtime on same-day
+# ties, because clones and sync rebases flatten mtimes.)
 TODAY=$(date +%Y-%m-%d)
+# BON_TEST_NOW_HM: tests pin the minute so expected filenames aren't a race
+# against the wall clock (same seam as the HOME isolation they already use).
+NOW_HM="${BON_TEST_NOW_HM:-$(date +%H%M)}"
 if [ -n "$SESSION_ID" ]; then
-    HANDOFF_BASE="${TODAY}-${SESSION_ID:0:8}"
+    HANDOFF_BASE="${TODAY}-${NOW_HM}-${SESSION_ID:0:8}"
 else
-    HANDOFF_BASE="${TODAY}-$(date +%H%M)"
+    HANDOFF_BASE="${TODAY}-${NOW_HM}"
     echo "SESSION_ID_CUE=could not determine this session's id — the filename carries a timestamp instead of a transcript-linkable id. Do NOT invent one: leave session_id blank in the handoff frontmatter and say so in the close summary."
 fi
 

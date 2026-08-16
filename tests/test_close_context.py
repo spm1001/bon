@@ -33,16 +33,18 @@ CLOSE_CONTEXT = REPO_ROOT / "scripts" / "close-context.sh"
 TODAY = date.today().strftime("%Y-%m-%d")
 
 
-def run_close(cwd: Path, home: Path, session_id: str | None = "abcd1234-1111-2222-3333-444444444444") -> dict:
+def run_close(cwd: Path, home: Path, session_id: str | None = "abcd1234-1111-2222-3333-444444444444", now_hm: str = "1200") -> dict:
     """Run close-context.sh from `cwd` and parse its KEY=value output.
 
     HOME is isolated so the global ~/.bon/handoffs fallback can't reach the
     machine's real handoffs. `session_id=None` simulates a harness that does
-    not export CLAUDE_CODE_SESSION_ID.
+    not export CLAUDE_CODE_SESSION_ID. `now_hm` pins the minute the filename
+    carries (v4 scheme) so expectations aren't a race against the wall clock.
     """
     env = {
         "HOME": str(home),
         "PATH": "/usr/local/bin:/usr/bin:/bin",
+        "BON_TEST_NOW_HM": now_hm,
     }
     if session_id is not None:
         env["CLAUDE_CODE_SESSION_ID"] = session_id
@@ -85,7 +87,7 @@ def test_session_id_comes_from_the_harness(tmp_path):
     out = run_close(repo, tmp_path / "home", session_id="feedface-9999-8888-7777-666666666666")
     assert out["SESSION_ID"] == "feedface-9999-8888-7777-666666666666"
     assert out["SESSION_ID_SOURCE"] == "env:CLAUDE_CODE_SESSION_ID"
-    assert out["HANDOFF_FILE"] == f"{TODAY}-feedface.md"
+    assert out["HANDOFF_FILE"] == f"{TODAY}-1200-feedface.md"
 
 
 def test_concurrent_sessions_get_distinct_filenames(tmp_path):
@@ -98,9 +100,27 @@ def test_concurrent_sessions_get_distinct_filenames(tmp_path):
     home = tmp_path / "home"
     a = run_close(repo, home, session_id="aaaaaaaa-1111-1111-1111-111111111111")
     b = run_close(repo, home, session_id="bbbbbbbb-2222-2222-2222-222222222222")
-    assert a["HANDOFF_FILE"] == f"{TODAY}-aaaaaaaa.md"
-    assert b["HANDOFF_FILE"] == f"{TODAY}-bbbbbbbb.md"
+    assert a["HANDOFF_FILE"] == f"{TODAY}-1200-aaaaaaaa.md"
+    assert b["HANDOFF_FILE"] == f"{TODAY}-1200-bbbbbbbb.md"
     assert a["HANDOFF_FILE"] != b["HANDOFF_FILE"]
+
+
+def test_same_day_handoffs_sort_chronologically_under_ls(tmp_path):
+    """notes-sovike: within a day the v3 sort key was the random id8, so the
+    SUPERSEDED handoff could sort last and hand a routing session the stale
+    frame (2026-07-31, sky-transaction). The v4 HHMM makes a plain sorted
+    listing chronological — ids chosen here so v3 would have inverted it.
+    """
+    repo = make_board_repo(tmp_path / "repo")
+    home = tmp_path / "home"
+    first = run_close(repo, home, session_id="zzzzzzzz-1111-1111-1111-111111111111", now_hm="0901")
+    second = run_close(repo, home, session_id="aaaaaaaa-2222-2222-2222-222222222222", now_hm="1813")
+    listing = sorted([first["HANDOFF_FILE"], second["HANDOFF_FILE"]])
+    assert listing == [f"{TODAY}-0901-zzzzzzzz.md", f"{TODAY}-1813-aaaaaaaa.md"], (
+        "newest must sort last under a plain ls"
+    )
+    # The v3 names for the same pair would have sorted stale-last:
+    assert sorted([f"{TODAY}-zzzzzzzz.md", f"{TODAY}-aaaaaaaa.md"])[-1] == f"{TODAY}-zzzzzzzz.md"
 
 
 def test_missing_session_id_fails_loud_rather_than_guessing(tmp_path):
@@ -141,23 +161,23 @@ def test_existing_handoff_is_never_overwritten(tmp_path):
     repo = make_board_repo(tmp_path / "repo")
     handoffs = repo / ".bon" / "handoffs"
     handoffs.mkdir(parents=True)
-    (handoffs / f"{TODAY}-abcd1234.md").write_text("an earlier handoff\n")
+    (handoffs / f"{TODAY}-1200-abcd1234.md").write_text("an earlier handoff\n")
 
     out = run_close(repo, tmp_path / "home")
-    assert out["HANDOFF_FILE_TAKEN"] == f"{TODAY}-abcd1234.md"
-    assert out["HANDOFF_FILE"] == f"{TODAY}-abcd1234-2.md"
-    assert (handoffs / f"{TODAY}-abcd1234.md").read_text() == "an earlier handoff\n"
+    assert out["HANDOFF_FILE_TAKEN"] == f"{TODAY}-1200-abcd1234.md"
+    assert out["HANDOFF_FILE"] == f"{TODAY}-1200-abcd1234-2.md"
+    assert (handoffs / f"{TODAY}-1200-abcd1234.md").read_text() == "an earlier handoff\n"
 
 
 def test_clobber_guard_finds_the_next_free_suffix(tmp_path):
     repo = make_board_repo(tmp_path / "repo")
     handoffs = repo / ".bon" / "handoffs"
     handoffs.mkdir(parents=True)
-    for name in (f"{TODAY}-abcd1234.md", f"{TODAY}-abcd1234-2.md", f"{TODAY}-abcd1234-3.md"):
+    for name in (f"{TODAY}-1200-abcd1234.md", f"{TODAY}-1200-abcd1234-2.md", f"{TODAY}-1200-abcd1234-3.md"):
         (handoffs / name).write_text("x\n")
 
     out = run_close(repo, tmp_path / "home")
-    assert out["HANDOFF_FILE"] == f"{TODAY}-abcd1234-4.md"
+    assert out["HANDOFF_FILE"] == f"{TODAY}-1200-abcd1234-4.md"
 
 
 def test_no_collision_reported_when_the_path_is_free(tmp_path):
@@ -165,7 +185,7 @@ def test_no_collision_reported_when_the_path_is_free(tmp_path):
     (repo / ".bon" / "handoffs").mkdir(parents=True)
     out = run_close(repo, tmp_path / "home")
     assert "HANDOFF_FILE_TAKEN" not in out
-    assert out["HANDOFF_FILE"] == f"{TODAY}-abcd1234.md"
+    assert out["HANDOFF_FILE"] == f"{TODAY}-1200-abcd1234.md"
 
 
 # --- bon-suvise: never route a handoff into a plugin cache -----------------
@@ -251,7 +271,7 @@ def test_ambiguous_still_names_the_handoff_file(tmp_path):
     make_board_repo(bucket / "repo-b")
 
     out = run_close(bucket, tmp_path / "home")
-    assert out["HANDOFF_FILE"] == f"{TODAY}-abcd1234.md"
+    assert out["HANDOFF_FILE"] == f"{TODAY}-1200-abcd1234.md"
 
 
 def test_ambiguous_emits_no_gitignore_flag(tmp_path):

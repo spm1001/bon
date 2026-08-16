@@ -17,10 +17,11 @@ The **writer** picks the first that applies (visible-first); the **reader** rank
 
 ## Discovery
 
-Most recent handoff across all resolved locations, ranked by the header date (`# Handoff — YYYY-MM-DD`) with mtime breaking same-day ties. Header-date ranking, not raw mtime: a fresh clone flattens every mtime to checkout time, so mtime-first would pick an arbitrary (often ancient) handoff.
+Most recent handoff across all resolved locations, ranked by the header date (`# Handoff — YYYY-MM-DD`), then write time within the day (the filename's HHMM where the v4 scheme carries one, else HHMM derived from mtime), then raw mtime. Header-date ranking, not raw mtime: a fresh clone flattens every mtime to checkout time, so mtime-first would pick an arbitrary (often ancient) handoff — and the same flattening makes cross-host mtime order arbitrary within a day, which is why the filename time outranks it.
 
-- **v3 filename scheme:** `YYYY-MM-DD-{session-id-8}.md` (e.g. `2026-04-04-51d17dc5.md`). Date-prefixed for chronological sorting; session ID suffix links to the JSONL transcript.
-- **v2 filename scheme:** `{session-id-8}.md` (e.g. `51d17dc5.md`). Still valid — consumers must handle both during transition.
+- **v4 filename scheme** (2026-08-16, notes-sovike): `YYYY-MM-DD-HHMM-{session-id-8}.md` (e.g. `2026-08-16-1913-51d17dc5.md`). The HHMM makes same-day siblings sort chronologically under a plain `ls` — the id8 is random, so under v3 a superseded same-day handoff could sort last and hand a routing session the stale frame (that happened, 2026-07-31, sky-transaction).
+- **v3 filename scheme:** `YYYY-MM-DD-{session-id-8}.md` (e.g. `2026-04-04-51d17dc5.md`). Still valid — old files are never renamed; within a day they rank by mtime.
+- **v2 filename scheme:** `{session-id-8}.md` (e.g. `51d17dc5.md`). Still valid — consumers must handle all three during transition.
 - Consumers must not depend on filename format beyond `.md` extension.
 
 ## File Format

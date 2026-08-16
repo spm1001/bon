@@ -337,7 +337,7 @@ For cross-repo handoffs, check the target `handoffs/` exists first.
 
 #### Filename
 
-Use HANDOFF_FILE from the script output verbatim — it generates `YYYY-MM-DD-{session-id-8}.md` (date-prefixed for chronological `ls`, session ID suffix for transcript linkage), and it has already checked that nothing sits at that path. Don't recompute it: the id comes from the harness, and deriving one yourself from what's on disk is the bug this guarantee replaced.
+Use HANDOFF_FILE from the script output verbatim — it generates `YYYY-MM-DD-HHMM-{session-id-8}.md` (date+time prefix so same-day siblings sort chronologically under `ls`, session ID suffix for transcript linkage), and it has already checked that nothing sits at that path. Don't recompute it: the id comes from the harness, and deriving one yourself from what's on disk is the bug this guarantee replaced.
 
 
 ### Commit and go

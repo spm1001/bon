@@ -230,6 +230,49 @@ def test_no_handoff_emits_no_handoff_path(tmp_path):
     assert "HANDOFF=" not in result.stdout
 
 
+# --- Same-day ranking (notes-sovike) ------------------------------------
+
+def test_same_day_tie_prefers_filename_time_over_mtime(tmp_path):
+    """Two same-day handoffs, mtimes INVERTED — as a clone or sync rebase can
+    leave them, since checkout order is arbitrary. The v4 filename carries the
+    true write time, so the reader must trust it over mtime (notes-sovike).
+    """
+    import os
+    hdir = tmp_path / ".bon" / "handoffs"
+    hdir.mkdir(parents=True)
+    superseded = hdir / "2026-07-31-0901-ffffffff.md"
+    latest = hdir / "2026-07-31-1813-11111111.md"
+    superseded.write_text("# Handoff — 2026-07-31\n\npurpose: pass 1 (superseded)\n")
+    latest.write_text("# Handoff — 2026-07-31\n\npurpose: pass 2 supersedes pass 1\n")
+    t = datetime.now(timezone.utc).timestamp()
+    os.utime(latest, (t - 3600, t - 3600))   # rebase wrote the stale file last
+    os.utime(superseded, (t, t))
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert f"HANDOFF={latest}" in result.stdout, (
+        "same-day tie must be broken by the filename's HHMM, not by mtime"
+    )
+
+
+def test_same_day_v3_names_still_rank_by_mtime(tmp_path):
+    """Old-style names carry no time — within a day they keep ranking by
+    mtime, exactly as before the v4 scheme (no retro-rename, no regression).
+    """
+    import os
+    hdir = tmp_path / ".bon" / "handoffs"
+    hdir.mkdir(parents=True)
+    older = hdir / "2026-07-31-ffffffff.md"
+    newer = hdir / "2026-07-31-11111111.md"
+    older.write_text("# Handoff — 2026-07-31\n\npurpose: earlier v3\n")
+    newer.write_text("# Handoff — 2026-07-31\n\npurpose: later v3\n")
+    t = datetime.now(timezone.utc).timestamp()
+    os.utime(older, (t - 3600, t - 3600))
+    os.utime(newer, (t, t))
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert f"HANDOFF={newer}" in result.stdout
+
+
 def test_suggested_precedes_the_item_lists(tmp_path):
     """The baton outranks the landscape: Suggested is small and curated."""
     (tmp_path / ".bon").mkdir(exist_ok=True)
