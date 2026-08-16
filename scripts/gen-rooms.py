@@ -23,14 +23,33 @@ rooms.md, naming the culprit ignore line. Merely-untracked rooms (minted but
 not yet committed) are routine and not flagged. Non-git directories skip the
 check.
 
+Repo pairing (bon-jezahi): a room may declare its paired repo with one line
+anywhere in its CLAUDE.md — `**Repo:** <value>`, first match wins. The value
+is emitted verbatim into rooms.md beside the description. Convention for the
+value: `owner/name` (optionally `owner/name — detail`), or the literal
+`cross-cutting — <why>` for a practice many repos implement and none owns.
+No line means no pairing; an empty value is treated as absent. The pairing is
+KNOWLEDGE, not derivable from the filesystem, so it lives in the room and the
+generated index only points at it — a hand-written pairing in rooms.md itself
+would be destroyed by the next regen, which is exactly what happened to the
+first draft on 2026-08-08.
+
+Adoption guard (the other half of that incident): a rooms.md WITHOUT this
+generator's marker line is hand-authored. Write mode refuses to overwrite it
+(exit 2) unless --adopt is passed, so creating the file can never silently
+arm the regen against its own author.
+
 Usage:
   gen-rooms.py [REPO_DIR]            write rooms.md (REPO_DIR defaults to cwd)
   gen-rooms.py --check [REPO_DIR]    exit 1 if rooms.md is missing or stale,
                                      or if any listed room is git-ignored
                                      (writes nothing) — for CI / pre-commit
+  gen-rooms.py --adopt [REPO_DIR]    overwrite a hand-authored (marker-less)
+                                     rooms.md deliberately
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -64,17 +83,36 @@ def describe(claude_md: Path) -> str:
             continue
         if line.startswith((">", "<!--", "|", "---")):
             continue  # blockquote / status banner / HTML comment / table / rule
+        if REPO_RE.match(line):
+            continue  # the repo-pairing declaration is metadata, not prose
         return first_sentence(line)
     return heading or "(no description)"
 
 
-def find_rooms(repo: Path) -> list[tuple[str, str]]:
-    """Every sub-room (dir with a CLAUDE.md), as (relative-path, one-liner).
+REPO_RE = re.compile(r"^\*\*Repo:\*\*\s*(\S.*)$")
+
+
+def repo_pairing(claude_md: Path) -> str | None:
+    """The room's declared repo pairing (verbatim), or None.
+
+    One line anywhere in CLAUDE.md: `**Repo:** <value>`, first match wins.
+    A label with no value simply never matches, so a malformed line degrades
+    to absent rather than breaking the index (bon-jezahi).
+    """
+    for raw in claude_md.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = REPO_RE.match(raw.strip())
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def find_rooms(repo: Path) -> list[tuple[str, str, str | None]]:
+    """Every sub-room (dir with a CLAUDE.md), as (rel-path, one-liner, repo).
 
     The repo-root CLAUDE.md is skipped — it is the orientation doc that hosts
     this index, not a room within it.
     """
-    rooms: list[tuple[str, str]] = []
+    rooms: list[tuple[str, str, str | None]] = []
     for claude_md in repo.rglob("CLAUDE.md"):
         rel_parts = claude_md.relative_to(repo).parts
         if any(part in SKIP_DIRS for part in rel_parts):
@@ -83,12 +121,12 @@ def find_rooms(repo: Path) -> list[tuple[str, str]]:
         if room_dir == repo:
             continue  # repo root — not a sub-room
         rel = room_dir.relative_to(repo).as_posix() + "/"
-        rooms.append((rel, describe(claude_md)))
+        rooms.append((rel, describe(claude_md), repo_pairing(claude_md)))
     rooms.sort(key=lambda r: r[0])
     return rooms
 
 
-def ignored_room_notes(repo: Path, rooms: list[tuple[str, str]]) -> dict[str, str]:
+def ignored_room_notes(repo: Path, rooms: list[tuple[str, str, str | None]]) -> dict[str, str]:
     """Rooms whose CLAUDE.md git *ignores*, mapped to the culprit ignore line.
 
     Ignored — not merely untracked — is the pathology: an ignored room can
@@ -99,7 +137,7 @@ def ignored_room_notes(repo: Path, rooms: list[tuple[str, str]]) -> dict[str, st
     is visible to git and is not flagged either. Returns {} outside a git
     work tree or when git is unavailable.
     """
-    paths = [rel + "CLAUDE.md" for rel, _ in rooms]
+    paths = [rel + "CLAUDE.md" for rel, *_ in rooms]
     if not paths:
         return {}
     try:
@@ -145,12 +183,16 @@ def render(repo: Path) -> str:
         "# Rooms",
         "",
         "An existence index of every room (a directory with a `CLAUDE.md`) in "
-        "this repo. Generated — do not hand-edit.",
+        "this repo. Generated — do not hand-edit. A `· **repo:**` pairing "
+        "comes from that room's own `**Repo:** <value>` line — edit the room, "
+        "not this file.",
         "",
     ]
     if rooms:
-        for rel, desc in rooms:
+        for rel, desc, repo_val in rooms:
             line = f"- [`{rel}`]({rel}CLAUDE.md) — {desc}"
+            if repo_val:
+                line += f" · **repo:** {repo_val}"
             if rel in notes:
                 line += (
                     f" ⚠️ **IGNORED by {notes[rel]} — git cannot see this room; "
@@ -165,10 +207,9 @@ def render(repo: Path) -> str:
 
 
 def main(argv: list[str]) -> int:
-    check = False
-    args = [a for a in argv if a != "--check"]
-    if "--check" in argv:
-        check = True
+    check = "--check" in argv
+    adopt = "--adopt" in argv
+    args = [a for a in argv if a not in ("--check", "--adopt")]
     repo = Path(args[0]) if args else Path.cwd()
     repo = repo.resolve()
     if not repo.is_dir():
@@ -179,6 +220,18 @@ def main(argv: list[str]) -> int:
     out = repo / "rooms.md"
     current = out.read_text(encoding="utf-8") if out.exists() else None
     has_ignored = "⚠️ **IGNORED by" in new
+
+    # Adoption guard: a rooms.md without our marker is hand-authored, and
+    # regenerating over it destroys knowledge (the 2026-08-08 incident that
+    # motivated bon-jezahi). Refuse in write mode unless --adopt says so.
+    if not check and current is not None and MARKER not in current and not adopt:
+        print(
+            f"gen-rooms: {out} exists WITHOUT the generator marker — it looks "
+            "hand-authored, and regenerating would destroy it. Re-run with "
+            "--adopt to overwrite deliberately.",
+            file=sys.stderr,
+        )
+        return 2
 
     if check:
         if current != new:
