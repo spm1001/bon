@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from bon.display import _normalize_brief, format_hierarchical, format_json, format_jsonl, format_tactical
+from bon.display import _normalize_brief, format_grouped_by_area, format_hierarchical, format_json, format_jsonl, format_tactical
 from bon.queries import open_child_parent_ids, someday_ids
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
 from bon.storage import (
@@ -291,7 +291,7 @@ def check_outcome_language(title: str) -> None:
 # error (bon-gezela): a silently-dropped key looks exactly like success —
 # the contract bon edit already holds (bon-cefisu). Brief subfields
 # (EDIT_BRIEF_KEYS) are accepted nested under "brief" or flat.
-NEW_TOP_KEYS = ("title", "type", "parent", "outcome", "brief", "waiting_for")
+NEW_TOP_KEYS = ("title", "type", "parent", "outcome", "brief", "waiting_for", "area")
 
 
 def waiting_for_from_json(value):
@@ -333,7 +333,7 @@ def cmd_new(args):
         if unknown:
             error(
                 f"Unknown field(s): {', '.join(sorted(unknown))}\n"
-                "Valid: title, type, parent (or outcome), waiting_for, "
+                "Valid: title, type, parent (or outcome), waiting_for, area, "
                 "brief{why, how, what, done, badly} — brief fields may also be given flat."
             )
 
@@ -362,6 +362,11 @@ def cmd_new(args):
 
         waiting_for = waiting_for_from_json(data.get("waiting_for"))
 
+        area = data.get("area")
+        if area is not None and not isinstance(area, str):
+            error("'area' must be a string")
+        area = (area or "").strip() or None
+
         brief = require_brief_flags(
             brief_data.get("why"),
             brief_data.get("what"),
@@ -376,6 +381,7 @@ def cmd_new(args):
         title = args.title
         parent = args.parent
         explicit_type = None
+        area = (getattr(args, "area", None) or "").strip() or None
 
         # Get brief: interactive prompts or flags
         if sys.stdin.isatty() and not (args.why and args.what and args.done):
@@ -463,6 +469,15 @@ def cmd_new(args):
         if waiting_for:
             item["waiting_for"] = waiting_for
 
+    if area:
+        item["area"] = area
+        # Grouped views key on top-level entities — a parented action travels
+        # with its outcome's area, so its own tag is inert until it goes
+        # standalone. Coaching, not validation (the falsifier-placement pattern).
+        if item["type"] == "action" and item.get("parent"):
+            warn("area on a parented action is inert in grouped views — it inherits "
+                 "its outcome's area. Set the area on the outcome instead.")
+
     items.append(item)
     save_items(items)
     if args.quiet:
@@ -479,6 +494,24 @@ def cmd_list(args):
 
     items = load_items()
 
+    # Area filter (bon-razonu): keeps top-level entities in the named area —
+    # outcomes with their whole subtree, and standalone actions — mirroring
+    # the grouped view's semantics (an action's own area counts only when
+    # standalone). Applies to every output format.
+    area_filter = getattr(args, "area", None)
+    if area_filter:
+        keep_outcomes = {
+            i["id"] for i in items
+            if i["type"] == "outcome" and i.get("area") == area_filter
+        }
+        items = [
+            i for i in items
+            if i["id"] in keep_outcomes
+            or i.get("parent") in keep_outcomes
+            or (i["type"] == "action" and not i.get("parent")
+                and i.get("area") == area_filter)
+        ]
+
     # Determine filter mode
     if args.ready:
         filter_mode = "ready"
@@ -491,6 +524,15 @@ def cmd_list(args):
     else:
         filter_mode = "default"
 
+    group_by = getattr(args, "group_by", None)
+    if group_by:
+        # A silently-ignored flag looks exactly like success — refuse the
+        # combinations the grouped render doesn't serve rather than no-op.
+        if args.json or args.jsonl:
+            error("--group-by shapes the text view; with --json/--jsonl read the 'area' field on each item")
+        if args.limit is not None:
+            error("--limit doesn't combine with --group-by")
+
     # Handle output format
     if args.json:
         filtered = filter_items_for_output(items, filter_mode)
@@ -500,6 +542,8 @@ def cmd_list(args):
         filtered = filter_items_for_output(items, filter_mode)
         filtered = limit_items(filtered, args.limit)
         print(format_jsonl(filtered))
+    elif group_by == "area":
+        print(format_grouped_by_area(items, filter_mode))
     else:
         output = format_hierarchical(items, filter_mode, limit=args.limit)
         print(output)
@@ -552,6 +596,8 @@ def cmd_show(args):
     print(f"{status_icon} {item['title']} ({item['id']})")
     print(f"   Type: {item['type']}")
     print(f"   Status: {item['status']}")
+    if item.get("area"):
+        print(f"   Area: {item['area']}")
     print(f"   Created: {item['created_at']} by {item['created_by']}")
     if item.get("updated_at"):
         updated_by = item.get("updated_by", "updated")
@@ -944,7 +990,7 @@ def cmd_status(args):
 # remove. Unknown keys are a hard error for the same reason; a typo that
 # quietly drops a field is worse than one that stops.
 EDIT_BRIEF_KEYS = ("why", "how", "what", "done", "badly")
-EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief")
+EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief", "area")
 
 
 def edit_args_from_stdin(args, *, explicit: bool = False):
@@ -977,7 +1023,7 @@ def edit_args_from_stdin(args, *, explicit: bool = False):
     if unknown:
         error(
             f"Unknown field(s): {', '.join(sorted(unknown))}\n"
-            "Valid: title, outcome (or parent), order, note, "
+            "Valid: title, outcome (or parent), order, note, area, "
             "brief{why, how, what, done} — brief fields may also be given flat."
         )
 
@@ -1011,6 +1057,14 @@ def edit_args_from_stdin(args, *, explicit: bool = False):
         if not isinstance(data["note"], str):
             error("'note' must be a string")
         args.note = data["note"]
+    if "area" in data:
+        # null clears, same as "" — a JSON author's natural spelling of "unset"
+        value = data["area"]
+        if value is None:
+            value = ""
+        if not isinstance(value, str):
+            error("'area' must be a string (or null/'' to clear)")
+        args.area = value
 
 
 def edit_flags_given(args) -> bool:
@@ -1024,6 +1078,7 @@ def edit_flags_given(args) -> bool:
         args.done,
         getattr(args, "badly", None) is not None,
         getattr(args, "note", None) is not None,
+        getattr(args, "area", None) is not None,
         args.order is not None,
     ])
 
@@ -1043,7 +1098,7 @@ def cmd_edit(args):
     if not edit_flags_given(args):
         error(
             "At least one edit flag required: --title, --outcome, --why, --how, "
-            "--what, --done, --note, --order — or pipe JSON to stdin"
+            "--what, --done, --note, --order, --area — or pipe JSON to stdin"
         )
 
     items = load_items()
@@ -1097,6 +1152,14 @@ def cmd_edit(args):
         check_falsifier_placement(item["type"], args.badly)
     if args.order is not None:
         edited["order"] = args.order
+    if getattr(args, "area", None) is not None:
+        if args.area.strip():
+            edited["area"] = args.area.strip()
+            if edited["type"] == "action" and edited.get("parent"):
+                warn("area on a parented action is inert in grouped views — it inherits "
+                     "its outcome's area. Set the area on the outcome instead.")
+        else:
+            edited.pop("area", None)
     if getattr(args, "note", None) is not None:
         # The repair path for a mangled closing note. `bon done --note` refuses
         # to overwrite an existing one, so before this flag a note damaged by
@@ -2283,6 +2346,7 @@ def main():
     new_parser.add_argument("--what", help="Brief: what will we produce?")
     new_parser.add_argument("--done", help="Brief: how do we know it's done?")
     new_parser.add_argument("--badly", help="Brief: what would show this went wrong? (optional, outcomes)")
+    new_parser.add_argument("--area", help="Area of Focus grouping (optional; groups bon list --group-by area)")
     add_output_flags(new_parser, quiet=True)
     new_parser.set_defaults(func=cmd_new)
 
@@ -2293,6 +2357,9 @@ def main():
     list_parser.add_argument("--someday", action="store_true",
                              help="Show only parked (Someday/Maybe) items with their revisit conditions")
     list_parser.add_argument("--all", action="store_true", help="Include done items")
+    list_parser.add_argument("--group-by", dest="group_by", choices=["area"],
+                             help="Group the text view (areas sorted, (ungrouped) last)")
+    list_parser.add_argument("--area", help="Show only the named area (outcomes with their subtree + standalone actions)")
     list_parser.add_argument("--limit", type=int, default=None,
                              help="Truncate to first N top-level items (outcomes + standalones); children of kept outcomes always come along")
     add_output_flags(list_parser, json=True, jsonl=True)
@@ -2358,6 +2425,7 @@ def main():
     edit_parser.add_argument("--badly", help="New brief.badly — the pre-registered falsifier ('' clears)")
     edit_parser.add_argument("--order", type=int, help="New order within parent")
     edit_parser.add_argument("--note", help="New closing note (done items only; '' clears)")
+    edit_parser.add_argument("--area", help="New area ('' clears)")
     edit_parser.add_argument("--json", action="store_true", dest="json_input",
                              help="Read fields as JSON from stdin (the default when stdin is piped and no flag is given)")
     add_output_flags(edit_parser, quiet=True)

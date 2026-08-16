@@ -91,8 +91,8 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | Command | Description |
 |---------|-------------|
 | `init [--prefix P] [--backend {jsonl\|dolt}]` | Initialize `.bon/` directory |
-| `new [TITLE] [--outcome PARENT] --why W --what X --done D [--how H] [--badly B]` | Create outcome or action (JSON stdin or flags). `--badly` is the pre-registered falsifier — outcomes, written by whoever wants the answer |
-| `list [--ready\|--waiting\|--all] [--limit N]` | Show items hierarchically |
+| `new [TITLE] [--outcome PARENT] --why W --what X --done D [--how H] [--badly B] [--area A]` | Create outcome or action (JSON stdin or flags). `--badly` is the pre-registered falsifier — outcomes, written by whoever wants the answer |
+| `list [--ready\|--waiting\|--all] [--limit N] [--group-by area] [--area A]` | Show items hierarchically, optionally grouped or filtered by area |
 | `show ID [--current]` | View item details and brief |
 | `done ID` | Mark item complete |
 | `doctor [--fix]` | Check board health; `--fix` refreshes a stale `.bon/README.md` |
@@ -100,7 +100,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `unwait ID [BLOCKER] [--note]` | Clear waiting status; `--note` records why the block lifted (stored as `released_note`, cleared by the next `wait`) |
 | `someday ID CONDITION` | Park Someday/Maybe with a revisit condition (leaves default views) |
 | `unsomeday ID` | Unpark a Someday item |
-| `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order, closing note) — or pipe JSON to stdin |
+| `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order, area, closing note) — or pipe JSON to stdin |
 | `work ID [STEPS...] [--status\|--release\|--clear\|--force]` | Manage tactical steps for an action (`--release` hands back the claim keeping progress; `--clear` discards it) |
 | `step` | Complete current step, advance to next |
 | `convert ID [--outcome P] [--force]` | Convert outcome↔action |
@@ -139,9 +139,13 @@ bon list --waiting    # Only items that are waiting
 bon list --someday    # Only parked items, with their revisit conditions
 bon list --all        # Include done items (parked shown inline, 🅿️-marked)
 bon list --limit 5    # First 5 top-level items (children come along)
+bon list --group-by area   # Cluster by Area of Focus — [name] headers, (ungrouped) last
+bon list --area tooling    # Only that area: its outcomes with their subtrees + standalone actions
 ```
 
 Parked (Someday/Maybe) subtrees are excluded from `list`, `--ready` and `--waiting`; the default list ends with a `🅿️ Someday: N parked` tail line so hidden work always announces itself.
+
+**`area`** is an optional per-item tag (`--area` on `new`/`edit`, `''` clears). Grouping keys on top-level items: an outcome's whole subtree travels with the outcome's area, so an action's own tag counts only when it's standalone. Boards without areas render unchanged.
 
 **`--limit N`** truncates to the first N top-level items — outcomes first, then standalones. Children of kept outcomes always come along, so output never cuts mid-item. Combine with any filter (e.g. `--ready --limit 3`).
 

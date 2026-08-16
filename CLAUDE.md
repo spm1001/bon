@@ -76,6 +76,8 @@ Both require `brief: {why, what, done}` — all three non-empty. Two optional su
 
 Open items can be **parked Someday/Maybe**: the optional `someday` field holds a required revisit condition (`bon someday ID "condition"` / `bon unsomeday ID`). It's a flag, not a status — status stays open/done so older clients never lose sight of the item. Parked subtrees leave default views at read time (children inherit, no mutation) and `bon list` states the parked count in a tail line; `bon list --someday` is the parked view.
 
+Items can also carry an optional **`area`** tag (Areas of Focus, bon-razonu — `--area` on `new`/`edit`, `''` clears). `bon list --group-by area` clusters the text view ([name] headers sorted, (ungrouped) last); `--area X` filters to one. Grouping keys on top-level items — an outcome's subtree travels with the outcome's area; a parented action's own tag is inert (the CLI coaches, warn not refuse). Like `someday` it's a top-level column: real in Dolt (idempotent migration, both tables), and it decays under an old client's Dolt write — the accepted majoca trade.
+
 ## Adding a Command
 
 1. Add handler in `cli.py`:
@@ -217,7 +219,7 @@ EOF
 bon new "Quick fix" --why w --what x --done d -q   # Flags (stubs only)
 ```
 
-The JSON path accepts `title`, `type`, `parent`/`outcome`, `waiting_for` and `brief` —
+The JSON path accepts `title`, `type`, `parent`/`outcome`, `waiting_for`, `area` and `brief` —
 brief subfields nested or flat (flat-and-nested conflict errors). `waiting_for` (string
 or list) creates the item born blocked, with cmd_wait's unresolvable-id warning. Any
 other key is a **hard error** (bon-gezela) — a silently-dropped key looks exactly like

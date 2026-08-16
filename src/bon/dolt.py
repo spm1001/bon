@@ -267,6 +267,7 @@ _SCHEMA_SQL = [
         wait_note   TEXT,
         released_note TEXT,
         someday     TEXT,
+        area        VARCHAR(100),
         tactical    JSON,
         created_at  VARCHAR(30),
         created_by  VARCHAR(100),
@@ -287,6 +288,7 @@ _SCHEMA_SQL = [
         wait_note   TEXT,
         released_note TEXT,
         someday     TEXT,
+        area        VARCHAR(100),
         tactical    JSON,
         created_at  VARCHAR(30),
         created_by  VARCHAR(100),
@@ -324,6 +326,10 @@ def _ensure_schema(conn):
             cur.execute(f"SHOW COLUMNS FROM {table} LIKE 'someday'")
             if not cur.fetchone():
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN someday TEXT AFTER wait_note")
+            # area arrived August 2026 (Areas of Focus grouping, bon-razonu)
+            cur.execute(f"SHOW COLUMNS FROM {table} LIKE 'area'")
+            if not cur.fetchone():
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN area VARCHAR(100) AFTER someday")
             # released_note arrived August 2026 (why a block lifted, bon-wevapu)
             cur.execute(f"SHOW COLUMNS FROM {table} LIKE 'released_note'")
             if not cur.fetchone():
@@ -347,7 +353,7 @@ def _ensure_schema(conn):
 # Columns shared between items and archive tables
 _ITEM_COLUMNS = [
     "id", "type", "title", "status", "brief", "parent", "order",
-    "waiting_for", "wait_note", "released_note", "someday", "tactical", "created_at", "created_by",
+    "waiting_for", "wait_note", "released_note", "someday", "area", "tactical", "created_at", "created_by",
     "updated_at", "updated_by", "done_at", "done_note",
 ]
 
@@ -362,6 +368,7 @@ _VARCHAR_LIMITS = {
     "title": 500,
     "status": 10,
     "parent": 64,
+    "area": 100,
     "created_at": 30,
     "created_by": 100,
     "updated_at": 30,

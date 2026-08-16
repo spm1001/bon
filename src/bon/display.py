@@ -116,6 +116,88 @@ def format_jsonl(items: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _apply_someday_view(items: list[dict], filter_mode: str):
+    """Apply the Someday/Maybe view rules (bon-majoca) to an item set.
+
+    Returns (items, filter_mode, someday_tail). The default views exclude
+    parked subtrees and gain one honest tail line — hidden work must announce
+    itself (the no-silent-caps discipline). "someday" restricts to the parked
+    subset (re-homing a parked action whose parent isn't parked to standalone,
+    display-only) and renders it in full via "all". "all" keeps parked items
+    inline, carrying their 🅿️ condition.
+    """
+    parked_ids = someday_ids(items)
+    someday_tail = None
+    if filter_mode == "someday":
+        items = [i for i in items if i["id"] in parked_ids]
+        kept = {i["id"] for i in items}
+        items = [
+            dict(i, parent=None)
+            if i["type"] == "action" and i.get("parent") and i["parent"] not in kept
+            else i
+            for i in items
+        ]
+        filter_mode = "all"  # render the parked subset in full
+    elif filter_mode != "all" and parked_ids:
+        n_flagged = len([
+            i for i in items if i.get("someday") and i["status"] == "open"
+        ])
+        if n_flagged:
+            someday_tail = (
+                f"🅿️ Someday: {n_flagged} parked — bon list --someday"
+            )
+        items = [i for i in items if i["id"] not in parked_ids]
+    return items, filter_mode, someday_tail
+
+
+def format_grouped_by_area(items: list[dict], filter_mode: str = "default") -> str:
+    """Render the hierarchical view partitioned by area (bon-razonu).
+
+    Grouping keys on top-level entities: an outcome's whole subtree travels
+    with the outcome's own area, so an action's `area` matters only when the
+    action is standalone. Named areas sort alphabetically under a [name]
+    header; items with no area render last under (ungrouped) — a board with
+    no areas at all is one (ungrouped) section, otherwise unchanged.
+    """
+    was_someday = filter_mode == "someday"
+    items, filter_mode, someday_tail = _apply_someday_view(items, filter_mode)
+    if was_someday and not items:
+        return "Nothing parked Someday. Park with: bon someday ID \"revisit condition\""
+
+    outcome_area = {i["id"]: i.get("area") for i in items if i["type"] == "outcome"}
+
+    def entity_area(item: dict):
+        if item["type"] == "action" and item.get("parent") in outcome_area:
+            return outcome_area[item["parent"]]
+        return item.get("area")
+
+    groups: dict = {}
+    for item in items:
+        groups.setdefault(entity_area(item) or None, []).append(item)
+
+    ordered = sorted((k for k in groups if k), key=str.lower)
+    if None in groups:
+        ordered.append(None)
+
+    sections = []
+    for key in ordered:
+        # Parked items were excluded (or restricted-to) globally above, so the
+        # per-partition someday pass inside format_hierarchical is a no-op.
+        body = format_hierarchical(groups[key], filter_mode)
+        if body == "No outcomes.":
+            continue  # nothing visible in this area under this mode
+        header = f"[{key}]" if key else "(ungrouped)"
+        sections.append(f"{header}\n{body}")
+
+    if not sections:
+        return "No outcomes."
+
+    out = "\n\n".join(sections)
+    if someday_tail:
+        out += f"\n\n{someday_tail}"
+    return out
+
+
 def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: int | None = None) -> str:
     """Format items as hierarchical text output.
 
@@ -134,36 +216,12 @@ def format_hierarchical(items: list[dict], filter_mode: str = "default", limit: 
     Returns:
         Formatted string output
     """
-    # Someday/Maybe handling (bon-majoca): the default views exclude parked
-    # subtrees and end with one honest tail line — hidden work must announce
-    # itself (the no-silent-caps discipline). "all" shows everything, parked
-    # items carrying their 🅿️ condition inline. "someday" is the parked view.
-    parked_ids = someday_ids(items)
-    someday_tail = None
-    if filter_mode == "someday":
-        items = [i for i in items if i["id"] in parked_ids]
-        # A parked action under an UNPARKED outcome has no parent in this
-        # view — render it standalone rather than dropping it (display-only
-        # re-home; stored data untouched).
-        kept = {i["id"] for i in items}
-        items = [
-            dict(i, parent=None)
-            if i["type"] == "action" and i.get("parent") and i["parent"] not in kept
-            else i
-            for i in items
-        ]
-        filter_mode = "all"  # render the parked subset in full
-        if not items:
-            return "Nothing parked Someday. Park with: bon someday ID \"revisit condition\""
-    elif filter_mode != "all" and parked_ids:
-        n_flagged = len([
-            i for i in items if i.get("someday") and i["status"] == "open"
-        ])
-        if n_flagged:
-            someday_tail = (
-                f"🅿️ Someday: {n_flagged} parked — bon list --someday"
-            )
-        items = [i for i in items if i["id"] not in parked_ids]
+    # Someday/Maybe handling (bon-majoca) — shared with the grouped view so
+    # the two renders can't drift on what "parked" means.
+    was_someday = filter_mode == "someday"
+    items, filter_mode, someday_tail = _apply_someday_view(items, filter_mode)
+    if was_someday and not items:
+        return "Nothing parked Someday. Park with: bon someday ID \"revisit condition\""
 
     lines = []
     include_done_outcomes = filter_mode == "all"

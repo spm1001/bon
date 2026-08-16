@@ -2,6 +2,8 @@
 
 **Date:** 2026-06-17 (evening)
 **Status:** SKETCH — for the next session to *test*, not gospel. Companion to `2026-06-17-todoist-substrate-anatomy.md`.
+
+> **SUPERSEDED IN BOTH HALVES — 2026-08-16 (bon-wivuti).** The projection half died first: the estate ruled twice against syncing (the 2026-07-11 portfolio cull; the 2026-08-02 treaty table — Todoist holds what Sameer has committed to, bon holds what the workshop is doing about it, **nothing syncs**), and the gap a projection was meant to fill is served by the weekly Toolmaking reconciliation ceremony instead. The schema-delta half is now adjudicated: `context`, `tier`, `provenance` and tier-gated briefs are all **rejected** with reasons recorded in `.bon/understanding.md` ("The work-atom sketch's schema deltas"); the deferred Areas-of-Focus question ships as the `area` field (bon-razonu). Don't re-derive this bet.
 **Purpose:** Design a single work-atom that serves both Sameer (+ human team) and Claude (+ future autonomous team), owned by bon/Dolt, projected into faces (Todoist, kuwivo). Relates to `bon-kepuko` (docket contract), `bon-welogi` (MCP), `bon-kuwivo` (GUI face), `bon-pujawo` (candidate mode), `bon-hibehi` (session identity).
 
 ## The landing that produced this (tonight's arc, compressed)

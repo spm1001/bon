@@ -280,6 +280,8 @@ def item_record(item: dict) -> dict:
         record["waiting_for"] = item["waiting_for"]
     if item.get("someday"):
         record["someday"] = item["someday"]
+    if item.get("area"):
+        record["area"] = item["area"]
     if item.get("created_at"):
         record["created_at"] = item["created_at"]
         flag = age_flag(item["created_at"])

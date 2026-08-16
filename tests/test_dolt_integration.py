@@ -74,6 +74,7 @@ class TestDoltIntegration:
                 "status": "open",
                 "brief": {"why": "testing", "what": "1. verify", "done": "passes"},
                 "order": 1,
+                "area": "integration",
                 "created_at": ts,
                 "created_by": "test",
             },
@@ -100,6 +101,9 @@ class TestDoltIntegration:
         # Verify brief roundtrip
         outcome = next(i for i in loaded if i["id"] == f"{prefix}-aaa")
         assert outcome["brief"]["why"] == "testing"
+        # area is a real column (bon-razonu) — assert the round-trip, since a
+        # column missing from _ITEM_COLUMNS strips silently on save
+        assert outcome["area"] == "integration"
 
         # Bottle refresh rides Dolt saves too (the .bon dir is still local)
         tmp_root, _ = dolt_dir

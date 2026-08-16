@@ -82,6 +82,7 @@ A backend without the tactical tier still satisfies the category — the rite de
 |----------|-------|-----|
 | Items, briefs, statuses, archive | Docket | The work memory itself |
 | The falsifier *field* (`brief.badly`) | Docket | Optional, outcomes-shaped; stored, rendered and emitted like any brief subfield |
+| The `area` field | Docket | Optional Areas-of-Focus tag, emitted in `--json`; the CLI's grouped/filtered list views are bon features over it, not contract — a programmatic vehicle groups from the field itself |
 | Falsifier *authorship* (who may write it, and when) | Rite | The data layer cannot know who typed a string — see below |
 | Tactical claims (steps, position, session identity) | Docket | Coordination state — must be visible to all sessions |
 | Claim *surfacing* (hooks, prompt injection, UI) | Rite, per vehicle | Each vehicle projects state its own way: CC via UserPromptSubmit hook, programmatic vehicles natively |

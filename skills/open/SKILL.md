@@ -326,6 +326,8 @@ Outcomes describe what will be true, not work to be done. The CLI warns on activ
 bon init --prefix myproj     # Initialize .bon/ with prefix
 bon list                     # Hierarchical view
 bon list --ready             # Actions with no blocker
+bon list --group-by area     # Cluster by Area of Focus ((ungrouped) last); --area X filters to one
+
 bon show ID                  # Full details including brief
 bon show --current           # Active tactical steps
 cat <<'EOF' | bon new -q                             # Pipe JSON to stdin (default)
