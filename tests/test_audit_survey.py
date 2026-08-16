@@ -69,6 +69,101 @@ class TestGetJob:
         assert audit_survey.get_job(tmp_path) is None
 
 
+class TestDetectDuplicatePrefixes:
+    def _board(self, path, prefix, backend="jsonl"):
+        return {
+            "bon_dir": Path(path) / ".bon",
+            "repo_path": Path(path),
+            "root": Path("/r"),
+            "backend": backend,
+            "prefix": prefix,
+        }
+
+    def _resolver(self, origins):
+        return lambda p: origins.get(str(p))
+
+    def test_same_prefix_different_origins_flagged(self):
+        # The live bon-kafono shape: the owner's Dolt board plus a JSONL
+        # squatter, both cloned locally.
+        boards = [
+            self._board("/r/spm1001/bon", "bon", backend="dolt"),
+            self._board("/r/itv/mit-agentic-sales", "bon"),
+        ]
+        origins = {
+            "/r/spm1001/bon": "github.com/spm1001/bon",
+            "/r/itv/mit-agentic-sales": "github.com/itv/mit-agentic-sales",
+        }
+        out = audit_survey.detect_duplicate_prefixes(
+            boards, {}, origin_resolver=self._resolver(origins)
+        )
+        assert len(out) == 1
+        assert out[0]["prefix"] == "bon"
+        assert len(out[0]["boards"]) == 2
+
+    def test_same_origin_clones_exempt(self):
+        # A repo checked out twice (e.g. a marketplace cache clone) is the
+        # estate's normal shape, not a squat.
+        boards = [self._board("/r/a", "tp"), self._board("/r/b", "tp")]
+        origins = {
+            "/r/a": "github.com/spm1001/trousse-personal",
+            "/r/b": "github.com/spm1001/trousse-personal",
+        }
+        out = audit_survey.detect_duplicate_prefixes(
+            boards, {}, origin_resolver=self._resolver(origins)
+        )
+        assert out == []
+
+    def test_jsonl_squat_caught_without_owner_clone(self):
+        # The repos-table layer: the rightful owner isn't cloned under the
+        # scan roots, but the shared DB knows who the prefix belongs to.
+        boards = [self._board("/r/itv/mit-agentic-sales", "bon")]
+        repos_map = {
+            "bon": {
+                "repo_name": "spm1001/bon",
+                "origin_url": "https://github.com/spm1001/bon.git",
+            }
+        }
+        origins = {"/r/itv/mit-agentic-sales": "github.com/itv/mit-agentic-sales"}
+        out = audit_survey.detect_duplicate_prefixes(
+            boards, repos_map, origin_resolver=self._resolver(origins)
+        )
+        assert len(out) == 1
+        assert out[0]["repos_table"]["repo_name"] == "spm1001/bon"
+
+    def test_singleton_dolt_with_matching_registration_clean(self):
+        boards = [self._board("/r/spm1001/bon", "bon", backend="dolt")]
+        repos_map = {
+            "bon": {
+                "repo_name": "spm1001/bon",
+                "origin_url": "git@github.com:spm1001/bon.git",
+            }
+        }
+        out = audit_survey.detect_duplicate_prefixes(
+            boards,
+            repos_map,
+            origin_resolver=lambda p: "github.com/spm1001/bon",
+        )
+        assert out == []
+
+    def test_no_origin_boards_count_as_distinct_identities(self):
+        # Fail-visible: two originless boards sharing a prefix flag rather
+        # than silently merging on "origin unknown".
+        boards = [self._board("/r/a", "x"), self._board("/r/b", "x")]
+        out = audit_survey.detect_duplicate_prefixes(
+            boards, {}, origin_resolver=lambda p: None
+        )
+        assert len(out) == 1
+
+    def test_norm_origin_url_forms_agree(self):
+        n = audit_survey._norm_origin
+        assert (
+            n("https://github.com/A/B.git")
+            == n("git@github.com:A/B.git")
+            == "github.com/a/b"
+        )
+        assert n(None) is None
+
+
 class TestGitActivity:
     def test_non_repo_soft_fails_to_none(self, tmp_path):
         assert audit_survey.git_activity(tmp_path, 30) is None

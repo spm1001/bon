@@ -433,6 +433,91 @@ def repo_label(repo_path: Path, root: Path) -> str:
     return root.name if label == "." else label
 
 
+def _norm_origin(url: str | None) -> str | None:
+    """Normalise a git remote URL to host/owner/repo for identity comparison."""
+    if not url:
+        return None
+    u = url.strip().lower().rstrip("/")
+    if u.endswith(".git"):
+        u = u[:-4]
+    if u.startswith("git@"):
+        return u[4:].replace(":", "/", 1)
+    u = u.split("://", 1)[-1]
+    if "@" in u.split("/", 1)[0]:
+        u = u.split("@", 1)[1]
+    return u
+
+
+def board_origin(repo_path: Path) -> str | None:
+    """Normalised origin URL of the board's repo (None: no repo / no remote)."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo_path), "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0:
+        return None
+    return _norm_origin(r.stdout.strip())
+
+
+def detect_duplicate_prefixes(
+    boards: list[dict],
+    repos_map: dict[str, dict],
+    origin_resolver=None,
+) -> list[dict]:
+    """Boards sharing a prefix without sharing an origin are squatters (bon-kafono).
+
+    Two layers, so the check doesn't depend on the rightful owner being cloned
+    here: (1) local boards grouped by prefix — more than one distinct origin
+    flags the group (same-origin clones, e.g. a marketplace cache checkout of
+    the same repo, are the estate's normal shape and exempt); (2) a JSONL board
+    whose prefix carries a repos-table row pointing at a different origin — the
+    shared-DB owner needn't be cloned locally to be squatted on. A Dolt board
+    whose mapping origin drifted is a stale registration, not a squat, and is
+    deliberately not flagged here. A board with no origin remote counts as its
+    own identity: fail-visible beats a silent merge.
+    """
+    resolve = origin_resolver or board_origin
+    by_prefix: dict[str, list[dict]] = {}
+    for b in boards:
+        if b["prefix"]:
+            by_prefix.setdefault(b["prefix"], []).append(b)
+
+    findings = []
+    for prefix, group in sorted(by_prefix.items()):
+        mapping = repos_map.get(prefix)
+        mapped_origin = _norm_origin(mapping.get("origin_url")) if mapping else None
+        needs_origins = len(group) > 1 or (
+            mapped_origin and any(b["backend"] != "dolt" for b in group)
+        )
+        if not needs_origins:
+            continue
+        entries = [
+            {
+                "local_path": str(b["repo_path"]),
+                "backend": b["backend"],
+                "origin": resolve(b["repo_path"]),
+            }
+            for b in group
+        ]
+        identities = {e["origin"] or e["local_path"] for e in entries}
+        jsonl_squat = mapped_origin and any(
+            e["backend"] != "dolt" and e["origin"] != mapped_origin
+            for e in entries
+        )
+        if len(identities) > 1 or jsonl_squat:
+            finding = {"prefix": prefix, "boards": entries}
+            if mapping:
+                finding["repos_table"] = {
+                    "repo_name": mapping.get("repo_name"),
+                    "origin_url": mapping.get("origin_url"),
+                }
+            findings.append(finding)
+    return findings
+
+
 # Boards at fixed locations the walk can't reach: the walk-roots filter skips
 # hidden directories (and ~/.claude is one), so probe these directly — bounded,
 # and immune to the phantom boards a recursive walk of plugins/marketplaces/
@@ -594,6 +679,7 @@ def survey(
         "dolt": dolt_mode,
         "window_days": window_days,
         "unmapped_prefixes": sorted(unmapped),
+        "duplicate_prefixes": detect_duplicate_prefixes(boards, repos_map),
         "jobs_unassigned": sorted(
             r["repo"] for r in results if not r.get("job")
         ),
@@ -647,6 +733,20 @@ def main():
             f"Note: unmapped prefixes (no repos-table row — run `bon register` "
             f"from a clone, or triage as orphaned): "
             f"{', '.join(output['unmapped_prefixes'])}",
+            file=sys.stderr,
+        )
+
+    if output["duplicate_prefixes"]:
+        dupes = "; ".join(
+            f"{d['prefix']}: " + ", ".join(
+                f"{b['local_path']} ({b['backend']})" for b in d["boards"]
+            )
+            for d in output["duplicate_prefixes"]
+        )
+        print(
+            f"WARNING: duplicate prefixes — two boards minting the same "
+            f"id-space (re-prefix the squatter; see duplicate_prefixes in "
+            f"the JSON): {dupes}",
             file=sys.stderr,
         )
 

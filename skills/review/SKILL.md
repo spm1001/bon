@@ -65,6 +65,7 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse pass
 | `visibility_note` | Human sentence splitting the count into Dolt (visible anywhere) vs JSONL (visible only where cloned). **Read this to the user** — it's how a headline jump gets read as clones appearing, not work. |
 | `dolt_open` / `jsonl_open` | The split behind `total_open`. `jsonl_open` is machine-dependent; `dolt_open` is not. |
 | `unmapped_prefixes` | Prefixes with items but no repos-table row — usually orphaned boards of retired repos. |
+| `duplicate_prefixes` | Two boards minting the same id-space (bon-kafono) — different origins sharing one prefix, or a JSONL board squatting on a Dolt-registered prefix. Same-repo clones are exempt. Surface for re-prefixing; never merge their items. |
 | `local_path` | Clone under the scan roots — verifiable here. |
 | `not_cloned_here: true` | No clone under the scan roots — surveyed, not verifiable here. Caveat: this really means "not under the scan roots"; `~/.dotfiles` is the known board that IS local anyway. |
 | `origin_url` | Where a fresh clone would come from, when registered. |
