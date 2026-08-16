@@ -143,3 +143,85 @@ def test_heading_fallback_when_no_prose(tmp_path):
     run_gen(tmp_path)
     rooms = (tmp_path / "rooms.md").read_text()
     assert "bare-room/" in rooms
+
+
+def git(repo, *args):
+    """Run git in repo (init/add only — no identity needed, no commits)."""
+    subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, check=True
+    )
+
+
+def test_ignored_room_is_flagged_with_culprit_line(tmp_path):
+    """A room hidden by a gitignore pattern gets a loud inline annotation.
+
+    The notes-laninu shape: a bare `mise/` pattern matches at any depth and
+    silently swallows a real room, which then exists on one machine only
+    while rooms.md advertises it everywhere.
+    """
+    room(tmp_path, "", "# root\n\nRoot.\n")
+    room(tmp_path, "practices/mise", "# mise\n\nField station.\n")
+    room(tmp_path, "work", "# work\n\nHealthy room.\n")
+    (tmp_path / ".gitignore").write_text("mise/\n")
+    git(tmp_path, "init", "-q")
+
+    result = run_gen(tmp_path)
+    assert result.returncode == 0  # write path stays non-fatal
+    assert "WARNING" in result.stderr
+    rooms = (tmp_path / "rooms.md").read_text()
+    mise_line = next(l for l in rooms.splitlines() if "practices/mise/" in l)
+    assert "IGNORED" in mise_line
+    assert ".gitignore:1 mise/" in mise_line
+    work_line = next(l for l in rooms.splitlines() if "work/`" in l)
+    assert "IGNORED" not in work_line
+
+
+def test_untracked_but_not_ignored_room_is_not_flagged(tmp_path):
+    """A just-minted room awaiting its first commit is routine, not a defect."""
+    room(tmp_path, "", "# root\n\nRoot.\n")
+    room(tmp_path, "fresh", "# fresh\n\nNewly minted.\n")
+    git(tmp_path, "init", "-q")
+
+    run_gen(tmp_path)
+    rooms = (tmp_path / "rooms.md").read_text()
+    assert "fresh/" in rooms
+    assert "IGNORED" not in rooms
+
+
+def test_tracked_room_matching_ignore_pattern_is_not_flagged(tmp_path):
+    """A force-added CLAUDE.md is visible to git despite the pattern."""
+    room(tmp_path, "", "# root\n\nRoot.\n")
+    room(tmp_path, "practices/mise", "# mise\n\nField station.\n")
+    (tmp_path / ".gitignore").write_text("mise/\n")
+    git(tmp_path, "init", "-q")
+    git(tmp_path, "add", "-f", "practices/mise/CLAUDE.md")
+
+    run_gen(tmp_path)
+    rooms = (tmp_path / "rooms.md").read_text()
+    assert "practices/mise/" in rooms
+    assert "IGNORED" not in rooms
+
+
+def test_check_mode_fails_on_ignored_room(tmp_path):
+    """--check treats a git-ignored room as an integrity failure for CI."""
+    room(tmp_path, "", "# root\n\nRoot.\n")
+    room(tmp_path, "practices/mise", "# mise\n\nField station.\n")
+    (tmp_path / ".gitignore").write_text("mise/\n")
+    git(tmp_path, "init", "-q")
+
+    run_gen(tmp_path)  # rooms.md now current, annotation included
+    result = run_gen(tmp_path, "--check")
+    assert result.returncode == 1
+    assert "ignored" in result.stderr.lower()
+
+
+def test_non_git_directory_skips_integrity_check(tmp_path):
+    """Outside a git work tree the generator behaves exactly as before."""
+    room(tmp_path, "", "# root\n\nRoot.\n")
+    room(tmp_path, "sub", "# sub\n\nA room.\n")
+
+    result = run_gen(tmp_path)
+    assert result.returncode == 0
+    rooms = (tmp_path / "rooms.md").read_text()
+    assert "sub/" in rooms
+    assert "IGNORED" not in rooms

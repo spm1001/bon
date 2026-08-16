@@ -15,13 +15,23 @@ Stdlib only, plain python3 (no uv): it is invoked from the close-time path,
 where uv's per-invocation latency would not pay for itself and there are no
 third-party deps to manage.
 
+Integrity: a room whose CLAUDE.md is *ignored* by git can never be tracked or
+synced — it exists only on the machine that wrote it, while rooms.md (built
+from the filesystem) advertises it everywhere (notes-laninu: a bare `mise/`
+pattern hid `practices/mise/` for a month). Such rooms are flagged inline in
+rooms.md, naming the culprit ignore line. Merely-untracked rooms (minted but
+not yet committed) are routine and not flagged. Non-git directories skip the
+check.
+
 Usage:
   gen-rooms.py [REPO_DIR]            write rooms.md (REPO_DIR defaults to cwd)
-  gen-rooms.py --check [REPO_DIR]    exit 1 if rooms.md is missing or stale
+  gen-rooms.py --check [REPO_DIR]    exit 1 if rooms.md is missing or stale,
+                                     or if any listed room is git-ignored
                                      (writes nothing) — for CI / pre-commit
 """
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -78,8 +88,58 @@ def find_rooms(repo: Path) -> list[tuple[str, str]]:
     return rooms
 
 
+def ignored_room_notes(repo: Path, rooms: list[tuple[str, str]]) -> dict[str, str]:
+    """Rooms whose CLAUDE.md git *ignores*, mapped to the culprit ignore line.
+
+    Ignored — not merely untracked — is the pathology: an ignored room can
+    never be committed or synced, so it silently exists on one machine only
+    while rooms.md advertises it on all of them. A just-minted room awaiting
+    its first commit is untracked but not ignored, and is not flagged. A
+    tracked CLAUDE.md that happens to match an ignore pattern (force-added)
+    is visible to git and is not flagged either. Returns {} outside a git
+    work tree or when git is unavailable.
+    """
+    paths = [rel + "CLAUDE.md" for rel, _ in rooms]
+    if not paths:
+        return {}
+    try:
+        tracked = subprocess.run(
+            ["git", "-C", str(repo), "ls-files", "-z", "--", *paths],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if tracked.returncode != 0:
+        return {}  # not a git work tree — nothing to assert
+    tracked_set = set(tracked.stdout.split("\0"))
+    untracked = [p for p in paths if p not in tracked_set]
+    if not untracked:
+        return {}
+    try:
+        # -z demands --stdin (fatal otherwise); with both, input and output
+        # are NUL-separated, which keeps rooms with spaces in their names safe.
+        check = subprocess.run(
+            ["git", "-C", str(repo), "check-ignore", "-v", "-z", "--stdin"],
+            input="\0".join(untracked) + "\0",
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    # -z output: <source> NUL <linenum> NUL <pattern> NUL <pathname> NUL …
+    notes: dict[str, str] = {}
+    fields = check.stdout.split("\0")
+    for i in range(0, len(fields) - 3, 4):
+        source, linenum, pattern, pathname = fields[i : i + 4]
+        if pattern.startswith("!"):
+            continue  # deciding pattern is a negation — the path is NOT ignored
+        rel_room = pathname[: -len("CLAUDE.md")]
+        notes[rel_room] = f"`{source}:{linenum} {pattern}`"
+    return notes
+
+
 def render(repo: Path) -> str:
     rooms = find_rooms(repo)
+    notes = ignored_room_notes(repo, rooms)
     lines = [
         MARKER,
         "# Rooms",
@@ -90,7 +150,14 @@ def render(repo: Path) -> str:
     ]
     if rooms:
         for rel, desc in rooms:
-            lines.append(f"- [`{rel}`]({rel}CLAUDE.md) — {desc}")
+            line = f"- [`{rel}`]({rel}CLAUDE.md) — {desc}"
+            if rel in notes:
+                line += (
+                    f" ⚠️ **IGNORED by {notes[rel]} — git cannot see this room; "
+                    "it exists only on the machine that wrote it until that "
+                    "ignore line is fixed**"
+                )
+            lines.append(line)
     else:
         lines.append("_No sub-rooms found._")
     lines.append("")
@@ -111,13 +178,28 @@ def main(argv: list[str]) -> int:
     new = render(repo)
     out = repo / "rooms.md"
     current = out.read_text(encoding="utf-8") if out.exists() else None
+    has_ignored = "⚠️ **IGNORED by" in new
 
     if check:
         if current != new:
             print(f"gen-rooms: {out} is stale or missing", file=sys.stderr)
             return 1
+        if has_ignored:
+            print(
+                "gen-rooms: rooms.md lists git-ignored room(s) — see the "
+                "⚠️ IGNORED annotations",
+                file=sys.stderr,
+            )
+            return 1
         return 0
 
+    if has_ignored:
+        # Non-fatal on the write path (close must not abort), but say it —
+        # the inline annotation in rooms.md is the durable half of the alarm.
+        print(
+            "gen-rooms: WARNING — git-ignored room(s) flagged in rooms.md",
+            file=sys.stderr,
+        )
     if current == new:
         return 0  # no change — leave mtime untouched so nothing churns
     out.write_text(new, encoding="utf-8")
