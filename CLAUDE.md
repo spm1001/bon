@@ -4,7 +4,9 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 23 commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), ~3200 LOC core (+700 optional Dolt module), 703 tests (14 are opt-in Dolt integration via BON_DOLT_TEST=1).
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. A couple of dozen commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), a few thousand lines of core plus an optional Dolt module, and a pytest suite with opt-in Dolt integration (`BON_DOLT_TEST=1`). For exact counts ask the code (`bon --help`; `uv run pytest --collect-only -q`), not this file — hand-maintained numbers rot, and rotted ones get quoted into briefs (bon-niloza).
+
+**This repo is PUBLIC, and `.bon/` is tracked in it** — every handoff, every understanding.md edit, everything under `docs/` publishes on push. (The board items themselves stay private only by accident of backend: bon's own board is Dolt-backed, so there's no items.jsonl here.) Most sibling repos — carnet, mary-bujournal, mary-bujournal-engine — are private, and that asymmetry is the trap. A finding about a live service belongs in the repo that owns the service, with only a pointer left here; a handoff describing an unfixed weakness publishes that weakness. One command settles which world you're in: `gh repo view <repo> --json visibility`.
 
 ## Versioning & releasing (suite-managed)
 

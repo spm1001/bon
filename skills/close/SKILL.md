@@ -50,7 +50,7 @@ BON_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep 
 
 If the script isn't found, diagnose with `find ~/.claude/plugins/cache -name "close-context.sh"`. If unfixable, gather context manually — but closure should always result in a handoff, even without the script.
 
-The script outputs TIME, GIT, BON, LOCATION context, plus the values you'll need in Act: **HANDOFF_DIR**, **SESSION_ID** and **HANDOFF_FILE**. Four companion keys appear only when they apply, and each one changes what you do:
+The script outputs TIME, GIT, BON, LOCATION context, plus the values you'll need in Act: **HANDOFF_DIR**, **SESSION_ID** and **HANDOFF_FILE**. Five companion keys appear only when they apply, and each one changes what you do:
 
 | Key | Meaning | What to do |
 |---|---|---|
@@ -58,6 +58,7 @@ The script outputs TIME, GIT, BON, LOCATION context, plus the values you'll need
 | `HANDOFF_FILE_TAKEN=<name>` | The natural filename was already on disk; `HANDOFF_FILE` is suffixed | Normally just use the suffixed name — it means this session is closing twice today. Worth a sentence if you weren't expecting it |
 | `HANDOFF_GITIGNORED=true` (with `HANDOFF_ADD_CMD`) | The handoff lands under a gitignored `.bon/`, so a plain `git add` will refuse | Use `HANDOFF_ADD_CMD` verbatim at the commit step and say you had to |
 | `HANDOFF_DIR_SOURCE=global-fallback` | No board was found, so the handoff goes to `~/.bon/handoffs` | It won't sync anywhere. Say so, and consider whether it belongs on a real board instead |
+| `HANDOFF_DIR_SOURCE=ambiguous` (with `HANDOFF_CANDIDATE` lines, **no `HANDOFF_DIR`**) | Cwd is outside any board repo and several sibling repos sit below it — the script refuses to guess among them (bon-gojeni: recency picks whichever repo the last publish touched, not where you worked) | Placement is **work-based**: pick the candidate this session actually worked in (you know; the script can't), and write `HANDOFF_FILE` into that repo's visible `handoffs/` if it has one, else its `.bon/handoffs/`. If the session's work matches none of the candidates, `~/.bon/handoffs` is the honest fallback — say so |
 
 ### Which mode are you in?
 

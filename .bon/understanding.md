@@ -1,6 +1,6 @@
 # Bon — Understanding
 
-Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. ~3,250 lines of core source plus a 712-line optional Dolt module. 703 tests (14 opt-in Dolt integration; 689 run by default). Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
+Bon is a CLI work tracker for Claude-human collaboration. JSONL by default, optional Dolt backend, no daemon. A few thousand lines of core source plus an optional Dolt module, with a pytest suite whose Dolt-integration slice is opt-in (`BON_DOLT_TEST=1`). Exact counts rot faster than this file is rewritten — this line carried three stale test counts in one week before the numbers were dropped (bon-niloza); ask pytest, not prose. Designed primarily for AI agents — the human-at-keyboard path exists but is secondary.
 
 ## The data model
 

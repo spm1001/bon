@@ -153,49 +153,49 @@ if board_root "$CWD" >/dev/null 2>&1; then
     HANDOFF_DIR_SOURCE="board-walkup"
 fi
 
-# Walk-up missed — container dir (e.g. ~/Repos) where work happened in a child
-# repo. Scan down for the repo with the most recent commit, then resolve its
-# handoff dir visible-first via the same helper.
+# Walk-up missed — cwd is not in a board repo (an owner bucket like
+# ~/repos/spm1001, or ~/.claude). Scan down for child board repos via the
+# shared helper (prune rules live there). The rule (bon-gojeni): exactly ONE
+# candidate resolves silently; two or more is AMBIGUOUS — an owner bucket's
+# siblings give no basis for choosing, and most-recent-commit is estate
+# noise, not session identity (the live repro resolved to whichever repo the
+# last publish had touched). In the ambiguous case HANDOFF_DIR is
+# deliberately NOT emitted: the /close skill uses it verbatim, so a
+# plausible-looking wrong path would relocate the trap, not close it.
+SCAN_CANDIDATES=""
 if [ -z "$HANDOFF_DIR" ]; then
-    BEST_REPO=""
-    BEST_TIME=0
-    while IFS= read -r bon_dir; do
-        # A vendored plugin/marketplace clone carries its own .bon. Routing a
-        # handoff there buries it in gitignored cache that marketplace sync
-        # then clobbers: /close from ~/.claude resolved HANDOFF_DIR into
-        # plugins/marketplaces/trousse-personal/.bon/handoffs (bon-suvise,
-        # 2026-07-06). Never a legitimate target, so prune before the git probe.
-        case "$bon_dir" in
-            */.claude/plugins/*|*/plugins/marketplaces/*|*/node_modules/*|*/.git/*)
-                continue ;;
-        esac
-        repo_dir=$(dirname "$bon_dir")
-        # Skip non-git dirs (e.g. pytest temp dirs)
-        git -C "$repo_dir" rev-parse --git-dir &>/dev/null || continue
-        latest=$(git -C "$repo_dir" log -1 --format=%ct 2>/dev/null || echo "0")
-        latest=${latest:-0}
-        if [ "$latest" -gt "$BEST_TIME" ]; then
-            BEST_TIME=$latest
-            BEST_REPO="$repo_dir"
+    SCAN_CANDIDATES=$(scan_down_candidates "$CWD")
+    if [ -n "$SCAN_CANDIDATES" ]; then
+        if [ "$(printf '%s\n' "$SCAN_CANDIDATES" | wc -l)" -eq 1 ]; then
+            HANDOFF_DIR=$(handoff_write_dir "$SCAN_CANDIDATES")
+            HANDOFF_DIR_SOURCE="scan-down:$SCAN_CANDIDATES"
+        else
+            HANDOFF_DIR_SOURCE="ambiguous"
         fi
-    done < <(find "$CWD" -maxdepth 4 -name ".bon" -type d 2>/dev/null)
-    if [ -n "$BEST_REPO" ]; then
-        HANDOFF_DIR=$(handoff_write_dir "$BEST_REPO")
-        HANDOFF_DIR_SOURCE="scan-down:$BEST_REPO"
     fi
 fi
 
 # Fallback: global bon handoffs (never legacy ~/.claude/handoffs/). Named
 # rather than silent — a handoff landing outside every repo never syncs, so
-# /close has to know it took this branch.
-if [ -z "$HANDOFF_DIR" ]; then
+# /close has to know it took this branch. (Not on the ambiguous branch: that
+# one HAS candidates; it refuses to pick among them.)
+if [ -z "$HANDOFF_DIR" ] && [ "$HANDOFF_DIR_SOURCE" != "ambiguous" ]; then
     HANDOFF_DIR="$HOME/.bon/handoffs"
     HANDOFF_DIR_SOURCE="global-fallback"
 fi
 
-# Always output HANDOFF_DIR and SESSION_ID - even containers need handoffs
-echo "HANDOFF_DIR=$HANDOFF_DIR"
-echo "HANDOFF_DIR_SOURCE=$HANDOFF_DIR_SOURCE"
+# Always output HANDOFF_DIR and SESSION_ID - even containers need handoffs.
+# Except ambiguous: no dir is chosen, the candidate list IS the output.
+if [ "$HANDOFF_DIR_SOURCE" = "ambiguous" ]; then
+    echo "HANDOFF_DIR_SOURCE=ambiguous"
+    while IFS= read -r cand; do
+        echo "HANDOFF_CANDIDATE=$cand"
+    done <<< "$SCAN_CANDIDATES"
+    echo "HANDOFF_HINT=multiple sibling board repos under cwd and no basis to choose between them. Placement is WORK-based: pick the repo this session actually worked, then write into its handoffs dir (visible handoffs/ if present, else .bon/handoffs/)."
+else
+    echo "HANDOFF_DIR=$HANDOFF_DIR"
+    echo "HANDOFF_DIR_SOURCE=$HANDOFF_DIR_SOURCE"
+fi
 
 # === SESSION IDENTITY ===
 # The harness hands every session its own id. Ambient state does not.
@@ -254,14 +254,16 @@ echo "HANDOFF_FILE=$HANDOFF_FILE"
 # session on another machine cannot see it (bon-kizeje; live in mit-plongeur,
 # whose 13 handoffs are all force-added by hand). Detect it here so /close
 # force-adds deliberately rather than depending on someone noticing.
-IGNORE_PROBE="$HANDOFF_DIR"
-while [ ! -d "$IGNORE_PROBE" ] && [ "$IGNORE_PROBE" != "/" ]; do
-    IGNORE_PROBE=$(dirname "$IGNORE_PROBE")
-done
-if git -C "$IGNORE_PROBE" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-    && git -C "$IGNORE_PROBE" check-ignore -q "$HANDOFF_DIR/$HANDOFF_FILE" 2>/dev/null; then
-    echo "HANDOFF_GITIGNORED=true"
-    echo "HANDOFF_ADD_CMD=git add -f -- $HANDOFF_DIR/$HANDOFF_FILE"
+if [ -n "$HANDOFF_DIR" ]; then
+    IGNORE_PROBE="$HANDOFF_DIR"
+    while [ ! -d "$IGNORE_PROBE" ] && [ "$IGNORE_PROBE" != "/" ]; do
+        IGNORE_PROBE=$(dirname "$IGNORE_PROBE")
+    done
+    if git -C "$IGNORE_PROBE" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+        && git -C "$IGNORE_PROBE" check-ignore -q "$HANDOFF_DIR/$HANDOFF_FILE" 2>/dev/null; then
+        echo "HANDOFF_GITIGNORED=true"
+        echo "HANDOFF_ADD_CMD=git add -f -- $HANDOFF_DIR/$HANDOFF_FILE"
+    fi
 fi
 
 if is_container "$CWD"; then

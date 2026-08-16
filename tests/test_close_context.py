@@ -222,6 +222,74 @@ def test_a_newer_plugin_board_still_loses_to_a_real_repo(tmp_path):
     assert out["HANDOFF_DIR"] == str(real / ".bon" / "handoffs")
 
 
+# --- bon-gojeni: never silently pick among legitimate siblings --------------
+
+def test_two_sibling_repos_is_ambiguous(tmp_path):
+    """An owner bucket with two board repos gets candidates, not a choice.
+
+    The old rule was most-recent-commit-wins, which is estate noise: the live
+    repro resolved to whichever sibling the last publish had touched.
+    """
+    bucket = tmp_path / "bucket"
+    bucket.mkdir()
+    a = make_board_repo(bucket / "repo-a")
+    b = make_board_repo(bucket / "repo-b")
+
+    out = run_close(bucket, tmp_path / "home")
+    assert out["HANDOFF_DIR_SOURCE"] == "ambiguous"
+    assert "HANDOFF_DIR" not in out
+    assert f"HANDOFF_CANDIDATE={a}" in out["_stdout"]
+    assert f"HANDOFF_CANDIDATE={b}" in out["_stdout"]
+    assert "work" in out.get("HANDOFF_HINT", "").lower()
+
+
+def test_ambiguous_still_names_the_handoff_file(tmp_path):
+    """The filename is dir-independent, so the Claude still gets it."""
+    bucket = tmp_path / "bucket"
+    bucket.mkdir()
+    make_board_repo(bucket / "repo-a")
+    make_board_repo(bucket / "repo-b")
+
+    out = run_close(bucket, tmp_path / "home")
+    assert out["HANDOFF_FILE"] == f"{TODAY}-abcd1234.md"
+
+
+def test_ambiguous_emits_no_gitignore_flag(tmp_path):
+    """With no dir chosen there is nothing to probe for gitignore."""
+    bucket = tmp_path / "bucket"
+    bucket.mkdir()
+    make_board_repo(bucket / "repo-a")
+    make_board_repo(bucket / "repo-b")
+
+    out = run_close(bucket, tmp_path / "home")
+    assert "HANDOFF_GITIGNORED" not in out
+    assert "HANDOFF_ADD_CMD" not in out
+
+
+def test_ambiguous_does_not_fall_through_to_global(tmp_path):
+    """The candidates ARE the answer — global-fallback would bury them."""
+    bucket = tmp_path / "bucket"
+    bucket.mkdir()
+    make_board_repo(bucket / "repo-a")
+    make_board_repo(bucket / "repo-b")
+
+    out = run_close(bucket, tmp_path / "home")
+    assert out["HANDOFF_DIR_SOURCE"] == "ambiguous"
+    assert ".bon/handoffs" not in out.get("HANDOFF_DIR", "")
+
+
+def test_vendored_board_does_not_create_ambiguity(tmp_path):
+    """One real repo + one pruned plugin clone is still a SINGLE candidate."""
+    bucket = tmp_path / "bucket"
+    bucket.mkdir()
+    real = make_board_repo(bucket / "realrepo")
+    _vendored_plugin_board(bucket, newer=True)
+
+    out = run_close(bucket, tmp_path / "home")
+    assert out["HANDOFF_DIR"] == str(real / ".bon" / "handoffs")
+    assert out["HANDOFF_DIR_SOURCE"] == f"scan-down:{real}"
+
+
 # --- bon-kizeje: a gitignored .bon/ swallows the handoff -------------------
 
 def test_gitignored_handoff_is_flagged_with_a_force_add(tmp_path):

@@ -78,6 +78,37 @@ handoff_read_dirs() {
     printf '%s\n' "$HOME/.bon/handoffs"
 }
 
+# scan_down_candidates START_DIR -> newline list of child repos holding a
+# .bon board (the repo dir, not the .bon), pruned of vendored
+# plugin/marketplace clones and non-git dirs, most-recent-commit FIRST.
+# The CALLER decides what more than one candidate means: recency here is
+# ordering context, never a choice — the estate's most recent commit is
+# estate noise, not session identity (bon-gojeni: /close from an owner
+# bucket routed the handoff at whichever sibling the last publish touched).
+scan_down_candidates() {
+    local start="$1" bon_dir repo_dir latest rows=""
+    while IFS= read -r bon_dir; do
+        # A vendored plugin/marketplace clone carries its own .bon. Routing a
+        # handoff there buries it in gitignored cache that marketplace sync
+        # then clobbers (bon-suvise). Never a legitimate target.
+        case "$bon_dir" in
+            */.claude/plugins/*|*/plugins/marketplaces/*|*/node_modules/*|*/.git/*)
+                continue ;;
+        esac
+        repo_dir=$(dirname "$bon_dir")
+        # Skip non-git dirs (e.g. pytest temp dirs)
+        if ! git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
+            continue
+        fi
+        latest=$(git -C "$repo_dir" log -1 --format=%ct 2>/dev/null || echo "0")
+        latest=${latest:-0}
+        rows+="${latest}"$'\t'"${repo_dir}"$'\n'
+    done < <(find "$start" -maxdepth 4 -name ".bon" -type d 2>/dev/null)
+    if [ -n "$rows" ]; then
+        printf '%s' "$rows" | sort -rn | cut -f2-
+    fi
+}
+
 # understanding_path START_DIR -> the understanding.md to read: nearest visible
 # (room or root) walking up, else the board root's .bon/understanding.md.
 # Returns 1 (no output) when none exists.
