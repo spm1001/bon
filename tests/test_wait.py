@@ -333,3 +333,86 @@ class TestWaitUpdatedAt:
         item = json.loads((bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
         assert "updated_at" in item
         assert ISO_RE.match(item["updated_at"])
+
+
+def _set_waiting_for(bon_dir, item_id, value):
+    """Write a raw waiting_for value straight into items.jsonl (fixture surgery)."""
+    items_file = bon_dir / ".bon" / "items.jsonl"
+    items = [json.loads(l) for l in items_file.read_text().strip().split("\n")]
+    for item in items:
+        if item["id"] == item_id:
+            item["waiting_for"] = value
+    items_file.write_text("\n".join(json.dumps(i) for i in items) + "\n")
+
+
+class TestWaitMessageHonesty:
+    """The printed line describes the resulting state, not the argument (bon-vapebu)."""
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["waiting_dependency"], indirect=True)
+    def test_append_message_shows_resulting_list(self, bon_dir_with_fixture, monkeypatch):
+        """Appending to a list prints the whole list, and it matches storage."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+
+        # bon-bbb is already waiting for bon-ccc
+        result = run_bon("wait", "bon-bbb", "new-reason", cwd=bon_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "bon-bbb now waiting for: bon-ccc, new-reason" in result.stdout
+        lines = (bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip().split("\n")
+        bbb = next(json.loads(l) for l in lines if json.loads(l)["id"] == "bon-bbb")
+        assert bbb["waiting_for"] == ["bon-ccc", "new-reason"]
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_append_message_on_legacy_scalar(self, bon_dir_with_fixture, monkeypatch):
+        """A legacy scalar waiting_for normalises and the message shows both entries."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+        _set_waiting_for(bon_dir_with_fixture, "bon-aaa", "legacy-blocker")
+
+        result = run_bon("wait", "bon-aaa", "new-reason", cwd=bon_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "bon-aaa now waiting for: legacy-blocker, new-reason" in result.stdout
+        item = json.loads((bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
+        assert item["waiting_for"] == ["legacy-blocker", "new-reason"]
+
+
+class TestWaitReplace:
+    """wait --replace overwrites the blocker set instead of appending."""
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_replace_overwrites_list(self, bon_dir_with_fixture, monkeypatch):
+        """--replace leaves exactly the new reason, and says so."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+        run_bon("wait", "bon-aaa", "blocker-1", cwd=bon_dir_with_fixture)
+        run_bon("wait", "bon-aaa", "blocker-2", cwd=bon_dir_with_fixture)
+
+        result = run_bon("wait", "bon-aaa", "corrected reason", "--replace", cwd=bon_dir_with_fixture)
+
+        assert result.returncode == 0
+        assert "bon-aaa now waiting for: corrected reason" in result.stdout
+        assert "blocker-1" not in result.stdout
+        item = json.loads((bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
+        assert item["waiting_for"] == ["corrected reason"]
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_replace_on_legacy_scalar(self, bon_dir_with_fixture, monkeypatch):
+        """--replace also cleans up a legacy scalar value."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+        _set_waiting_for(bon_dir_with_fixture, "bon-aaa", "legacy-blocker")
+
+        result = run_bon("wait", "bon-aaa", "fresh reason", "--replace", cwd=bon_dir_with_fixture)
+
+        assert result.returncode == 0
+        item = json.loads((bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
+        assert item["waiting_for"] == ["fresh reason"]
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_replace_on_unwaiting_item(self, bon_dir_with_fixture, monkeypatch):
+        """--replace on an item with no blockers behaves like a plain wait."""
+        monkeypatch.chdir(bon_dir_with_fixture)
+
+        result = run_bon("wait", "bon-aaa", "only reason", "--replace", cwd=bon_dir_with_fixture)
+
+        assert result.returncode == 0
+        item = json.loads((bon_dir_with_fixture / ".bon" / "items.jsonl").read_text().strip())
+        assert item["waiting_for"] == ["only reason"]

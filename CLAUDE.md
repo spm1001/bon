@@ -4,7 +4,7 @@ Guidance for working on bon (the codebase, not with bon).
 
 ## What This Is
 
-Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 23 commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), ~3200 LOC core (+700 optional Dolt module), 684 tests (14 are opt-in Dolt integration via BON_DOLT_TEST=1).
+Bon is a lightweight work tracker for Claude-human collaboration. JSONL default, optional Dolt backend, Git-tracked. 23 commands (incl. cross-repo `bon move`, Dolt `bon register`, and `someday`/`unsomeday` parking), ~3200 LOC core (+700 optional Dolt module), 703 tests (14 are opt-in Dolt integration via BON_DOLT_TEST=1).
 
 ## Versioning & releasing (suite-managed)
 
@@ -212,6 +212,12 @@ cat <<'EOF' | bon new -q          # JSON stdin (auto-detected)
 EOF
 bon new "Quick fix" --why w --what x --done d -q   # Flags (stubs only)
 ```
+
+The JSON path accepts `title`, `type`, `parent`/`outcome`, `waiting_for` and `brief` —
+brief subfields nested or flat (flat-and-nested conflict errors). `waiting_for` (string
+or list) creates the item born blocked, with cmd_wait's unresolvable-id warning. Any
+other key is a **hard error** (bon-gezela) — a silently-dropped key looks exactly like
+success, the same contract `bon edit` adopted in bon-cefisu.
 
 ### `bon edit` Input Modes (bon-cefisu)
 

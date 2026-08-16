@@ -287,6 +287,26 @@ def check_outcome_language(title: str) -> None:
             return
 
 
+# Top-level keys the JSON creation path honours. Anything else is a hard
+# error (bon-gezela): a silently-dropped key looks exactly like success —
+# the contract bon edit already holds (bon-cefisu). Brief subfields
+# (EDIT_BRIEF_KEYS) are accepted nested under "brief" or flat.
+NEW_TOP_KEYS = ("title", "type", "parent", "outcome", "brief", "waiting_for")
+
+
+def waiting_for_from_json(value):
+    """Normalise a JSON waiting_for value to a list of blockers, or None."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list) or not all(
+        isinstance(w, str) and w.strip() for w in value
+    ):
+        error("'waiting_for' must be a string or a list of non-empty strings")
+    return value or None
+
+
 def cmd_new(args):
     """Create a new outcome or action."""
     check_initialized()
@@ -295,21 +315,53 @@ def cmd_new(args):
     # Flags are the shorthand for quick stubs with a title on the command line.
     use_json = getattr(args, 'json_input', False) or (not args.title and not sys.stdin.isatty())
 
+    waiting_for = None
     if use_json:
         # JSON from stdin — structured input, no shell escaping needed
         try:
             data = json.loads(sys.stdin.read())
         except json.JSONDecodeError as e:
             error(f"Invalid JSON on stdin: {e}")
-
-        title = data.get("title", "")
-        if not title:
-            error("JSON must include 'title'")
-
-        parent = data.get("parent", args.parent)
-        explicit_type = data.get("type")
+        if not isinstance(data, dict):
+            error('JSON on stdin must be an object, e.g. {"title": "...", "brief": {...}}')
 
         brief_data = data.get("brief", {})
+        if not isinstance(brief_data, dict):
+            error("'brief' must be an object")
+
+        unknown = (set(data) | set(brief_data)) - set(NEW_TOP_KEYS) - set(EDIT_BRIEF_KEYS)
+        if unknown:
+            error(
+                f"Unknown field(s): {', '.join(sorted(unknown))}\n"
+                "Valid: title, type, parent (or outcome), waiting_for, "
+                "brief{why, how, what, done, badly} — brief fields may also be given flat."
+            )
+
+        for key in EDIT_BRIEF_KEYS:
+            if key in data and key in brief_data:
+                error(f"'{key}' given both flat and inside 'brief' — pick one")
+            if key in data:
+                brief_data[key] = data[key]
+            if key in brief_data and not isinstance(brief_data[key], str):
+                error(f"'{key}' must be a string, got {type(brief_data[key]).__name__}")
+
+        title = data.get("title", "")
+        if not isinstance(title, str) or not title:
+            error("JSON must include 'title' (a string)")
+
+        if "parent" in data or "outcome" in data:
+            parent = data.get("parent", data.get("outcome"))
+            if parent is not None and not isinstance(parent, str):
+                error("'parent' must be a string")
+        else:
+            parent = args.parent
+
+        explicit_type = data.get("type")
+        if explicit_type not in (None, "action", "outcome"):
+            error(f"'type' must be 'action' or 'outcome', got {explicit_type!r}")
+
+        waiting_for = waiting_for_from_json(data.get("waiting_for"))
+
         brief = require_brief_flags(
             brief_data.get("why"),
             brief_data.get("what"),
@@ -345,6 +397,12 @@ def cmd_new(args):
     # Include archived IDs to prevent collisions with archived items
     existing_ids.update(i["id"] for i in load_archive())
 
+    # Same nudge as cmd_wait: an id-shaped blocker that doesn't resolve
+    # will never be cleared by the unblock-on-done cascade.
+    for blocker in waiting_for or []:
+        if re.match(r"^[a-z]+-[a-z]+$", blocker) and not find_by_id(items, blocker, prefix):
+            warn(f"'{blocker}' not found in active items — waiting_for may never resolve automatically")
+
     # Determine item type: explicit type from JSON, or inferred from parent
     is_action = bool(parent) or explicit_type == "action"
 
@@ -375,7 +433,7 @@ def cmd_new(args):
             "order": next_order(items, "action", actual_parent),
             "created_at": now_iso(),
             "created_by": get_creator(),
-            "waiting_for": None,
+            "waiting_for": waiting_for,
         }
     elif is_action:
         # Standalone action (explicit type, no parent)
@@ -389,7 +447,7 @@ def cmd_new(args):
             "order": next_order(items, "action", None),
             "created_at": now_iso(),
             "created_by": get_creator(),
-            "waiting_for": None,
+            "waiting_for": waiting_for,
         }
     else:
         item = {
@@ -402,11 +460,15 @@ def cmd_new(args):
             "created_at": now_iso(),
             "created_by": get_creator(),
         }
+        if waiting_for:
+            item["waiting_for"] = waiting_for
 
     items.append(item)
     save_items(items)
     if args.quiet:
         print(item["id"])
+    elif waiting_for:
+        print(f"Created: {item['id']} (waiting for: {', '.join(waiting_for)})")
     else:
         print(f"Created: {item['id']}")
 
@@ -631,9 +693,11 @@ def cmd_wait(args):
     if re.match(r'^[a-z]+-[a-z]+$', reason) and not find_by_id(items, reason, prefix):
         warn(f"'{reason}' not found in active items — waiting_for may never resolve automatically")
 
-    # Append to blockers list (idempotent)
+    # Append to blockers list (idempotent); --replace overwrites the whole set
     blockers = item.get("waiting_for") or []
-    if reason not in blockers:
+    if getattr(args, "replace", False):
+        blockers = [reason]
+    elif reason not in blockers:
         blockers.append(reason)
     item["waiting_for"] = blockers
     note = getattr(args, "note", None)
@@ -645,7 +709,9 @@ def cmd_wait(args):
     if getattr(args, 'quiet', False):
         print(item['id'])
     else:
-        print(f"{item['id']} now waiting for: {reason}")
+        # Print the resulting state, not the argument: on a list this appends,
+        # and reporting only the new reason reads as a replacement (bon-vapebu).
+        print(f"{item['id']} now waiting for: {', '.join(blockers)}")
 
 
 def cmd_unwait(args):
@@ -2200,6 +2266,7 @@ def main():
     wait_parser.add_argument("id", help="Item ID")
     wait_parser.add_argument("reason", help="What it's waiting for (ID or text)")
     wait_parser.add_argument("--note", help="Why it's waiting (context for future sessions)")
+    wait_parser.add_argument("--replace", action="store_true", help="Replace all existing blockers with this reason (default appends)")
     add_output_flags(wait_parser, quiet=True)
     wait_parser.set_defaults(func=cmd_wait)
 

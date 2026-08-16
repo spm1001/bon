@@ -523,3 +523,233 @@ class TestNewNotInitialized:
 
         assert result.returncode == 1
         assert "Not initialized" in result.stderr
+
+
+def _read_items(bon_dir):
+    lines = (bon_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
+    return [json.loads(line) for line in lines]
+
+
+def _mk_outcome(bon_dir):
+    run_bon("new", "Host outcome", "--why", "w", "--what", "x", "--done", "d", cwd=bon_dir)
+    return _read_items(bon_dir)[0]["id"]
+
+
+class TestNewJsonWaitingFor:
+    """JSON stdin honours waiting_for at creation (bon-gezela)."""
+
+    def test_waiting_for_list_stored_and_reported(self, bon_dir, monkeypatch):
+        """An action can be born blocked; the confirmation names the blockers."""
+        monkeypatch.chdir(bon_dir)
+        outcome_id = _mk_outcome(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Born blocked",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "waiting_for": [outcome_id, "external review"],
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 0
+        assert f"waiting for: {outcome_id}, external review" in result.stdout
+        created = next(i for i in _read_items(bon_dir) if i["title"] == "Born blocked")
+        assert created["waiting_for"] == [outcome_id, "external review"]
+
+    def test_waiting_for_string_normalised_to_list(self, bon_dir, monkeypatch):
+        """A bare string blocker lands as a one-element list."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Blocked by one",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "waiting_for": "external review",
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 0
+        created = next(i for i in _read_items(bon_dir) if i["title"] == "Blocked by one")
+        assert created["waiting_for"] == ["external review"]
+
+    def test_waiting_for_empty_list_is_none(self, bon_dir, monkeypatch):
+        """An empty waiting_for list normalises to None, matching unwait."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Not actually blocked",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "waiting_for": [],
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 0
+        created = next(i for i in _read_items(bon_dir) if i["title"] == "Not actually blocked")
+        assert created["waiting_for"] is None
+
+    def test_waiting_for_invalid_shape_errors(self, bon_dir, monkeypatch):
+        """Non-string blockers are refused loudly."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Bad blockers",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "waiting_for": [42],
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "'waiting_for' must be a string or a list" in result.stderr
+
+    def test_waiting_for_warns_on_unresolvable_id(self, bon_dir, monkeypatch):
+        """An id-shaped blocker that doesn't exist gets cmd_wait's warning."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Waiting on a ghost",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "waiting_for": ["bon-nonexistent"],
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 0
+        assert "not found in active items" in result.stderr
+
+    def test_born_blocked_excluded_from_ready(self, bon_dir, monkeypatch):
+        """A born-blocked action is genuinely blocked, not just decorated."""
+        monkeypatch.chdir(bon_dir)
+        outcome_id = _mk_outcome(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Born blocked",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "waiting_for": [outcome_id],
+        })
+        run_bon("new", cwd=bon_dir, input=data)
+
+        result = run_bon("list", "--ready", cwd=bon_dir)
+        assert "Born blocked" not in result.stdout
+
+    def test_unblock_on_done_clears_birth_blocker(self, bon_dir, monkeypatch):
+        """The unblock-on-done cascade treats a birth blocker like any other."""
+        monkeypatch.chdir(bon_dir)
+        outcome_id = _mk_outcome(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Born blocked",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "waiting_for": [outcome_id],
+        })
+        run_bon("new", cwd=bon_dir, input=data)
+        run_bon("done", outcome_id, cwd=bon_dir)
+
+        created = next(i for i in _read_items(bon_dir) if i["title"] == "Born blocked")
+        assert created["waiting_for"] is None
+
+
+class TestNewJsonKeyContract:
+    """Unknown keys are hard errors; flat brief fields are accepted (cefisu parity)."""
+
+    def test_unknown_top_level_key_errors(self, bon_dir, monkeypatch):
+        """The key that used to vanish silently now refuses loudly."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "title": "With stowaway",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "priority": 1,
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "Unknown field(s): priority" in result.stderr
+
+    def test_unknown_brief_key_errors(self, bon_dir, monkeypatch):
+        """Unknown keys inside brief are refused too."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "title": "With stowaway",
+            "brief": {"why": "w", "what": "x", "done": "d", "urgency": "high"},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "Unknown field(s): urgency" in result.stderr
+
+    def test_flat_brief_fields_accepted(self, bon_dir, monkeypatch):
+        """Brief fields given flat land nested in the stored brief."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "title": "Flat brief",
+            "why": "w", "what": "x", "done": "d", "how": "h",
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 0
+        created = next(i for i in _read_items(bon_dir) if i["title"] == "Flat brief")
+        assert created["brief"] == {"why": "w", "what": "x", "done": "d", "how": "h"}
+
+    def test_flat_and_nested_conflict_errors(self, bon_dir, monkeypatch):
+        """The same brief field flat and nested is ambiguous — refuse."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "title": "Conflicted",
+            "why": "flat why",
+            "brief": {"why": "nested why", "what": "x", "done": "d"},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "given both flat and inside 'brief'" in result.stderr
+
+    def test_non_string_brief_value_errors(self, bon_dir, monkeypatch):
+        """A non-string brief value is refused, not stored as-is."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "title": "Typed wrong",
+            "brief": {"why": 3, "what": "x", "done": "d"},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "'why' must be a string" in result.stderr
+
+    def test_bad_type_value_errors(self, bon_dir, monkeypatch):
+        """A typo'd type no longer silently creates an outcome."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "type": "actoin",
+            "title": "Mistyped",
+            "brief": {"why": "w", "what": "x", "done": "d"},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "'type' must be 'action' or 'outcome'" in result.stderr
+
+    def test_outcome_key_aliases_parent(self, bon_dir, monkeypatch):
+        """'outcome' works as an alias for 'parent', matching bon edit."""
+        monkeypatch.chdir(bon_dir)
+        outcome_id = _mk_outcome(bon_dir)
+
+        data = json.dumps({
+            "title": "Child via alias",
+            "outcome": outcome_id,
+            "brief": {"why": "w", "what": "x", "done": "d"},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 0
+        created = next(i for i in _read_items(bon_dir) if i["title"] == "Child via alias")
+        assert created["type"] == "action"
+        assert created["parent"] == outcome_id

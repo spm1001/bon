@@ -262,6 +262,8 @@ cat <<'EOF' | bon new -q
 EOF
 ```
 
+The JSON path honours `title`, `type`, `parent` (or `outcome`), `waiting_for` and `brief` — brief fields may also be given flat. `waiting_for` (a string or a list) lets an action be born blocked: `"waiting_for": ["bon-abc", "external review"]` creates it already waiting. Any other key is a hard error, never a silent drop — the same contract as `bon edit`.
+
 **Standalone actions** — for field reports, one-off fixes, observations — use `type: "action"`:
 
 ```bash
@@ -332,8 +334,9 @@ EOF
 bon new "Quick fix" --why W --what X --done D -q     # Flags: only for one-line stubs
 bon done ID                  # Complete (unblocks waiters)
 bon done ID --note "reason"  # Complete with context
-bon wait ID REASON           # Mark waiting (clears tactical!)
-bon unwait ID                # Clear waiting
+bon wait ID REASON           # Mark waiting (clears tactical!) — APPENDS to existing blockers, prints the resulting list
+bon wait ID REASON --replace # Overwrite ALL blockers with this reason (correcting a stale one)
+bon unwait ID                # Clear waiting (or one blocker: bon unwait ID BLOCKER)
 bon work ID                  # Init tactical from --what
 bon work ID "step1" "step2"  # Init with explicit steps
 bon work --status            # Current tactical state
