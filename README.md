@@ -97,7 +97,7 @@ Flags work too for quick stubs: `bon new "Fix typo" --why w --what x --done d -q
 | `done ID` | Mark item complete |
 | `doctor [--fix]` | Check board health; `--fix` refreshes a stale `.bon/README.md` |
 | `wait ID REASON [--replace]` | Mark as waiting — appends to existing blockers and prints the resulting list; `--replace` overwrites them |
-| `unwait ID` | Clear waiting status |
+| `unwait ID [BLOCKER] [--note]` | Clear waiting status; `--note` records why the block lifted (stored as `released_note`, cleared by the next `wait`) |
 | `someday ID CONDITION` | Park Someday/Maybe with a revisit condition (leaves default views) |
 | `unsomeday ID` | Unpark a Someday item |
 | `edit ID --flag VALUE` | Edit item fields (title, brief, parent, order, closing note) — or pipe JSON to stdin |

@@ -93,6 +93,62 @@ def test_doctor_broken_waiting(bon_dir_with_fixture):
     assert "waiting_for 'bon-gone' does not exist" in result.stdout
 
 
+def _seed_waiting(bon_dir, waiting_for):
+    import json
+    item = {"id": "bon-host", "type": "action", "title": "Waiting item",
+            "brief": {"why": "w", "what": "x", "done": "d"}, "status": "open",
+            "parent": None, "order": 1, "created_at": "2026-08-01T10:00:00Z",
+            "created_by": "t", "waiting_for": waiting_for}
+    (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+
+
+def test_doctor_free_text_rationale_with_hyphen_is_clean(bon_dir):
+    """A hyphenated word inside a rationale is not a dangling id (bon-gufale).
+
+    `bon wait` documents its reason as 'ID or text'; doctor was the only
+    surface disagreeing — five false positives on a clean 55-item board.
+    """
+    _seed_waiting(bon_dir, ["Ellie's sign-off on the recharge model"])
+    result = run_bon("doctor", cwd=bon_dir)
+    assert "does not exist" not in result.stdout
+    assert "All clear." in result.stdout
+
+
+def test_doctor_spaceless_hyphenated_rationale_is_clean(bon_dir):
+    """'external-review' is a rationale, not a reference to a board id."""
+    _seed_waiting(bon_dir, ["external-review"])
+    result = run_bon("doctor", cwd=bon_dir)
+    assert "does not exist" not in result.stdout
+
+
+def test_doctor_foreign_board_id_is_clean(bon_dir):
+    """An id from ANOTHER board cannot be verified here — pass, don't guess."""
+    _seed_waiting(bon_dir, ["crn-kemize"])
+    result = run_bon("doctor", cwd=bon_dir)
+    assert "does not exist" not in result.stdout
+
+
+def test_doctor_own_prefix_dangling_id_still_fires(bon_dir):
+    """The negative control: a doctor that passes everything is the same
+    uselessness the other way round."""
+    _seed_waiting(bon_dir, ["bon-zzzzzz"])
+    result = run_bon("doctor", cwd=bon_dir)
+    assert "waiting_for 'bon-zzzzzz' does not exist" in result.stdout
+
+
+def test_doctor_legacy_prefix_carried_by_live_items_is_checked(bon_dir):
+    """A prefix any live item carries counts as the board's own (re-prefix
+    migrations leave legacy ids behind)."""
+    import json
+    item = {"id": "old-abcdef", "type": "action", "title": "Legacy id",
+            "brief": {"why": "w", "what": "x", "done": "d"}, "status": "open",
+            "parent": None, "order": 1, "created_at": "2026-08-01T10:00:00Z",
+            "created_by": "t", "waiting_for": ["old-gonexx"]}
+    (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+    result = run_bon("doctor", cwd=bon_dir)
+    assert "waiting_for 'old-gonexx' does not exist" in result.stdout
+
+
 def test_doctor_no_items(bon_dir):
     """Empty items.jsonl reports nothing to check."""
     result = run_bon("doctor", cwd=bon_dir)

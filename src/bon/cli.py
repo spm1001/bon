@@ -566,6 +566,10 @@ def cmd_show(args):
         if item.get("wait_note"):
             wf_line += f" ({item['wait_note']})"
         print(wf_line)
+    elif item.get("released_note"):
+        # Why the last block lifted — met, abandoned, decided against
+        # (bon-wevapu). Cleared by any fresh `bon wait`.
+        print(f"   Released: {item['released_note']}")
 
     if item.get("someday"):
         print(f"   Someday 🅿️ — revisit: {item['someday']}")
@@ -628,6 +632,14 @@ def cmd_done(args):
             item["done_note"] = note
             save_items(items)
             print(f"Already done: {item['id']} (note attached)")
+        elif note:
+            # A note the caller passed and we will not store must say so
+            # audibly (bon-pufezi) — a silent drop reads as recorded.
+            print(f"Already done: {item['id']}")
+            warn(
+                f"note NOT stored — {item['id']} already carries one. "
+                f"To replace it: bon edit {item['id']} --note '...'"
+            )
         else:
             print(f"Already done: {item['id']}")
         return
@@ -638,6 +650,14 @@ def cmd_done(args):
     note = getattr(args, "note", None)
     if note:
         item["done_note"] = note
+    else:
+        # Re-closing a reopened item with no fresh note: drop the previous
+        # close's note rather than let it pose as this close's reasoning
+        # (bon-pufezi — an item DROPPED in July read as the August close's
+        # verdict). The note deliberately survives `bon reopen` so the old
+        # reasoning stays readable while deciding; it clears only here, at
+        # the moment it would start lying. History lives in git/dolt.
+        item.pop("done_note", None)
 
     # Clear tactical steps (action is done, steps are moot)
     item.pop("tactical", None)
@@ -700,6 +720,10 @@ def cmd_wait(args):
     elif reason not in blockers:
         blockers.append(reason)
     item["waiting_for"] = blockers
+    # A new waiting cycle begins: the previous release's rationale is now
+    # another cycle's story (bon-wevapu — same clear-at-the-lie moment as
+    # done_note on re-close, bon-pufezi).
+    item.pop("released_note", None)
     note = getattr(args, "note", None)
     if note:
         item["wait_note"] = note
@@ -739,6 +763,14 @@ def cmd_unwait(args):
         item["waiting_for"] = None
         item.pop("wait_note", None)
 
+    # Why the block lifted — met, abandoned, decided against — is exactly
+    # what evaporates at release time (bon-wevapu: 'Sameer decided, and there
+    # was nowhere to record the decision'). Overwrites any earlier release's
+    # note; a fresh `bon wait` clears it (a new cycle makes it stale).
+    note = getattr(args, "note", None)
+    if note:
+        item["released_note"] = note
+
     item["updated_at"] = now_iso()
     item["updated_by"] = "unwaited"
     save_items(items)
@@ -746,9 +778,11 @@ def cmd_unwait(args):
         print(item['id'])
     elif item.get("waiting_for"):
         remaining = ", ".join(item["waiting_for"])
-        print(f"{item['id']} removed {blocker}, still waiting for: {remaining}")
+        suffix = " (release note recorded)" if note else ""
+        print(f"{item['id']} removed {blocker}, still waiting for: {remaining}{suffix}")
     else:
-        print(f"{item['id']} no longer waiting")
+        suffix = " (release note recorded)" if note else ""
+        print(f"{item['id']} no longer waiting{suffix}")
 
 
 def cmd_someday(args):
@@ -2156,6 +2190,10 @@ def cmd_doctor(args):
     # --- Phase 3: Cross-item referential integrity ---
     all_ids = {item.get("id") for item in valid_items if item.get("id")}
     prefix = load_prefix()
+    # The prefixes this board actually uses — its configured one plus any
+    # carried by live items (legacy ids from before a re-prefix migration).
+    board_prefixes = {i.rsplit("-", 1)[0] for i in all_ids if "-" in i}
+    board_prefixes.add(prefix)
 
     for item in valid_items:
         # Parent references
@@ -2169,13 +2207,23 @@ def cmd_doctor(args):
             if parent and parent.get("type") != "outcome":
                 issues.append(f"{item['id']}: parent '{parent_id}' is not an outcome")
 
-        # waiting_for references (only check ID-shaped values)
+        # waiting_for references — existence-check only entries that could BE
+        # this board's ids: whitespace-free AND carrying one of the board's
+        # own prefixes. `bon wait` documents its reason as "ID or text", so
+        # free-text rationales ("waiting on Ellie's sign-off") are legitimate
+        # data, and any hyphenated word used to read as a dangling id — five
+        # false positives on a clean 55-item board, a noise floor that kept
+        # doctor from being run at all (bon-gufale). Foreign-board ids also
+        # pass: this doctor cannot know whether crn-abc exists.
         wf = item.get("waiting_for")
         if wf:
             blockers = wf if isinstance(wf, list) else [wf]
             for blocker in blockers:
-                if "-" in blocker and blocker not in all_ids:
-                    issues.append(f"{item['id']}: waiting_for '{blocker}' does not exist")
+                b = str(blocker)
+                if " " in b or "-" not in b:
+                    continue
+                if b.rsplit("-", 1)[0] in board_prefixes and b not in all_ids:
+                    issues.append(f"{item['id']}: waiting_for '{b}' does not exist")
 
     # Check order gaps/duplicates among siblings
     from collections import defaultdict
@@ -2274,6 +2322,7 @@ def main():
     unwait_parser = subparsers.add_parser("unwait", help="Clear waiting status")
     unwait_parser.add_argument("id", help="Item ID")
     unwait_parser.add_argument("blocker", nargs="?", help="Specific blocker to remove (omit to clear all)")
+    unwait_parser.add_argument("--note", help="Why the block lifted — met, abandoned, or decided against (stored as released_note)")
     add_output_flags(unwait_parser, quiet=True)
     unwait_parser.set_defaults(func=cmd_unwait)
 

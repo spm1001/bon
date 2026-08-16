@@ -337,6 +337,7 @@ bon done ID --note "reason"  # Complete with context
 bon wait ID REASON           # Mark waiting (clears tactical!) — APPENDS to existing blockers, prints the resulting list
 bon wait ID REASON --replace # Overwrite ALL blockers with this reason (correcting a stale one)
 bon unwait ID                # Clear waiting (or one blocker: bon unwait ID BLOCKER)
+bon unwait ID --note "..."   # Record WHY the block lifted (met/abandoned/decided against) — survives as released_note
 bon work ID                  # Init tactical from --what
 bon work ID "step1" "step2"  # Init with explicit steps
 bon work --status            # Current tactical state

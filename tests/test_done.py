@@ -251,3 +251,69 @@ class TestAlreadyDoneNote:
         assert "note attached" not in result.stdout
         stored = json.loads((bon_dir / ".bon" / "items.jsonl").read_text())
         assert stored["done_note"] == "the original note"
+
+    def test_discarded_note_says_so(self, bon_dir):
+        """A --note that will not be stored is announced, never silently dropped
+        (bon-pufezi), with the repair verb named."""
+        self._seed(bon_dir, with_note=True)
+        result = run_bon("done", "bon-gone", "--note", "usurper", cwd=bon_dir)
+        assert result.returncode == 0
+        assert "NOT stored" in result.stderr
+        assert "bon edit" in result.stderr
+
+    def test_no_note_passed_no_warning(self, bon_dir):
+        """Negative control: plain re-done of a done item stays quiet."""
+        self._seed(bon_dir, with_note=True)
+        result = run_bon("done", "bon-gone", cwd=bon_dir)
+        assert result.returncode == 0
+        assert "NOT stored" not in result.stderr
+
+
+class TestRecloseNote:
+    """bon-pufezi: a re-close's completion context reflects the LAST close.
+
+    The July note said DROPPED; the item was reopened and genuinely completed
+    in August; bon show still reported the July note as the completion story.
+    The note survives `bon reopen` (readable while deciding what to do) and
+    clears at re-close unless a fresh note replaces it.
+    """
+
+    def _cycle(self, bon_dir):
+        run_bon("new", "Cycled", "--why", "w", "--what", "x", "--done", "d",
+                cwd=bon_dir)
+        import json
+        item_id = json.loads(
+            (bon_dir / ".bon" / "items.jsonl").read_text().strip())["id"]
+        run_bon("done", item_id, "--note", "Dropped — tracked elsewhere",
+                cwd=bon_dir)
+        run_bon("reopen", item_id, cwd=bon_dir)
+        return item_id
+
+    def _stored(self, bon_dir):
+        import json
+        return json.loads((bon_dir / ".bon" / "items.jsonl").read_text().strip())
+
+    def test_note_survives_reopen(self, bon_dir):
+        """The first close's reasoning stays readable while the item is open."""
+        self._cycle(bon_dir)
+        assert self._stored(bon_dir)["done_note"] == "Dropped — tracked elsewhere"
+
+    def test_reclose_without_note_clears_stale_note(self, bon_dir):
+        """Re-closing with no note drops the old one rather than let it lie."""
+        item_id = self._cycle(bon_dir)
+        run_bon("done", item_id, cwd=bon_dir)
+        assert "done_note" not in self._stored(bon_dir)
+
+    def test_reclose_with_note_overwrites(self, bon_dir):
+        """A fresh note is this close's story."""
+        item_id = self._cycle(bon_dir)
+        run_bon("done", item_id, "--note", "Actually completed", cwd=bon_dir)
+        assert self._stored(bon_dir)["done_note"] == "Actually completed"
+
+    def test_first_close_still_stores_note(self, bon_dir):
+        """Control: the ordinary first-close path is untouched."""
+        run_bon("new", "Once", "--why", "w", "--what", "x", "--done", "d",
+                cwd=bon_dir)
+        item_id = self._stored(bon_dir)["id"]
+        run_bon("done", item_id, "--note", "first and only", cwd=bon_dir)
+        assert self._stored(bon_dir)["done_note"] == "first and only"
