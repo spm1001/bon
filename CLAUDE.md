@@ -313,3 +313,5 @@ a skill: `uv run --script ../batterie-de-savoir/scripts/render-skills.py .` from
 root. CI re-checks it on every push (fetching the canonical script from batterie-de-savoir
 raw main), so a stale table fails the build. If a table one-liner reads badly, fix the
 SKILL.md description (skill-forge), not the table.
+
+**Notes room:** `~/notes/practices/cohabiting-codebases/` — the pattern language this tool is the largest worked example of. (bon-jezahi, 2026-08-16)
