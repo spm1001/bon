@@ -128,6 +128,21 @@ def test_doctor_foreign_board_id_is_clean(bon_dir):
     assert "does not exist" not in result.stdout
 
 
+def test_doctor_waiting_outcome_is_clean(bon_dir):
+    """A waiting OUTCOME is legitimate GTD (a delegated outcome is the
+    textbook Waiting For) — wait/new/display all allow it; doctor agrees
+    since 2026-08-16. Tactical on an outcome stays flagged."""
+    import json
+    item = {"id": "bon-parked", "type": "outcome", "title": "Delegated outcome",
+            "brief": {"why": "w", "what": "x", "done": "d"}, "status": "open",
+            "order": 1, "created_at": "2026-08-01T10:00:00Z",
+            "created_by": "t", "waiting_for": ["Rupert's sign-off"]}
+    (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+    result = run_bon("doctor", cwd=bon_dir)
+    assert "outcome has waiting_for" not in result.stdout
+    assert "All clear." in result.stdout
+
+
 def test_doctor_own_prefix_dangling_id_still_fires(bon_dir):
     """The negative control: a doctor that passes everything is the same
     uselessness the other way round."""

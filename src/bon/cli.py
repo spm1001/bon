@@ -2178,10 +2178,13 @@ def cmd_doctor(args):
             except Exception as e:
                 issues.append(f"line {line_num} ({item.get('id', '?')}): bad tactical — {e}")
 
-        # Type-specific field rules
+        # Type-specific field rules. Tactical is genuinely action-only (`bon
+        # work` refuses outcomes). waiting_for is NOT flagged: a delegated
+        # outcome is GTD's textbook Waiting For, `bon wait` has always
+        # accepted outcomes, `bon new` can create one born blocked, and the
+        # display renders it (⏳) — doctor was the lone dissenter
+        # (adjudicated 2026-08-16, with Sameer, out of bon-gufale).
         if item.get("type") == "outcome":
-            if item.get("waiting_for"):
-                issues.append(f"line {line_num} ({item.get('id', '?')}): outcome has waiting_for")
             if item.get("tactical"):
                 issues.append(f"line {line_num} ({item.get('id', '?')}): outcome has tactical")
 

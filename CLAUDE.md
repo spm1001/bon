@@ -66,7 +66,9 @@ ids, queries ── leaves (no intra-package imports)
 Items live in `.bon/items.jsonl` (or a Dolt database when using the optional backend). Two types:
 
 - **Outcome**: Desired result (has children)
-- **Action**: Concrete step (has parent, waiting_for)
+- **Action**: Concrete step (has parent)
+
+`waiting_for` applies to **both** types — a delegated outcome is GTD's textbook Waiting For (adjudicated 2026-08-16). `tactical` stays action-only.
 
 Both require `brief: {why, what, done}` — all three non-empty. Two optional subfields: `how` captures approach/strategy, and `badly` carries a **pre-registered falsifier** — what would show the work went wrong, as against `--done`'s "how do we know it's complete".
 
