@@ -35,8 +35,17 @@ def test_update_no_bon_dir_needed(tmp_path):
 
 
 @pytest.mark.skipif(not _bon_is_uv_tool(), reason="bon not installed as uv tool")
-def test_update_runs():
+def test_update_runs(monkeypatch):
     """bon update re-installs from source."""
+    # This test is inherently non-hermetic: `uv tool upgrade bon` operates on
+    # uv's real tool store under ~/.local/share, so undo the conftest fixture
+    # that redirects XDG_DATA_HOME (it exists to keep test invocations out of
+    # the real invocation log).
+    from conftest import REAL_XDG_DATA_HOME
+    if REAL_XDG_DATA_HOME is None:
+        monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    else:
+        monkeypatch.setenv("XDG_DATA_HOME", REAL_XDG_DATA_HOME)
     result = run_bon("update")
     assert result.returncode == 0
     assert "Current: bon" in result.stdout

@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from bon import _invlog
 from bon.display import _normalize_brief, format_grouped_by_area, format_hierarchical, format_json, format_jsonl, format_tactical
 from bon.queries import open_child_parent_ids, someday_ids
 from bon.ids import DEFAULT_ORDER, generate_unique_id, next_order
@@ -2447,7 +2448,18 @@ def cmd_doctor(args):
 
 
 def main():
-    """Main CLI entry point."""
+    """Main CLI entry point: invocation logging around the real main.
+
+    Every invocation — success and failure alike — appends one caller-stamped
+    JSONL line via the vendored shim (src/bon/_invlog.py; canonical copy and
+    conformance test live in spm1001/harness-ergonomics). Logging is
+    best-effort: a broken log path never breaks the CLI (erg-fatogo).
+    """
+    with _invlog.capture("bon", __version__) as inv:
+        _main(inv)
+
+
+def _main(inv):
     parser = argparse.ArgumentParser(
         prog="bon",
         description="Work tracker for Claude-human collaboration"
@@ -2649,6 +2661,7 @@ def main():
     help_parser.set_defaults(func=lambda args: cmd_help(args, parser))
 
     args = parser.parse_args()
+    inv.note(subcommand=args.command, parsed=args)
 
     if args.command is None:
         parser.print_help()

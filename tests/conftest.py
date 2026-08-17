@@ -1,4 +1,5 @@
 """Pytest configuration and fixtures."""
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -6,6 +7,19 @@ from pathlib import Path
 import pytest
 
 from bon.storage import BOARD_README, _reset_backend, _reset_data_dir
+
+# Captured before the hermetic fixture monkeypatches it, for the rare test
+# that must reach the REAL ~/.local/share (e.g. `uv tool upgrade` in test_update).
+REAL_XDG_DATA_HOME = os.environ.get("XDG_DATA_HOME")
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_invocation_log(tmp_path_factory, monkeypatch):
+    """Point XDG_DATA_HOME at a temp dir so test runs never write test noise
+    into the real ~/.local/share/bon/invocations.jsonl (the _invlog shim's
+    output is analysis data — test invocations would poison the caller-stamp
+    baseline). Tests that probe the log override XDG_DATA_HOME themselves."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path_factory.mktemp("xdg")))
 
 
 @pytest.fixture(autouse=True)
