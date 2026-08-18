@@ -210,14 +210,35 @@ elif [ -n "${CLAUDE_CONTEXT_WINDOW:-}" ]; then
 else
     # No sidecar — true for every bg session (no statusline render). Infer:
     # a fable/[1m] model implies a 1M window; real input beyond 200k proves
-    # 1M regardless of model string. On a genuine turn 1 the transcript has
-    # no assistant entry yet, so fall back to the configured default model
-    # (settings.json) — self-corrects from turn 2 via the transcript.
-    # Bare 200k only as last resort.
+    # 1M regardless of model string. Bare 200k only as last resort.
+    #
+    # Neither model source is sufficient alone:
+    #   - the transcript records a BARE id ("claude-opus-5") with no window
+    #     suffix, so a genuine 1M session fails the [1m] test from turn 2 on;
+    #   - settings.json keeps the suffixed form ("opus[1m]") but names only the
+    #     DEFAULT model, which a mid-session /model switch makes stale.
+    # So trust the transcript for WHICH model is running, and borrow the window
+    # suffix from settings.json only when the two agree on the family.
+    #
+    # Consulting settings.json solely when the transcript came back empty meant
+    # turn 1 correctly inferred 1M and every turn after it silently dropped to
+    # 200k — reporting "6% free" on a session /context put at 81% free, which
+    # pushed real sessions to wrap up with four fifths of the window unused.
+    SETTINGS_MODEL=$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
+    WINDOW_MODEL="$MODEL"
     if [ -z "$MODEL" ]; then
-        MODEL=$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
+        WINDOW_MODEL="$SETTINGS_MODEL"
+    elif [ -n "$SETTINGS_MODEL" ]; then
+        # "opus[1m]" -> "opus". sed, not ${x%%[*}: a bare [ opens a bracket
+        # expression in parameter expansion and does not strip reliably.
+        SETTINGS_FAMILY=$(printf '%s' "$SETTINGS_MODEL" | sed 's/\[.*//')
+        if [ -n "$SETTINGS_FAMILY" ]; then
+            case "$MODEL" in
+                *"$SETTINGS_FAMILY"*) WINDOW_MODEL="$SETTINGS_MODEL" ;;
+            esac
+        fi
     fi
-    case "$MODEL" in
+    case "$WINDOW_MODEL" in
         *fable*|*"[1m]"*) MAX_TOKENS=1000000 ;;
         *) if [ "$TOTAL_IN" -gt 200000 ] 2>/dev/null; then
                MAX_TOKENS=1000000
