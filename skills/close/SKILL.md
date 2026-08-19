@@ -184,8 +184,10 @@ Now sort the remaining actions into three buckets:
 Before proposing the close-out, read Sameer's dispatch queue and check the session against it. Gate and failure mode as in /open's compass: skip only when `accomplis` is absent; unreachable renders as "not shown", never silence.
 
 ```bash
-accomplis tasks --project "& Toolmaking" 2>/dev/null
+accomplis tasks --project "& Toolmaking" 2>/dev/null | jq -r '.[] | .content'
 ```
+
+(The jq filter is load-bearing: the raw JSON runs ~37KB on a real queue and blows the Bash output cap — same fix as /open's compass, measured 2026-08-19.)
 
 Three checks, rendered as one 🧭 block inside the close-out proposal:
 

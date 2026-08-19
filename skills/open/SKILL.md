@@ -128,9 +128,13 @@ collision-proof path is the whole guard.
 Sameer's session-boundary guide — where this session sits in his intentions. Render it right after the hierarchy, before picking direction: the compass informs the pick. (Origin and contract: bon-leturo; his framing — "the high level guide for me and a reminder of what we're going to do together.")
 
 ```bash
-accomplis tasks --project "& Toolmaking" 2>/dev/null          # his dispatch queue
-accomplis tasks --project "Projects - Toolmaking" 2>/dev/null # his DOs (root = active; Someday section = parked)
+accomplis tasks --project "& Toolmaking" 2>/dev/null \
+  | jq -r '.[] | "\(.priority)|\(.content)"'                  # his dispatch queue
+accomplis tasks --project "Projects - Toolmaking" 2>/dev/null \
+  | jq -r '.[] | select(.priority==4 and .parent_id==null and .section_id==null) | .content'   # his P1 DOs (root + un-sectioned = active; Someday section = parked)
 ```
+
+The jq filters are load-bearing, not taste: the raw JSON runs ~37KB on a 30-line queue (every task carries full metadata and comments), which blows the Bash output cap and costs a persisted-file round trip (measured 2026-08-19). The render needs two fields; ask for two fields.
 
 Render exactly three lines — the budget is fixed, do not grow it:
 
