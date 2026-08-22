@@ -365,6 +365,11 @@ bon convert ID               # Action → outcome, or outcome → standalone act
 bon convert ID --outcome P   # Outcome → action under P (demote + re-home in one move)
 bon move ID --to REPO        # Move to another repo's board (path or ~/repos name);
                              # filed where you're cd'd ≠ where it belongs — move is cheap
+                             # An outcome with open actions is refused. Move the actions
+                             # first, then the outcome: each lands standalone (IDs are
+                             # per-board, so they change), then re-parent with
+                             # `bon edit NEW --parent NEW_OUTCOME`. Blockers and tactical
+                             # progress do not cross repos.
 
 bon status                   # Overview counts
 ```

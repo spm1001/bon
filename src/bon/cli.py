@@ -1357,10 +1357,17 @@ def cmd_move(args):
     if item["status"] == "done":
         error(f"{item['id']} is already done — nothing to move")
 
-    children = [i for i in items if i.get("parent") == item["id"]]
+    # Only OPEN children can be stranded. A done child is settled history and
+    # stays put by design — and because move closes the source rather than
+    # deleting it, moving the children first leaves them done-but-still-parented.
+    # Counting those made the advertised path ("move or close the children
+    # first") impossible: an outcome with any action could never be moved.
+    children = [
+        i for i in items if i.get("parent") == item["id"] and i.get("status") != "done"
+    ]
     if children:
         error(
-            f"{item['id']} has {len(children)} child item(s) — moving it would strand them here.\n"
+            f"{item['id']} has {len(children)} open child item(s) — moving it would strand them here.\n"
             "Move or close the children first (or `bon convert` them to standalone)."
         )
 
@@ -1382,7 +1389,10 @@ def cmd_move(args):
         parent_item = find_by_id(items, item["parent"], prefix)
         parent_desc = f" '{parent_item['title']}'" if parent_item else ""
         provenance.append(f"was under {item['parent']}{parent_desc}")
-        warn(f"Parent {item['parent']} stays here — {new_id} files as standalone in the target")
+        warn(
+            f"Parent {item['parent']} stays here — {new_id} files as standalone in the target"
+            f" (re-parent with: bon edit {new_id} --parent <id>)"
+        )
     blockers = item.get("waiting_for") or []
     if blockers:
         provenance.append(f"was waiting for {', '.join(blockers)}")
