@@ -332,6 +332,38 @@ def waiting_for_from_json(value):
     return value or None
 
 
+def _jsonl_staleness_warning() -> str | None:
+    """One-line warning when the JSONL board is behind the last-fetched origin (bon-wevodu).
+
+    Deliberately no fetch here: a fetch per CLI call is network I/O at ~20
+    calls a session, so the /open rite owns the once-per-session fetch and
+    this compares against its result. That makes the check one-sided — it can
+    prove staleness, never freshness. An unfetched clone reads clean, which is
+    the passe-partout incident's exact blindness; the rite's fetch is what
+    keeps this honest for the rest of the session.
+    """
+    if _get_backend() == "dolt":
+        return None
+    try:
+        board_file = items_path()
+        result = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD..@{upstream}", "--", str(board_file)],
+            cwd=board_file.parent, capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return None  # no git, no upstream, detached — nothing to compare against
+        behind = int(result.stdout.strip() or 0)
+        if behind > 0:
+            return (
+                f"items.jsonl is {behind} commit(s) behind the last-fetched origin — "
+                "the board view may be stale, and this item may duplicate one filed "
+                "on another clone (bon-wevodu). Pull before trusting the board."
+            )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return None
+
+
 def cmd_new(args):
     """Create a new outcome or action."""
     check_initialized()
@@ -505,6 +537,9 @@ def cmd_new(args):
 
     items.append(item)
     save_items(items)
+    staleness = _jsonl_staleness_warning()
+    if staleness:
+        warn(staleness)
     if args.quiet:
         print(item["id"])
     elif waiting_for:

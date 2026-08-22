@@ -774,3 +774,56 @@ class TestSpeciesAnnouncement:
                     "--done", "d", "-q", cwd=bon_dir)
         assert r.stdout.strip().startswith("bon-")
         assert "Created" not in r.stdout
+
+
+def _git(cwd, *args):
+    import subprocess
+    subprocess.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+        cwd=cwd, check=True, capture_output=True,
+    )
+
+
+def test_new_staleness_warn_is_one_sided(tmp_path):
+    """bon-wevodu: bon new warns when items.jsonl is behind the LAST-FETCHED origin.
+
+    One-sided by design — no fetch in the CLI (the /open rite owns that), so an
+    unfetched clone reads clean and a fetched-but-unmerged one warns."""
+    import subprocess
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+    a, b, c = tmp_path / "a", tmp_path / "b", tmp_path / "c"
+    subprocess.run(["git", "clone", "-q", str(origin), str(a)], check=True, capture_output=True)
+    bon_a = a / ".bon"
+    bon_a.mkdir()
+    (bon_a / "items.jsonl").write_text("")
+    (bon_a / "prefix").write_text("bon")
+    _git(a, "add", "-A")
+    _git(a, "commit", "-q", "-m", "board")
+    _git(a, "push", "-q", "origin", "HEAD")
+
+    subprocess.run(["git", "clone", "-q", str(origin), str(b)], check=True, capture_output=True)
+
+    # Clone A files an item and pushes — B's clone is now behind origin.
+    r = run_bon("new", "Filed on A", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=a)
+    assert r.returncode == 0
+    _git(a, "add", "-A")
+    _git(a, "commit", "-q", "-m", "item")
+    _git(a, "push", "-q", "origin", "HEAD")
+
+    # Behind but UNFETCHED: reads clean — the documented blindness the rite's fetch closes.
+    r1 = run_bon("new", "On B before fetch", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=b)
+    assert r1.returncode == 0
+    assert "behind the last-fetched origin" not in r1.stderr
+
+    # After a fetch the same write warns.
+    _git(b, "fetch", "-q")
+    r2 = run_bon("new", "On B after fetch", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=b)
+    assert r2.returncode == 0
+    assert "behind the last-fetched origin" in r2.stderr
+
+    # A current clone stays silent.
+    subprocess.run(["git", "clone", "-q", str(origin), str(c)], check=True, capture_output=True)
+    r3 = run_bon("new", "On C current", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=c)
+    assert r3.returncode == 0
+    assert "behind the last-fetched origin" not in r3.stderr

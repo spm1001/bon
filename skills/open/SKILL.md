@@ -111,6 +111,15 @@ Mint deliberately, not on autopilot: if a candidate is stale, already done, or w
 
 ### 3. Present Hierarchy
 
+**On a JSONL board, refresh its truth first — one fetch per session, here** (bon-wevodu). The board is a local file, so a behind-origin clone renders a stale hierarchy and lets you file duplicates against it (the passe-partout twin was filed exactly this way — the duplicate-check ran clean against a stale clone). Dolt boards skip this: one networked writer, always current.
+
+```bash
+git fetch -q origin 2>/dev/null
+behind=$(git rev-list --count HEAD..@{u} -- .bon/items.jsonl 2>/dev/null || echo 0)
+```
+
+If `behind` is greater than 0, say so in the orientation ("board is N commits behind origin") and bring it current with `git pull --ff-only` when the working tree is clean. One boundary, phrased by mechanism: the fetch touches only the remote-tracking ref, but a pull is a branch write — so in a repo whose git writes belong to a robot (`~/notes` and notes-sync), stop at the warning and let the robot carry the merge. After this fetch, `bon new`'s own staleness check (which compares against the tracking ref without network) stays honest for the rest of the session.
+
 Show the full picture — outcomes with progress and their actions — **as text in your response** (not via Bash, which collapses behind Ctrl+O).
 
 Run `bon list`, capture to a temp file, Read and output:
