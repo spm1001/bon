@@ -96,6 +96,8 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/orphans.py --repo <clone-path>
 
 The convention (bon-nenine, 2026-08-08): commits doing tracked work cite their bon as a trailing `(bon-ID)`. CITED-BUT-OPEN items are close-candidates to fold into Phases 2–4 — a commit already claims the work moved, so the question is desire, not truth. UNKNOWN-ID entries are typos to fix now. The coverage percentage is adoption telemetry for the convention itself — low numbers are expected on history that predates it (bon's own baseline was 14% organic).
 
+**Sediment check (root handoff piles).** Root `handoffs/` piles silt up with room-specific files whenever room structure or placement conventions move ahead of the data — drift raises no incident for intake to key on, so this clocked rite is the surface positioned to see it (33 misplaced files sat at the notes root for 11 weeks until the 2026-08-22 curation, surfaced only by a direct question). Glance at the newest few root-pile files per surveyed clone: a `purpose:` line naming a room or another repo's work is a stray. Strays become a Phase 4 relocation proposal — never a silent move.
+
 **STOP here.** Adjudicate the pyramid in conversational Q&A clusters (recommendation first — his preferred shape), and wait for scope confirmation before verification. His wordings apply verbatim; his edits fold back into the draft.
 
 ### Phase 2: Verify (the hard part)

@@ -107,6 +107,8 @@ Mint deliberately, not on autopilot: if a candidate is stale, already done, or w
 
 **Then mark them minted**, so a re-open doesn't double-mint: edit the handoff's candidate heading to `### Candidates (minted YYYY-MM-DD)`. This is the step that re-syncs the board with the handoffs — it's what cures "where do I pick up".
 
+**And adopt the file when its candidates belong to another board.** A candidate-mode handoff lands on whatever mount its session had, which isn't always the board that owns the work. When the board you just minted on is a different repo, move the handoff into that repo's handoffs dir in the same change (updating any ledger line that links it) — the board item and its artefact travel together. Minting the item while leaving the file behind lets it drift into another room's briefing: the 2026-08-04 Cowork hello wrote a mit-commons handoff to the notes root, its candidate was minted on the mit-commons board five days later, and the stranded file was then served as the baton to an unrelated notes session.
+
 ### 3. Present Hierarchy
 
 Show the full picture — outcomes with progress and their actions — **as text in your response** (not via Bash, which collapses behind Ctrl+O).
