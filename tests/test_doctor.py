@@ -410,3 +410,36 @@ class TestOrderDupRepair:
         orders = _orders(bon_dir)
         assert orders[a] == 1  # done item keeps its historical order
         assert sorted(v for k, v in orders.items() if k != a) == [1, 2, 3]
+
+
+def test_doctor_gitignored_bon_advisory(bon_dir):
+    """A root .gitignore that swallows .bon/ strands handoffs/understanding/bottle
+    silently (bon-kizeje) — doctor surfaces it as an advisory, never an issue."""
+    import subprocess
+    subprocess.run(["git", "init", "-q"], cwd=bon_dir, check=True)
+    (bon_dir / ".gitignore").write_text(".bon/\n")
+
+    result = run_bon("doctor", cwd=bon_dir)
+
+    assert result.returncode == 0
+    assert "Sync hazard (advisory" in result.stdout
+    assert ".bon/handoffs/any.md" in result.stdout
+    assert ".bon/items.jsonl" in result.stdout  # JSONL board: the board itself is stranded too
+    assert "All clear." in result.stdout  # advisory rides a clean bill, not an issue count
+
+
+def test_doctor_no_sync_advisory_when_bon_tracked(bon_dir):
+    import subprocess
+    subprocess.run(["git", "init", "-q"], cwd=bon_dir, check=True)
+
+    result = run_bon("doctor", cwd=bon_dir)
+
+    assert "Sync hazard" not in result.stdout
+    assert "All clear." in result.stdout  # positive control: doctor ran and reported
+
+
+def test_doctor_no_sync_advisory_outside_git(bon_dir):
+    result = run_bon("doctor", cwd=bon_dir)
+
+    assert "Sync hazard" not in result.stdout
+    assert "All clear." in result.stdout

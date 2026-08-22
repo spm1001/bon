@@ -2218,6 +2218,43 @@ def _resequence_siblings(siblings):
     return changed
 
 
+def _gitignored_durable_advisory() -> list[str]:
+    """Advisory lines when a root .gitignore strands durable .bon artefacts (bon-kizeje).
+
+    A wholesale `.bon/` ignore usually arrives as init boilerplate (the
+    mit-plongeur case). Handoffs, understanding.md and the bottle then write
+    locally but never commit — nothing errors, the next machine just never
+    sees them. `git check-ignore` matches paths that don't exist yet, so a
+    fresh board reports before its first stranded write. Exceptions can't be
+    added inside an ignored directory (git never descends into one); the fix
+    lives in the ROOT .gitignore.
+    """
+    data_dir = _data_dir()
+    candidates = ["README.md", "understanding.md", "handoffs/any.md"]
+    if _get_backend() != "dolt":
+        candidates.append("items.jsonl")
+    ignored = []
+    try:
+        for rel in candidates:
+            result = subprocess.run(
+                ["git", "check-ignore", "-q", str(data_dir / rel)],
+                cwd=data_dir.parent, capture_output=True, timeout=5,
+            )
+            if result.returncode == 0:
+                ignored.append(f".bon/{rel}")
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if not ignored:
+        return []
+    return [
+        f"gitignored durable artefact(s): {', '.join(ignored)} — they write locally but never commit,",
+        "so handoffs/understanding/bottle silently stop travelling to other machines.",
+        "Fix the ROOT .gitignore (exceptions inside an ignored dir are inert): replace a wholesale",
+        "`.bon/` rule with scoped patterns that keep handoffs/, understanding.md, README.md,",
+        "prefix and backend tracked (plus items.jsonl on JSONL boards).",
+    ]
+
+
 def cmd_doctor(args):
     """Check items.jsonl for health issues."""
     check_initialized()
@@ -2275,6 +2312,11 @@ def cmd_doctor(args):
         if stale:
             print("\nStale claims (advisory — not counted as issues):")
             for line in stale:
+                print(f"  {line}")
+        gitignored = _gitignored_durable_advisory()
+        if gitignored:
+            print("\nSync hazard (advisory — not counted as issues):")
+            for line in gitignored:
                 print(f"  {line}")
         return
 
@@ -2454,6 +2496,12 @@ def cmd_doctor(args):
     if stale:
         print("\nStale claims (advisory — not counted as issues):")
         for line in stale:
+            print(f"  {line}")
+
+    gitignored = _gitignored_durable_advisory()
+    if gitignored:
+        print("\nSync hazard (advisory — not counted as issues):")
+        for line in gitignored:
             print(f"  {line}")
 
 

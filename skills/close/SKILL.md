@@ -43,12 +43,20 @@ Act           → execute, craft handoff, commit → overnight Claude reviews
 
 Find the close-context script and run it. This gives you the raw material for the rest of the process.
 
+The scripts directory is a sibling of this skill's own tree: take the base directory the harness printed when this skill loaded (`…/bon/<version>/skills/close`) and replace `skills/close` with `scripts`. That copy is by construction the version this session actually loaded.
+
 ```bash
-BON_SCRIPTS=$(ls -td ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep -v '/skills/' | head -1)
+BON_SCRIPTS="<this skill's base directory, with skills/close → scripts>"
 "$BON_SCRIPTS/close-context.sh"
 ```
 
-If the script isn't found, diagnose with `find ~/.claude/plugins/cache -name "close-context.sh"`. If unfixable, gather context manually — but closure should always result in a handoff, even without the script.
+If you have no base directory, fall back to the highest cached *version* — never mtime ordering (`ls -td`): `claude plugin update` touches older dirs after writing the new one, so mtime deterministically picks the stale copy right after a publish (bon-katuso, measured twice). And note the fallback's own limit: the highest cached version isn't always the loaded one, since user- and project-scope installs can pin different versions.
+
+```bash
+BON_SCRIPTS=$(ls -1d ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep -v '/skills/' | sort -V | tail -1)
+```
+
+If the script isn't found either way, diagnose with `find ~/.claude/plugins/cache -name "close-context.sh"`. If unfixable, gather context manually — but closure should always result in a handoff, even without the script.
 
 The script outputs TIME, GIT, BON, LOCATION context, plus the values you'll need in Act: **HANDOFF_DIR**, **SESSION_ID** and **HANDOFF_FILE**. Five companion keys appear only when they apply, and each one changes what you do:
 
