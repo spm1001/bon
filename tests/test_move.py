@@ -275,3 +275,66 @@ class TestMoveNameResolution:
 
         assert result.returncode == 1
         assert "Ambiguous" in result.stderr
+
+
+class TestMoveSubtree:
+    """The refusal message tells you to move or close the children first.
+    Because `move` closes the source item rather than deleting it, that
+    instruction used to be unfollowable: the parent's child count never fell
+    to zero, so an outcome with any action could never be moved at all.
+    """
+
+    def test_done_children_do_not_block(self, two_boards):
+        source, target = two_boards
+        seed(
+            source,
+            outcome("src-paren"),
+            action("src-child", parent="src-paren", status="done"),
+        )
+
+        result = run_bon("move", "src-paren", "--to", str(target), cwd=source)
+
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        moved = [i for i in read_items(target).values() if i["id"].startswith("tgt-")]
+        assert len(moved) == 1
+        assert moved[0]["type"] == "outcome"
+
+    def test_children_then_parent_completes(self, two_boards):
+        """The documented workflow, end to end."""
+        source, target = two_boards
+        seed(
+            source,
+            outcome("src-paren"),
+            action("src-chila", parent="src-paren"),
+            action("src-chilb", parent="src-paren"),
+        )
+
+        for child in ("src-chila", "src-chilb"):
+            r = run_bon("move", child, "--to", str(target), cwd=source)
+            assert r.returncode == 0, f"stderr: {r.stderr}"
+
+        result = run_bon("move", "src-paren", "--to", str(target), cwd=source)
+
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        landed = [i for i in read_items(target) if i.startswith("tgt-")]
+        assert len(landed) == 3
+
+    def test_open_child_still_refused(self, two_boards):
+        source, target = two_boards
+        seed(source, outcome("src-paren"), action("src-child", parent="src-paren"))
+
+        result = run_bon("move", "src-paren", "--to", str(target), cwd=source)
+
+        assert result.returncode == 1
+        assert "open child item(s)" in result.stderr
+        assert not [i for i in read_items(target) if i.startswith("tgt-")]
+
+    def test_standalone_warning_names_the_repair(self, two_boards):
+        """Re-parenting in the target is manual, so the warning must say how."""
+        source, target = two_boards
+        seed(source, outcome("src-paren"), action("src-child", parent="src-paren"))
+
+        result = run_bon("move", "src-child", "--to", str(target), cwd=source)
+
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert "--parent" in result.stderr
