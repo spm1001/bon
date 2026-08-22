@@ -228,6 +228,37 @@ class TestMoveErrors:
         # Nothing landed in the target
         assert not [i for i in read_items(target) if i.startswith("tgt-")]
 
+    def test_all_closed_children_move_cleanly(self, two_boards):
+        # bon-rofatu: the guard counted done children, so a parent whose
+        # children were all closed could never move — the error's own remedy
+        # ("close the children first") was unsatisfiable. The source closes as
+        # a done tombstone, so closed children keep a valid parent link.
+        source, target = two_boards
+        seed(source, outcome("src-paren"),
+             action("src-child", parent="src-paren", status="done"))
+
+        result = run_bon("move", "src-paren", "--to", str(target), cwd=source)
+
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        moved = [i for i in read_items(target).values() if i["id"].startswith("tgt-")]
+        assert len(moved) == 1
+        src = read_items(source)
+        assert src["src-paren"]["status"] == "done"          # tombstone
+        assert src["src-child"]["parent"] == "src-paren"     # link still valid
+        assert "closed child record(s) stay here" in result.stderr
+
+    def test_open_children_counted_without_closed_siblings(self, two_boards):
+        source, target = two_boards
+        seed(source, outcome("src-paren"),
+             action("src-chila", parent="src-paren", status="open"),
+             action("src-chilb", parent="src-paren", status="done"))
+
+        result = run_bon("move", "src-paren", "--to", str(target), cwd=source)
+
+        assert result.returncode == 1
+        assert "1 open child item(s)" in result.stderr
+        assert not [i for i in read_items(target) if i.startswith("tgt-")]
+
     def test_same_repo_refused(self, two_boards):
         source, _ = two_boards
         seed(source, action("src-mova"))

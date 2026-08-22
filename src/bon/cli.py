@@ -1357,10 +1357,14 @@ def cmd_move(args):
     if item["status"] == "done":
         error(f"{item['id']} is already done — nothing to move")
 
+    # Only OPEN children block the move: the source closes as a done tombstone,
+    # so closed children's parent link stays valid after the move (bon-rofatu —
+    # counting done children made the error's own remedy unsatisfiable).
     children = [i for i in items if i.get("parent") == item["id"]]
-    if children:
+    open_children = [i for i in children if i["status"] == "open"]
+    if open_children:
         error(
-            f"{item['id']} has {len(children)} child item(s) — moving it would strand them here.\n"
+            f"{item['id']} has {len(open_children)} open child item(s) — moving it would strand them here.\n"
             "Move or close the children first (or `bon convert` them to standalone)."
         )
 
@@ -1389,6 +1393,12 @@ def cmd_move(args):
         warn(f"Blocker link(s) {', '.join(blockers)} dropped — waits don't cross repos")
     if _tactical_is_active(item):
         warn("Tactical progress is not carried over")
+    done_children = [i for i in children if i["status"] != "open"]
+    if done_children:
+        warn(
+            f"{len(done_children)} closed child record(s) stay here — "
+            f"{item['id']} remains as a done tombstone their parent link resolves to"
+        )
 
     brief = dict(item.get("brief") or {})
     brief["why"] = ((brief.get("why") or "").rstrip() + f"\n[{'; '.join(provenance)}]").strip()
