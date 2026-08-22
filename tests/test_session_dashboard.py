@@ -88,3 +88,71 @@ class TestSessionKeying:
                 assert "Session restarted" not in out
         finally:
             state_path(sid).unlink(missing_ok=True)
+
+
+class TestContextWindowInference:
+    """Window size inference when no statusline sidecar exists (bon-zugone).
+
+    `message.model` in the transcript records the BASE model id — a 1M Opus
+    session writes `claude-opus-5`, identical to a 200k one. settings.json
+    keeps the `[1m]` marker and is the only local source that can tell them
+    apart, but it used to be read only when the transcript model was empty.
+    From turn 2 onward a 1M session was therefore inferred as 200k: observed
+    live on 2026-08-22 as "1% free" at 197k of a 1M window.
+    """
+
+    def _session(self, tmp_path, model, total_in, configured):
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True)
+        if configured is not None:
+            (home / ".claude" / "settings.json").write_text(
+                json.dumps({"model": configured})
+            )
+        transcript = tmp_path / "t.jsonl"
+        transcript.write_text(json.dumps({
+            "type": "assistant",
+            "message": {
+                "model": model,
+                "usage": {
+                    "input_tokens": total_in,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
+            },
+        }) + "\n")
+        return home, transcript
+
+    def _window_k(self, tmp_path, model, total_in, configured):
+        home, transcript = self._session(tmp_path, model, total_in, configured)
+        env = dict(os.environ)
+        env.pop("CLAUDE_CODE_SESSION_ID", None)
+        env.pop("CLAUDE_CONTEXT_WINDOW", None)
+        env["HOME"] = str(home)
+        r = subprocess.run(
+            ["bash", str(HOOK)],
+            input=json.dumps({
+                "session_id": str(uuid.uuid4()),
+                "transcript_path": str(transcript),
+            }),
+            capture_output=True, text=True, env=env, cwd=str(tmp_path),
+        )
+        assert r.returncode == 0, r.stderr
+        return json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
+
+    def test_stripped_variant_still_infers_1m_from_settings(self, tmp_path):
+        # The reported bug: transcript says claude-opus-5, settings say opus[1m].
+        ctx = self._window_k(tmp_path, "claude-opus-5", 197_000, "opus[1m]")
+        assert "1000k window" in ctx
+        assert "80% free" in ctx
+
+    def test_genuine_200k_model_stays_200k(self, tmp_path):
+        ctx = self._window_k(tmp_path, "claude-sonnet-5", 50_000, "sonnet")
+        assert "200k window" in ctx
+
+    def test_input_beyond_200k_proves_1m_regardless(self, tmp_path):
+        ctx = self._window_k(tmp_path, "claude-sonnet-5", 400_000, "sonnet")
+        assert "1000k window" in ctx
+
+    def test_no_configured_model_falls_back_to_200k(self, tmp_path):
+        ctx = self._window_k(tmp_path, "claude-opus-5", 1_000, None)
+        assert "200k window" in ctx
