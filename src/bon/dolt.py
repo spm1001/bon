@@ -12,6 +12,7 @@ from pathlib import Path
 from bon.storage import (
     _data_dir,
     _most_recent_timestamp,
+    _normalise_waiting_for,
     error,
     get_creator,
     load_prefix,
@@ -440,17 +441,55 @@ def _row_to_item(row: dict) -> dict:
 
 # ---------- items operations ----------
 
+# Per-process snapshot of the last loaded, normalised state of each prefix.
+# save-time diffs run against this, so a save touches only the rows its own
+# command changed (bon-resena: whole-prefix truncate-and-reinsert let one
+# lane's save persist another lane's in-flight state as the whole board).
+_LOAD_SNAPSHOTS: dict[str, dict[str, str]] = {}
+
+
+def _canon_item(item: dict) -> str:
+    """Canonical form for change detection — stable across key order."""
+    return json.dumps(item, sort_keys=True, default=str)
+
+
+def _select_prefix_committed(cur, table: str, prefix: str) -> list:
+    """Read a prefix's rows from COMMITTED state, never the live working set.
+
+    Dolt's sql-server serves other connections' in-flight transaction state
+    to plain reads (measured 2026-08-23: a plain SELECT during another
+    connection's uncommitted DELETE saw the deletion; the same read
+    AS OF 'HEAD' saw committed truth). A plain load during a concurrent
+    write therefore sees a half-written board — the trigger of the
+    bon-resena row loss. AS OF 'HEAD' pins the read to the last Dolt commit.
+
+    Fallback: a table that exists but has never been dolt-committed (a
+    brand-new database mid-init) raises 'table not found' under AS OF —
+    a plain read is safe there, since a board with no commit history has
+    no concurrent-writer window to fear.
+    """
+    try:
+        cur.execute(
+            f"SELECT * FROM {table} AS OF 'HEAD' WHERE id LIKE %s",
+            (f"{prefix}-%",),
+        )
+    except Exception:
+        cur.execute(f"SELECT * FROM {table} WHERE id LIKE %s", (f"{prefix}-%",))
+    return cur.fetchall()
+
+
 def dolt_load_items(prefix: str | None = None) -> list[dict]:
     """Load all items for a project prefix from Dolt (default: current repo's).
 
-    Deduplicates by ID (same contract as JSONL load_items).
+    Deduplicates by ID (same contract as JSONL load_items). Reads committed
+    state only, and snapshots the normalised result so the next save can
+    write just the rows that actually changed (see _LOAD_SNAPSHOTS).
     """
     conn = _get_connection()
     prefix = prefix or load_prefix()
 
     with conn.cursor() as cur:
-        cur.execute("SELECT * FROM items WHERE id LIKE %s", (f"{prefix}-%",))
-        rows = cur.fetchall()
+        rows = _select_prefix_committed(cur, "items", prefix)
 
     seen: dict[str, dict] = {}
     for row in rows:
@@ -467,14 +506,29 @@ def dolt_load_items(prefix: str | None = None) -> list[dict]:
         else:
             seen[item_id] = item
 
-    return list(seen.values())
+    # Normalise BEFORE snapshotting — storage.load_items re-normalises the
+    # returned list (idempotent), and the snapshot must match what cli code
+    # actually holds, or every legacy-shaped row diffs as phantom-changed.
+    result = _normalise_waiting_for(list(seen.values()))
+    _LOAD_SNAPSHOTS[prefix] = {i["id"]: _canon_item(i) for i in result}
+    return result
 
 
 def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
-    """Save items to Dolt with truncate-and-reinsert within a transaction.
+    """Save items to Dolt, writing only the rows this process changed.
 
-    Only touches rows matching the given prefix (default: current repo's).
-    Other projects' items are untouched. Produces a Dolt commit.
+    Item-grain writes (bon-resena, adjudicated 2026-08-23): the save diffs
+    the final list against the snapshot taken at load and touches only
+    changed/new rows plus explicit deletions. Two lanes editing different
+    items therefore commute — neither rewrites state it only *saw*. The
+    old whole-prefix truncate-and-reinsert let a load that caught another
+    lane's write mid-flight persist that half-board as truth (42 of 60
+    rows lost in the two-writer reproduction), and let an old client null
+    estate-wide fields it had never heard of (the someday/area decay).
+
+    Population fallback: a save with no prior load in this process (migrate,
+    init import) rewrites the whole prefix — those paths are deliberately
+    board-grain and single-lane by nature.
     """
     conn = _get_connection()
     prefix = prefix or load_prefix()
@@ -495,14 +549,34 @@ def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
         ids = ", ".join(sorted(duplicates))
         print(f"Warning: Deduplicated IDs on save: {ids}", file=sys.stderr)
 
-    rows = [_item_to_row(item) for item in sorted(seen.values(), key=lambda i: i.get("id", ""))]
+    snapshot = _LOAD_SNAPSHOTS.get(prefix)
+    if snapshot is None:
+        to_write = sorted(seen.values(), key=lambda i: i.get("id", ""))
+        deleted_ids: list[str] = []
+    else:
+        to_write = sorted(
+            (item for iid, item in seen.items() if _canon_item(item) != snapshot.get(iid)),
+            key=lambda i: i.get("id", ""),
+        )
+        deleted_ids = sorted(set(snapshot) - set(seen))
+        if not to_write and not deleted_ids:
+            return  # nothing changed — no write, no empty commit, no window
+
+    rows = [_item_to_row(item) for item in to_write]
     for row in rows:
         _check_row_limits(row)
 
     with _write_transaction(conn, "items save"):
         with conn.cursor() as cur:
-            # Delete only this prefix's items
-            cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{prefix}-%",))
+            if snapshot is None:
+                # Population path: replace the whole prefix
+                cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{prefix}-%",))
+            else:
+                doomed = [item["id"] for item in to_write] + deleted_ids
+                placeholders = ", ".join(["%s"] * len(doomed))
+                cur.execute(
+                    f"DELETE FROM items WHERE id IN ({placeholders})", doomed
+                )
 
             for row in rows:
                 cols = list(row.keys())
@@ -526,6 +600,10 @@ def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
                 (f"bon {cmd_str}", author),
             )
 
+    # Keep the snapshot current so a second save in this process diffs
+    # against what was just written, not the original load.
+    _LOAD_SNAPSHOTS[prefix] = {iid: _canon_item(item) for iid, item in seen.items()}
+
 
 # ---------- archive operations ----------
 
@@ -535,37 +613,52 @@ def dolt_load_archive(prefix: str | None = None) -> list[dict]:
     prefix = prefix or load_prefix()
 
     with conn.cursor() as cur:
-        cur.execute("SELECT * FROM archive WHERE id LIKE %s", (f"{prefix}-%",))
-        rows = cur.fetchall()
+        rows = _select_prefix_committed(cur, "archive", prefix)
 
     return [_row_to_item(row) for row in rows]
 
 
 def dolt_append_archive(items: list[dict]) -> None:
-    """Append items to the archive table, deduplicating by ID."""
+    """Append items to the archive table, deduplicating by ID.
+
+    A true append (bon-resena): only the incoming ids are written — an
+    existing row survives untouched unless the incoming version is at least
+    as recent. The old form rewrote the whole prefix's archive from a fresh
+    load, which carried the same fractured-read amplification as items.
+    """
     conn = _get_connection()
 
-    # Load existing archive for dedup
-    existing = dolt_load_archive()
-    seen: dict[str, dict] = {}
-    for item in existing + items:
+    # Intra-batch dedup (same contract as before)
+    incoming: dict[str, dict] = {}
+    for item in items:
         item_id = item.get("id", "")
-        if item_id in seen:
-            if _most_recent_timestamp(item) >= _most_recent_timestamp(seen[item_id]):
-                seen[item_id] = item
+        if item_id in incoming:
+            if _most_recent_timestamp(item) >= _most_recent_timestamp(incoming[item_id]):
+                incoming[item_id] = item
         else:
-            seen[item_id] = item
+            incoming[item_id] = item
+
+    # Only upsert where the incoming version is new or wins on recency
+    existing = {i["id"]: i for i in dolt_load_archive()}
+    upserts = [
+        item for item_id, item in incoming.items()
+        if item_id not in existing
+        or _most_recent_timestamp(item) >= _most_recent_timestamp(existing[item_id])
+    ]
+    if not upserts:
+        return
 
     prefix = load_prefix()
     rows = [_item_to_row(item, _ARCHIVE_COLUMNS)
-            for item in sorted(seen.values(), key=lambda i: i.get("id", ""))]
+            for item in sorted(upserts, key=lambda i: i.get("id", ""))]
     for row in rows:
         _check_row_limits(row)
 
     with _write_transaction(conn, "archive append"):
         with conn.cursor() as cur:
-            # Replace all archive rows for this prefix
-            cur.execute("DELETE FROM archive WHERE id LIKE %s", (f"{prefix}-%",))
+            doomed = [row["id"] for row in rows]
+            placeholders = ", ".join(["%s"] * len(doomed))
+            cur.execute(f"DELETE FROM archive WHERE id IN ({placeholders})", doomed)
             for row in rows:
                 cols = list(row.keys())
                 placeholders = ", ".join(["%s"] * len(cols))

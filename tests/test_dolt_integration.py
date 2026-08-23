@@ -483,3 +483,81 @@ class TestReposRegistration:
         # --job "" clears to NULL (surfaces as unassigned)
         assert dolt_register_repo(prefix, job="") is True
         assert self._repos_row(prefix)["job"] is None
+
+
+class TestItemGrainWrites:
+    """bon-resena (2026-08-23): a save must not rewrite rows it only saw."""
+
+    @staticmethod
+    def _item(item_id, title="Seed"):
+        return {
+            "id": item_id,
+            "type": "action",
+            "title": title,
+            "brief": {"why": "w", "what": "x", "done": "d"},
+            "status": "open",
+            "parent": None,
+            "order": 1,
+            "created_at": now_iso(),
+            "created_by": "test",
+            "waiting_for": None,
+        }
+
+    def test_save_touches_only_changed_rows(self, dolt_dir):
+        tmp_path, prefix = dolt_dir
+        save_items([self._item(f"{prefix}-aaa"),
+                    self._item(f"{prefix}-bbb"),
+                    self._item(f"{prefix}-ccc")])   # population path
+        loaded = load_items()                        # snapshot taken here
+        target = next(i for i in loaded if i["id"].endswith("bbb"))
+        target["title"] = "edited"
+        save_items(loaded)
+
+        from bon.dolt import _get_connection
+        conn = _get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(to_id, from_id) AS id, diff_type "
+                "FROM dolt_diff('HEAD~', 'HEAD', 'items') "
+                "WHERE COALESCE(to_id, from_id) LIKE %s",
+                (f"{prefix}-%",),
+            )
+            rows = cur.fetchall()
+        assert len(rows) == 1, f"expected 1 changed row, got {rows}"
+        assert rows[0]["id"] == f"{prefix}-bbb"
+        assert rows[0]["diff_type"] == "modified"
+
+    def test_noop_save_writes_no_commit(self, dolt_dir):
+        tmp_path, prefix = dolt_dir
+        save_items([self._item(f"{prefix}-aaa")])
+        loaded = load_items()
+
+        from bon.dolt import _get_connection
+        conn = _get_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT dolt_hashof('HEAD') AS h")
+            before = cur.fetchone()["h"]
+        save_items(loaded)                           # nothing changed
+        with conn.cursor() as cur:
+            cur.execute("SELECT dolt_hashof('HEAD') AS h")
+            after = cur.fetchone()["h"]
+        assert before == after, "unchanged save must not mint a commit"
+
+    def test_deletion_is_explicit(self, dolt_dir):
+        tmp_path, prefix = dolt_dir
+        save_items([self._item(f"{prefix}-aaa"), self._item(f"{prefix}-bbb")])
+        loaded = load_items()
+        survivors = [i for i in loaded if not i["id"].endswith("aaa")]
+        save_items(survivors)
+
+        from bon.dolt import _get_connection
+        conn = _get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(to_id, from_id) AS id, diff_type "
+                "FROM dolt_diff('HEAD~', 'HEAD', 'items') "
+                "WHERE COALESCE(to_id, from_id) LIKE %s",
+                (f"{prefix}-%",),
+            )
+            rows = cur.fetchall()
+        assert {(r["id"], r["diff_type"]) for r in rows} == {(f"{prefix}-aaa", "removed")}
