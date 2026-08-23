@@ -614,6 +614,22 @@ def cmd_list(args):
         print(output)
 
 
+def _stamp_with_local(stamp: str) -> str:
+    """Render a stored UTC stamp with the local wall-clock time beside it.
+
+    Stored stamps are UTC ('…Z'); a session's sense of time is local. Two
+    phantom cross-lane race reports (bon-lomede, bon-dalepu) were manufactured
+    by comparing the two directly — an hour of timezone skew inverted a
+    causality. Showing both closes the gap at the surface actually read.
+    """
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone()
+        return f"{stamp} ({dt.strftime('%Y-%m-%d %H:%M')} local)"
+    except (ValueError, TypeError):
+        return stamp
+
+
 def cmd_show(args):
     """Show details for a single item."""
     check_initialized()
@@ -663,10 +679,10 @@ def cmd_show(args):
     print(f"   Status: {item['status']}")
     if item.get("area"):
         print(f"   Area: {item['area']}")
-    print(f"   Created: {item['created_at']} by {item['created_by']}")
+    print(f"   Created: {_stamp_with_local(item['created_at'])} by {item['created_by']}")
     if item.get("updated_at"):
         updated_by = item.get("updated_by", "updated")
-        print(f"   Updated: {item['updated_at']} ({updated_by})")
+        print(f"   Updated: {_stamp_with_local(item['updated_at'])} ({updated_by})")
     if item.get("done_note"):
         print(f"   Note: {item['done_note']}")
 

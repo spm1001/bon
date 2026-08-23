@@ -170,3 +170,20 @@ class TestShowJsonUpdatedAt:
         data = json.loads(result.stdout)
         # The edit stamps a fresh updated_at; normalization must not clobber it.
         assert data["updated_at"] >= data["created_at"]
+
+
+def test_show_renders_local_time_beside_utc_stamp(bon_dir):
+    """bon-dalepu/lomede: raw Z stamps beside local wall-clock sense manufactured
+    phantom race reports — show renders both."""
+    import json
+    item = {
+        "id": "bon-zzstmp", "type": "action", "title": "Stamped",
+        "brief": {"why": "w", "what": "x", "done": "d"}, "status": "open",
+        "parent": None, "order": 1, "created_at": "2026-08-16T21:04:32Z",
+        "created_by": "test", "waiting_for": None,
+    }
+    (bon_dir / ".bon" / "items.jsonl").write_text(json.dumps(item) + "\n")
+    result = run_bon("show", "bon-zzstmp", cwd=bon_dir)
+    assert result.returncode == 0
+    import re
+    assert re.search(r"Created: 2026-08-16T21:04:32Z \(\d{4}-\d{2}-\d{2} \d{2}:\d{2} local\)", result.stdout), result.stdout

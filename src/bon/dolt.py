@@ -473,9 +473,22 @@ def _select_prefix_committed(cur, table: str, prefix: str) -> list:
             f"SELECT * FROM {table} AS OF 'HEAD' WHERE id LIKE %s",
             (f"{prefix}-%",),
         )
+        return cur.fetchall()
     except Exception:
         cur.execute(f"SELECT * FROM {table} WHERE id LIKE %s", (f"{prefix}-%",))
-    return cur.fetchall()
+        rows = cur.fetchall()
+        if rows:
+            # A fresh never-committed table legitimately lacks AS OF and has
+            # no rows. Rows present + AS OF failing means the committed-read
+            # guard has silently degraded to the fracture window it exists
+            # to close — say so rather than rotting invisibly.
+            print(
+                f"Warning: committed-state read (AS OF 'HEAD') failed for {table}; "
+                "fell back to a live working-set read. On an established board "
+                "this means the bon-resena guard is not protecting loads — investigate.",
+                file=sys.stderr,
+            )
+        return rows
 
 
 def dolt_load_items(prefix: str | None = None) -> list[dict]:
