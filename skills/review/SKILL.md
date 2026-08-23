@@ -305,6 +305,8 @@ Execute the user's decisions.
 
 **Closing discipline — bon resolves the board from your cwd.** Always `cd` into the target repo before `bon done`; running it from anywhere else acts on the wrong board (the filed-where-cd'd hazard).
 
+**Re-check at the moment of action (bon-cenaje) — the board has moved since Phase 2.** Estate audits run for hours while live sessions work the same boards: on 2026-07-26 three items were closed by a concurrent session between verification and audit close (benign that time — `Already done`), and a `bon edit` in the same window would have clobbered the other session's text, since edits are last-writer-wins. So immediately before each `bon done`/`bon edit`, re-show the item and compare against what Phase 2 verified: status still open, and the fields you're about to touch unchanged. Moved state → skip the action and report it ("skipped {id}: closed/edited by another session since verification") rather than acting on a stale verdict — the same per-verdict principle as `bon step --expect`, one layer up. A skipped item is a recorded divergence; a clobbered one is silent.
+
 **For items in repos with a `local_path`:**
 ```bash
 cd {local_path}
