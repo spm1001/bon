@@ -548,7 +548,8 @@ def save_items_at(board: dict, items: list[dict]) -> None:
     """Save items to another repo's board (both backends)."""
     if board["backend"] == "dolt":
         from bon.dolt import dolt_save_items
-        dolt_save_items(items, prefix=board["prefix"])
+        # board_root: register the TARGET repo's identity, not cwd's (bon-nolido)
+        dolt_save_items(items, prefix=board["prefix"], board_root=board["root"])
     else:
         _save_items_jsonl(board["dir"] / "items.jsonl", items)
     _refresh_bottle_quietly(board["dir"])

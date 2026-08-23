@@ -561,3 +561,44 @@ class TestItemGrainWrites:
             )
             rows = cur.fetchall()
         assert {(r["id"], r["diff_type"]) for r in rows} == {(f"{prefix}-aaa", "removed")}
+
+
+class TestCrossBoardRegistration:
+    """bon-nolido: a foreign-board save registers the TARGET's identity, not cwd's."""
+
+    def test_save_items_at_registers_target_identity(self, dolt_dir, tmp_path, monkeypatch):
+        from bon.storage import save_items_at, target_board
+        source_path, source_prefix = dolt_dir  # fixture chdir'd us into the SOURCE
+
+        target_root = tmp_path / "target-repo"
+        target_bon = target_root / ".bon"
+        target_bon.mkdir(parents=True)
+        (target_bon / "backend").write_text("dolt")
+        target_prefix = f"tgt{uuid.uuid4().hex[:6]}"
+        (target_bon / "prefix").write_text(target_prefix)
+
+        board = target_board(target_root)
+        save_items_at(board, [{
+            "id": f"{target_prefix}-aaa", "type": "action", "title": "Moved here",
+            "brief": {"why": "w", "what": "x", "done": "d"}, "status": "open",
+            "parent": None, "order": 1, "created_at": now_iso(),
+            "created_by": "test", "waiting_for": None,
+        }])
+
+        from bon.dolt import _get_connection
+        conn = _get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT repo_name FROM repos WHERE prefix = %s", (target_prefix,))
+                row = cur.fetchone()
+            assert row is not None, "target prefix never registered"
+            assert row["repo_name"] == "target-repo", (
+                f"registered as '{row['repo_name']}' — the SOURCE repo's identity (bon-nolido)"
+            )
+        finally:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM items WHERE id LIKE %s", (f"{target_prefix}-%",))
+                cur.execute("DELETE FROM repos WHERE prefix = %s", (target_prefix,))
+                cur.execute("CALL DOLT_ADD('-A')")
+                cur.execute("CALL DOLT_COMMIT('-m', 'test cleanup', '--allow-empty')")
+            conn.commit()

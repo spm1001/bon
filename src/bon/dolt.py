@@ -514,7 +514,7 @@ def dolt_load_items(prefix: str | None = None) -> list[dict]:
     return result
 
 
-def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
+def dolt_save_items(items: list[dict], prefix: str | None = None, board_root=None) -> None:
     """Save items to Dolt, writing only the rows this process changed.
 
     Item-grain writes (bon-resena, adjudicated 2026-08-23): the save diffs
@@ -589,7 +589,7 @@ def dolt_save_items(items: list[dict], prefix: str | None = None) -> None:
                 )
 
             # Keep the repos mapping table current — rides this same commit
-            _register_repo(cur, prefix)
+            _register_repo(cur, prefix, board_root=board_root)
 
             # Dolt commit
             cmd_str = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "save"
@@ -705,13 +705,17 @@ def dolt_remove_from_archive(item_id: str, prefix: str | None = None) -> dict | 
 
 # ---------- repos mapping table ----------
 
-def _repo_identity() -> tuple[str, str | None]:
-    """Derive (repo_name, origin_url) for the current board root.
+def _repo_identity(root: "Path | None" = None) -> tuple[str, str | None]:
+    """Derive (repo_name, origin_url) for a board root (default: cwd's board).
 
     repo_name is the board root's directory name; origin_url comes from
     git when the board lives in a repo with an origin remote, else None.
+    Callers writing a FOREIGN board (bon move's target save) must pass that
+    board's root — resolving from cwd registered the source repo's identity
+    under the target prefix (bon-nolido).
     """
-    root = _data_dir().parent
+    if root is None:
+        root = _data_dir().parent
     origin_url = None
     try:
         import subprocess
@@ -726,7 +730,7 @@ def _repo_identity() -> tuple[str, str | None]:
     return root.name, origin_url
 
 
-def _register_repo(cur, prefix: str, job: str | None = None) -> bool:
+def _register_repo(cur, prefix: str, job: str | None = None, board_root=None) -> bool:
     """Sync this board's row in the repos mapping table.
 
     Compares before writing so an unchanged identity adds nothing to the
@@ -738,7 +742,7 @@ def _register_repo(cur, prefix: str, job: str | None = None) -> bool:
     curated value. Only an explicit `bon register --job` sets or changes it,
     and `--job ""` clears it (stored as NULL, surfacing as unassigned).
     """
-    repo_name, origin_url = _repo_identity()
+    repo_name, origin_url = _repo_identity(board_root)
     cur.execute(
         "SELECT repo_name, origin_url, job FROM repos WHERE prefix = %s", (prefix,)
     )
