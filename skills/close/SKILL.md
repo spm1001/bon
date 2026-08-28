@@ -199,11 +199,12 @@ accomplis tasks --project "& Toolmaking" 2>/dev/null | jq -r '.[] | .content'
 
 Three checks, rendered as one 🧭 block inside the close-out proposal:
 
-- **Tickable:** queue lines whose work this session completed — name them; he ticks by hand on his phone.
+- **Tick (sanctioned, tell-after):** queue lines whose work this session completed — CLOSE them (`accomplis done <task-id>`) and say which in the block. (Sameer, 2026-08-13, mit-garni close: "happy for you to tick any that are completed, that guidance is a bit too cautious." Recorded in bon-leturo's `--how`; this skill carried the pre-correction wording for a fortnight after.)
 - **Propose-and-add (sanctioned, tell-after):** when a clean case exists — a queue line's bon closed with an obvious successor, or the session minted dispatch-shaped work he ranked — ADD the line (`accomplis add "Open <repo> → <desire> (<bon-id>)" --project "& Toolmaking"`) and TELL him in the block: "added: …". Never ask first; never add speculative lines — clean cases only, his grammar, his grain. (Norm: Sameer, 2026-08-09 review ceremony — "I'd like you to tell me, but doing it is fine"; recorded in bon-leturo's `--how`.)
+- **Edit (sanctioned, tell-after):** a queue line that has gone stale against its board — the outcome renamed, the bon id superseded, the desire reworded — REWORD it (`accomplis update <task-id> --content "…"`) and say so. Keep his grammar and his grain; you are correcting drift, not rewriting his intent. (Sameer, 2026-08-28: "completing and editing are fine too".)
 - **Stalling:** a queue line pointing at a board with no motion for 30+ days — one nudge, max one.
 
-The tap reads and, only in the propose-and-add case, writes single dispatch lines. It never edits or completes his tasks, never touches other projects — Todoist stays his book (the kuwivo treaty-table rule).
+The tap reads, and writes single dispatch lines in the three sanctioned cases above — tick, add, edit — always telling him in the block, never asking first. Two boundaries survive. **Scope:** `& Toolmaking` only; his other projects stay untouched. **No sync:** never mirror the board into Todoist — typed manual edges only. That second one is what the kuwivo rule actually says (bon-kuwivo: "Todoist stays his book, typed edges only — never board sync"); it is a rule about MIRRORING, not about writing, and this skill previously cited it to justify a no-edit/no-complete rule it does not support. If you find yourself citing kuwivo against a single deliberate write, you are citing it wrongly.
 
 Propose these to the user:
 
