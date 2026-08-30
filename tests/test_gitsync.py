@@ -411,3 +411,55 @@ class TestResolveUnionArtifacts:
         (tmp_path / ".bon" / "items.jsonl").write_text(content)
         assert resolve_union_artifacts(ctx) is False
         assert (tmp_path / ".bon" / "items.jsonl").read_text() == content
+
+
+class TestSidecarLifecycle:
+    """Post-repair essayeur (2026-08-30): the sidecar's own lifecycle must
+    not wedge the sync. Deleting it (the warning's own instruction) has to
+    commit and travel; the displaced clone hears its cue on the FIRST verb
+    the sidecar arrives, not one verb late."""
+
+    def _collide(self, a, b):
+        """Produce a while-apart collision resolved on B (sidecar pushed)."""
+        import time
+        item_id = new_item(a, "Lifecycle contest")
+        new_item(b, "B converges")
+        url = git(b, "remote", "get-url", "origin").stdout.strip()
+        git(b, "remote", "set-url", "origin", str(b.parent / "nowhere2.git"))
+        assert bon(b, "edit", item_id, "--why", "B offline").returncode == 0
+        time.sleep(1.1)
+        assert bon(a, "edit", item_id, "--why", "A later").returncode == 0
+        git(b, "remote", "set-url", "origin", url)
+        r = bon(b, "new", "Integrator", "--why", "w", "--what", "x",
+                "--done", "d", "-q")
+        assert r.returncode == 0 and "while apart" in r.stderr
+        return item_id
+
+    def test_sidecar_deletion_commits_travels_and_unwedges(self, two_clones):
+        a, b, origin = two_clones
+        self._collide(a, b)
+
+        # Review done: delete the sidecar, exactly as the warning says.
+        (b / ".bon" / "sync-conflicts.jsonl").unlink()
+        # Make B behind so a wedge would show as a defer.
+        id_a2 = new_item(a, "A moves on")
+        r = bon(b, "new", "B after review", "--why", "w", "--what", "x",
+                "--done", "d", "-q")
+        assert r.returncode == 0, r.stderr
+        # Not wedged: no defer warning, B converged, tree clean.
+        assert "uncommitted changes" not in r.stderr
+        assert id_a2 in board_items(b)
+        assert git(b, "status", "--porcelain", "--", ".bon").stdout.strip() == ""
+        # The deletion travelled: a fresh clone has no sidecar.
+        c = b.parent / "C-lifecycle"
+        git(b.parent, "clone", str(origin), str(c))
+        assert not (c / ".bon" / "sync-conflicts.jsonl").exists()
+
+    def test_displaced_clone_hears_cue_on_first_verb(self, two_clones):
+        a, b, origin = two_clones
+        self._collide(a, b)
+        # A is the displaced party; the sidecar arrives in A's next rebase.
+        r = bon(a, "new", "A first verb after displacement", "--why", "w",
+                "--what", "x", "--done", "d", "-q")
+        assert r.returncode == 0, r.stderr
+        assert "unreviewed sync conflicts" in r.stderr

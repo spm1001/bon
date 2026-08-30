@@ -74,6 +74,7 @@ class SyncContext:
         self.upstream = upstream  # e.g. "origin/main"
         self.offline = False      # fetch failed — push later
         self.deferred = False     # behind but couldn't rebase — push later
+        self.cue_fired = False    # standing conflict cue shown this verb
 
 
 def _warn(message: str) -> None:
@@ -90,12 +91,26 @@ def _git(root: Path, *args: str, timeout: int = _LOCAL_TIMEOUT):
 
 
 def _board_paths(ctx: SyncContext) -> list[str]:
-    """Existing board files as pathspecs relative to the repo root."""
+    """Board files as pathspecs relative to the repo root.
+
+    Existing on disk OR tracked: a tracked-but-DELETED file (the sidecar,
+    after its review — the warning itself says to delete it) must still
+    stage, or the deletion can never commit, the tree reads dirty forever,
+    and every behind-verb defers — the clone stops converging until a
+    human runs git (post-repair essayeur, 2026-08-30)."""
+    rel_names = {
+        name: os.path.relpath(ctx.bon_dir / name, ctx.root).replace(os.sep, "/")
+        for name in _BOARD_FILES
+    }
+    tracked: set[str] = set()
+    ls = _git(ctx.root, "ls-files", "--",
+              os.path.relpath(ctx.bon_dir, ctx.root))
+    if ls.returncode == 0:
+        tracked = set(ls.stdout.splitlines()) & set(rel_names.values())
     paths = []
-    for name in _BOARD_FILES:
-        p = ctx.bon_dir / name
-        if p.exists():
-            paths.append(os.path.relpath(p, ctx.root))
+    for name, rel in rel_names.items():
+        if (ctx.bon_dir / name).exists() or rel in tracked:
+            paths.append(rel)
     return paths
 
 
@@ -325,10 +340,17 @@ def _standing_conflict_cue(ctx: SyncContext) -> None:
     The clone whose edit was displaced never sees the resolving verb's
     warning — the sidecar travels to it in a commit. This fires on every
     verb, on every clone, until someone reviews and deletes the file.
+    Called both pre-fetch AND post-rebase (the sidecar may have just
+    arrived in the rebase — without the second call the displaced clone's
+    first verb replaces its board content silently and only the SECOND
+    verb warns). Once per verb.
     """
+    if ctx.cue_fired:
+        return
     sidecar = ctx.bon_dir / "sync-conflicts.jsonl"
     try:
         if sidecar.is_file() and sidecar.stat().st_size > 0:
+            ctx.cue_fired = True
             _warn("unreviewed sync conflicts in .bon/sync-conflicts.jsonl — "
                   "each line is an item version displaced by a while-apart "
                   "edit; review, re-apply anything missing, then delete the "
@@ -394,6 +416,11 @@ def presync(ctx: SyncContext, items: list[dict], snapshot: list[dict] | None,
     if resolve_union_artifacts(ctx):
         _commit_board(ctx, "bon: sync conflict resolution (displaced versions "
                            "in .bon/sync-conflicts.jsonl)")
+    else:
+        # No local collision — but the rebase may have delivered ANOTHER
+        # clone's resolution, and this clone is the displaced party. Warn
+        # on the verb the sidecar arrives, not one verb late.
+        _standing_conflict_cue(ctx)
 
     # The rebase may have changed the board under us: reconcile at item
     # grain rather than letting a whole-file write clobber origin's edits.
