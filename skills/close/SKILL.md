@@ -198,6 +198,8 @@ The four laws (docs/ACCENT.md) apply: no `ACCENT=` line or no `## close` section
 
 The accent grows only from observation, and this is the one place it grows (law 1's other half). If this session watched the operator do something rite-shaped and recurring BY HAND — a queue they always consult before picking work, a ranking they always impose, a path they always archive to — propose capturing it in their accent as part of the close-out: name the habit, the variation point it would fill, and the exact text you'd add. From observed habits only: never propose for an empty slot on a machine with no accent, never turn an absence into a nudge. Any write sanction enters the accent only in the operator's own words, opt-in, dated (law 4).
 
+The file format, inlined here because minting a FIRST accent happens at this step (full spec: `docs/ACCENT.md` in the bon repo): `~/.claude/mit-accent.md`, four top-level headings (`## open`, `## close`, `## plan`, `## review`), sections beneath keyed by SOCKET ID — the dotted `rite.verb`/`rite.position` convention (`open.pre-pick`, `close.pre-propose`, `close.capture-routing`, `review.queue`, `review.exemplars`, `review.draft-path`, `review.archive`, `review.loop-map`). Socket ids are core's boring names and the only keys the rites parse; whatever the operator calls a slot's content is prose inside their section, replaceable without touching core.
+
 Propose these to the user:
 
 > "Here's how I suggest we close out:

@@ -57,4 +57,4 @@ A commit doing work tracked by a bon cites it: trailing `(bon-ID)` in the subjec
 
 ## Capture Generously
 
-During /close, lean toward capturing rather than filtering. If something came up during the session — even if it seems minor, pre-existing, or someone else's domain — put it into Now, Bon, or Handoff Next. You propose which bin; Sameer decides what drops. The cost of capturing something unnecessary is low; the cost of losing a useful observation is high.
+During /close, lean toward capturing rather than filtering. If something came up during the session — even if it seems minor, pre-existing, or someone else's domain — put it into Now, Bon, or Handoff Next. You propose which bin; the operator decides what drops. The cost of capturing something unnecessary is low; the cost of losing a useful observation is high.

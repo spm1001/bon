@@ -40,7 +40,7 @@ The boards → your list: <work moving with no line — worth a line? worth a la
 - <board or outcome>: <why parked> — revisit <condition>
 ```
 
-Where the queue exists and Up Next is dry (or draining), the pyramid opens with an `## Up Next refill candidates (proposal — your order to set)` list right after the headline — dispatch-shaped lines in the queue's own grammar, entering the lane only at adjudication (2026-08-29 exemplar). In a book with no queue, the Alignment section and this refill list both skip named — the shape keeps its other sections.
+Where the queue exists and the workable lane is dry (or draining), the pyramid opens with a `## <workable lane> refill candidates (proposal — your order to set)` list — render the operator's own lane name in the header right after the headline — dispatch-shaped lines in the queue's own grammar, entering the lane only at adjudication (2026-08-29 exemplar). In a book with no queue, the Alignment section and this refill list both skip named — the shape keeps its other sections.
 
 ## Jobs-group display mapping
 
@@ -64,7 +64,7 @@ One line per repo, plain English at human grain: "mit-plongeur: Handed over to F
 
 **Parked items are excluded from the headline DO count** (a parked project's outcomes aren't open commitments). Parking is first-class since suite 1.30.0: the survey's `someday` field on an item carries its revisit condition, and the Parked/Someday section renders from it — each line shows the condition, and the review's Someday re-check pass (SKILL.md Phase 3) fires conditions that have come true. Boards parked only in prose (the previous pyramid's hand-curated list) get carried forward once more and converted to real `bon someday` flags as they're confirmed.
 
-## Stockpot loop (Knowledge Work only)
+## Loop map (Knowledge Work only, accent-supplied)
 
 Accent-supplied (`review.loop-map`): where the operator's accent names a canonical loop map, embed it as a small mermaid flowchart with per-stage health (🟢🟡🔴) and a one-line caption; without one, skip the loop map — the pyramid is complete without it. Health = whether each stage's output actually feeds the next, judged from the survey's motion data (recent dones + git), not asserted from memory.
 
@@ -77,11 +77,11 @@ The pyramid gains a `## 🤝 Alignment` section. In the lane era the join betwee
 
 Read the lanes themselves as a finding too: the 2026-08-29 run's headline was a with-operator swell (13 → 22 in the loop's first week) — the loop moving work to the operator's court faster than the weekly ceremony drains it.
 
-Fetch via the accomplis tooling — where accomplis exists, invoke the `accomplis:coaching` skill first for structure discovery and semantics. A book with no Todoist at all skips the block the same one-named-line way as the population step — absence is a non-event, not a fault. If Todoist is expected but unreachable, render the pyramid **without** the block and say so — a silently missing section reads as "nothing to align". (The old shape — his DOs as headings, bon outcomes grouped under — retired with the flat queue, 2026-08-30, bon-veleru; the join's grain moved from DO-level to line-level when the lanes arrived.)
+Fetch via the accomplis tooling — where accomplis exists, invoke the `accomplis:coaching` skill first for structure discovery and semantics. A book with no Todoist at all skips the block the same one-named-line way as the population step — absence is a non-event, not a fault. If Todoist is expected but unreachable, render the pyramid **without** the block and say so — a silently missing section reads as "nothing to align". (The old shape — the operator's DOs as headings, bon outcomes grouped under — retired with the flat queue, 2026-08-30, bon-veleru; the join's grain moved from DO-level to line-level when the lanes arrived.)
 
-## Falsifier ask (outcomes entering Up Next)
+## Falsifier ask (outcomes entering the workable lane)
 
-As lines settle into Up Next at adjudication, ask the operator for a `--badly` falsifier — in their words, verbatim — on any entering outcome that lacks one. One ask per outcome per ceremony, at the lane threshold only; no nagging further down the board, and /plan remains the venue for new outcomes. Never draft the falsifier for them — a Claude-authored one is `--done` in a hat (the bon-meliga authorship rule). Venue adopted 2026-08-09 (bon-hipapu) as "the ceremony's apex"; the apex became the Up Next threshold when the lanes arrived (2026-08-29 exemplar: the falsifier landed on the trial-deadline outcome as its line entered the lane, in the operator's words).
+As lines settle into the workable lane at adjudication, ask the operator for a `--badly` falsifier — in their words, verbatim — on any entering outcome that lacks one. One ask per outcome per ceremony, at the lane threshold only; no nagging further down the board, and /plan remains the venue for new outcomes. Never draft the falsifier for them — a Claude-authored one is `--done` in a hat (the bon-meliga authorship rule). Venue adopted 2026-08-09 (bon-hipapu) as "the ceremony's apex"; the apex became the workable-lane threshold when the lanes arrived (2026-08-29 exemplar: the falsifier landed on the trial-deadline outcome as its line entered the lane, in the operator's words).
 
 ## Queue population (socket: `review.populate-queue`)
 
@@ -97,21 +97,21 @@ As lines settle into Up Next at adjudication, ask the operator for a `--badly` f
 |---|---|
 | tick | work shipped — `accomplis done`; ticks are the done log, never reword their lines |
 | yours | the operator's move — lane to the with-operator lane |
-| up next | loop-workable — lane to the workable lane, position set by their order |
+| workable | loop-workable — lane to the workable lane, position set by their order (the operator will say their own lane's name — read the verdict, not the vocabulary) |
 | backlog | keep, not now — unsectioned |
 | dead | superseded or wrong — removed on the operator's explicit call, with the evidence; never silently |
 
-The drift sweep runs the join's other direction — board motion with no queue line becomes proposed mints in the queue's grammar, entering only on the operator's word. And the falsifier ask fires at this threshold — framed as its own beat, never another one-word row ("before this enters Up Next: what would show we were wrong to start it?"): an outcome entering Up Next without a `--badly` gets asked for one (see Falsifier ask above).
+The drift sweep runs the join's other direction — board motion with no queue line becomes proposed mints in the queue's grammar, entering only on the operator's word. And the falsifier ask fires at this threshold — framed as its own beat, never another one-word row ("before this enters the workable lane: what would show we were wrong to start it?"): an outcome entering the workable lane without a `--badly` gets asked for one (see Falsifier ask above).
 
 **The two-writer write-window protocol.** A live ceremony has TWO writers on one queue: the operator dragging lines in the app while the session writes through the API — and the races are silent, because a line that lands in the wrong lane looks deliberate. Both shapes were observed on 2026-08-23: a freshly-minted line landed in the wrong lane, and a count came back off by two mid-flight; neither lost data, both cost a verification round. The protocol:
 
 - **Batch your writes and announce the window** — "touching the queue now" before; close the window by itemising the moves, never just counting them ("bon line → workable #2 · X line ticked · Y line → with-operator"), because a count cannot surface the wrong-lane write this protocol exists to catch. Between announced windows the session does not write.
 - **Never reorder after the operator's drags start — and say the gear change out loud, once.** Order is their steering wheel: the moment their hand is on it, `accomplis reorder` is off the table for the rest of the ceremony ("order's yours now — I'm down to membership moves only"), and position stays theirs. A silent mode-switch reads from their seat as the session mysteriously stopping.
-- **Re-read after any overlapping window.** A count or lane listing taken while both writers were live is stale on arrival — re-fetch the lane before asserting counts or positions to him or to the record.
+- **Re-read after any overlapping window.** A count or lane listing taken while both writers were live is stale on arrival — re-fetch the lane before asserting counts or positions to the operator or to the record.
 
 ## Mechanics
 
 - **No hard line-wrapping** — the operator edits this file; one line per bullet, let their editor soft-wrap.
-- Draft lands at the accent's `review.draft-path` (default `/tmp/estate-pyramid-<date>.md`); the durable copy goes to the accent's `review.archive` location at Phase 5 (no accent → the run directory the survey wrote is the durable record).
+- Draft lands at the accent's `review.draft-path` (default `/tmp/estate-pyramid-<date>.md`); the durable copy goes to the accent's `review.archive` location at Phase 5 (no accent → the run directory the survey wrote is this run's record; a /tmp run dir will not survive a reboot, so an operator who wants cycle-over-cycle diffs names `review.archive` in their accent).
 - Adjudication happens in **conversational Q&A clusters** (AskUserQuestion with a recommendation first), not file-homework — the operator preference recorded at the first ceremony (2026-08-02).
 - Queue writes happen only inside announced write-windows during adjudication — see Queue population above; every other surface that touches the queue stays read-only.

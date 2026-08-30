@@ -198,7 +198,7 @@ fi
 # minting are batch-safe) and ticks each. Latest-wins silently dropped
 # the older of two interleaved closes — its For-Claudes-to-come never
 # synthesised, its Candidates never minted, nothing said so (the
-# Judi 11:00 / Stef 12:30 scenario, common-core design 2026-08-29).
+# two-interleaved-closes scenario, 11:00/12:30 — common-core design 2026-08-29).
 # Lines without a checkbox are legacy prior art (~/notes) and count as
 # processed; a handoff in no ledger at all is covered by latest-wins only.
 UNPROCESSED_PATHS=""

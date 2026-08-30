@@ -35,6 +35,7 @@ The four rites (open, close, plan, review) ship as a byte-identical team core. W
 ### review.draft-path   <where pyramid drafts land>
 ### review.archive      <where review runs archive durably>
 ### review.loop-map     <canonical loop map, if this operator keeps one>
+### review.populate-queue  <alias note: the population step's socket (bon-veleru) draws its personal content from review.queue — a separate section is only needed when population semantics differ from the queue's own>
 ```
 
 Socket ids under each rite heading are the variation points. A rite reads its own `## <rite>` heading only.
