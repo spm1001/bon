@@ -136,32 +136,38 @@ collision-proof path is the whole guard.
 
 ### 4. Toolmaking Compass
 
-Sameer's session-boundary guide — where this session sits in his intentions. Render it right after the hierarchy, before picking direction: the compass informs the pick. (Origin and contract: bon-leturo; his framing — "the high level guide for me and a reminder of what we're going to do together.")
+Sameer's session-boundary guide — where this session sits in his intentions. Render it right after the hierarchy, before picking direction: the compass informs the pick. (Origin and contract: bon-leturo; his framing — "the high level guide for me and a reminder of what we're going to do together." Lane-era rewrite: bon-vatoge.)
+
+**The queue is sectioned, and the sections are status lanes** (his design, 2026-08-23; semantics in `~/.claude/loop.md`): **Up Next** is what the loop works, top-down, in his drag order — `child_order` carries it; **With Sameer** is ball-in-his-court, so a line there pointing at this repo means the next move is his, not yours; the unsectioned rest is backlog the loop leaves alone. Read the sections FIRST — a flat read of the project renders three lanes as one undifferentiated queue, which is the untruth this step used to ship.
 
 ```bash
-accomplis tasks --project "& Toolmaking" 2>/dev/null \
-  | jq -r '.[] | "\(.priority)|\(.content)"'                  # his dispatch queue
-accomplis tasks --project "Projects - Toolmaking" 2>/dev/null \
-  | jq -r '.[] | select(.priority==4 and .parent_id==null and .section_id==null) | .content'   # his P1 DOs (root + un-sectioned = active; Someday section = parked)
+accomplis sections --project "& Toolmaking"                    # the gate AND the lane map — run bare, read the exit status
+accomplis tasks --project "& Toolmaking" \
+  | jq -r '.[] | "\(.section_id // "")|\(.priority)|\(.order)|\(.content)"'   # every line, lane-tagged; stderr stays visible on purpose
 ```
 
-The jq filters are load-bearing, not taste: the raw JSON runs ~37KB on a 30-line queue (every task carries full metadata and comments), which blows the Bash output cap and costs a persisted-file round trip (measured 2026-08-19). The render needs two fields; ask for two fields.
+Partition client-side: map `section_id` to lane names from the first call (match "Up Next" / "With Sameer" case-insensitively; empty = backlog), and sort Up Next by `order` — his drag order, the steering wheel. The field is `order` on this surface: accomplis emits the Sync API's `child_order` under that name, and a jq on `.child_order` prints null for every task, sorting to a no-op that merely inherits API return order — right by luck (caught live, 2026-08-30 cold read). A section named neither lane gets counted under its own name and appended to the Lanes line — a task falling out of every count is a silent residual, the one thing this render must never mint. Leave the tasks call's stderr visible: accomplis prints its "Showing N of M" truncation notice there, and discarding it turns an undercounted lane into a confident count. The jq filter is load-bearing, not taste: the raw JSON runs tens of KB on a 30-line queue (37KB measured 2026-08-19, 28KB on 2026-08-30 — every task carries full metadata and comments), near or over the Bash output cap. The render and its nudge consume four fields; ask for four fields (`priority` feeds the With Sameer P1 gloss).
 
-Render exactly three lines — the budget is fixed, do not grow it:
+Render exactly three arrow-lines under the fixed header — the budget is fixed, do not grow it:
 
 ```
 🧭 Toolmaking compass (read-only, HH:MM)
-→ This repo: <queue lines pointing here> — or "nothing points here"
-→ His P1 DOs: <priority-4 root tasks in Projects - Toolmaking, one clause each>
-→ Queue: <N> lines; <one nudge — e.g. the oldest line with no matching board motion>
+→ This repo: <each line pointing here, tagged with its lane — "Up Next #2", "With Sameer", "backlog"> — or "nothing points here"
+→ Lanes: Up Next <N> (top: <first line, clipped>) · With Sameer <M> · backlog <K>
+→ <one nudge — Up Next running dry, a queue line citing a bon this board shows closed, or this repo's only line sitting in With Sameer (his move — don't draw it down)>
 ```
 
-Matching "points here": the dispatch grammar is `Open <repo> → <desire> (<bon-id>)` — match the repo name against this repo, and any cited bon-id against this board's prefix. NB the Todoist API inverts the app's priority scale: the UI's P1 arrives as `priority: 4`.
+Matching "points here": the dispatch grammar is `Open <repo> → <desire> (<bon-id>)` — match the repo name against this repo, and any cited bon-id against this board's prefix. Always name the lane the match sits in: the lane is the verdict on whose move it is. NB the Todoist API inverts the app's priority scale: the UI's P1 arrives as `priority: 4` (his P1 marks in With Sameer flag the staying conversations).
 
 Rules:
-- **Gate on the CLI.** `command -v accomplis` absent → skip silently (not our estate, not his book). Present but erroring → render `🧭 Toolmaking compass: Todoist unreachable — not shown`. A missing compass must be visible, never silent.
-- **The tap never writes.** Two reads, three lines. Writes to the queue are deliberate session acts under the tell-after norm — they live in /close's tap, never here.
+- **Gate on the CLI.** `command -v accomplis` absent → skip silently (not our estate, not his book).
+- **Gate on the exit status, never on empty output.** A missing project exits 1 with its error on stderr, so `2>/dev/null | jq` renders "project not found" as a zero-line queue — a lie. Any failure other than not-found → `🧭 Toolmaking compass: Todoist unreachable — not shown`. On Sameer's estate a missing compass must be visible, never silent — and never dressed as a zero.
+- **Not-found discriminates the book before it renders anything.** The compass is Sameer's personal half riding core text (extraction tracked as bon-hedatu); accomplis ships publicly, so tool presence does not mean his estate. On "project not found" — the rare branch, so the extra call is cheap there — run `accomplis whoami`: his book missing its queue is a fault, render `🧭 Toolmaking compass: no & Toolmaking queue in this book — not shown` (and read the error's own "Available projects" list before diagnosing — it shows what the book does hold); any other book never had the project — skip SILENTLY, an empty slot rather than a fault, never a per-session nag with someone else's furniture (a teammate hit exactly this error line on 2026-08-11).
+- **No sections is a flat queue, not an error.** `sections` returning `[]` on a live project → render the second arrow-line as `→ Queue: <N> lines (no lanes)` and match this-repo across all of them. Never assert a lane count you didn't measure — and the nudge slot goes laneless too ("flat queue — no drag order visible" is an honest one).
+- **The tap never writes.** Two reads, three lines. Writes to the queue are deliberate acts — the review ceremony's population step and /close's tap own them, never here.
 - Cost: two CLI calls, ~2–3s. Invoke `accomplis:coaching` first if the session will touch Todoist beyond these two reads.
+
+*(Dropped 2026-08-30, bon-vatoge: the second read — "Projects - Toolmaking" filtered on `priority==4 and section_id==null` for a "His P1 DOs" line. Measured that day it matches nothing twice over: the project no longer carries any priority-4 task, and its outcomes are drifting into sections, invisible to a task-grain query. The DO-level join is /review's alignment block; the compass reads the queue.)*
 
 ### 5. Pick Direction
 

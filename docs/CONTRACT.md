@@ -147,10 +147,11 @@ A vehicle that skips the asking is still contract-conformant; it just doesn't ge
 the benefit. Stated here so a future vehicle implements the discipline
 deliberately rather than discovering the field and filling it in.
 
-Two rites ask in this estate today: `/plan` at outcome creation, and `/review` at
-the ceremony's apex (top-N outcomes only — adopted 2026-08-09, bon-hipapu, after
-adoption measured 2/134 with /plan as the sole venue). Both record the answer
-verbatim and leave silence absent.
+Two rites ask in this estate today: `/plan` at outcome creation, and `/review` as
+an outcome enters the dispatch queue's Up Next lane (the lane-era form of the
+apex/top-N venue adopted 2026-08-09, bon-hipapu, after adoption measured 2/134
+with /plan as the sole venue; re-scoped 2026-08-30, bon-veleru). Both record the
+answer verbatim and leave silence absent.
 
 ## The session-identity seam
 

@@ -1,6 +1,6 @@
 ---
 name: review
-description: "Orchestrates estate-wide backlog review — load FIRST, before any backlog triage. 5 phases (survey, verify, summarize, act, snapshot): opens at the top of the pyramid — jobs-grouped repo headlines, Todoist alignment block, dispatch-line proposals — then subagents verify briefs against code and nothing closes without approval. Invoke on '/review', 'review my bons', 'backlog review', 'Toolmaking reconciliation', 'weekly reconciliation', 'what needs closing', 'clean up bons', 'triage my backlog'. Requires bon skill loaded first."
+description: "Orchestrates estate-wide backlog review — load FIRST, before any backlog triage. 5 phases (survey, verify, summarize, act, snapshot): opens at the top of the pyramid — jobs-grouped repo headlines, then lane-aware Todoist alignment and lane population where the operator runs a dispatch queue — then subagents verify briefs against code and nothing closes without approval. Invoke on '/review', 'review my bons', 'backlog review', 'Toolmaking reconciliation', 'weekly reconciliation', 'what needs closing', 'clean up bons', 'triage my backlog'. Requires bon skill loaded first."
 allowed-tools:
   - "Bash(bon:*)"
   - "Bash(uv:*)"
@@ -20,6 +20,8 @@ Estate-wide backlog review encoded as a repeatable 5-phase workflow. Replaces th
 
 **Second principle: Survey everywhere, verify locally.** The survey sees every board in the shared Dolt database — including repos with no clone on this machine. Verification needs the actual working tree. When they diverge, say so explicitly: an item you can see but can't verify is NOT_VERIFIABLE_HERE, never trust-the-brief.
 
+**Third principle: the rite is core; the ceremony is an accent.** /review is the outer loop's close, and its scope is a dial — the same five phases run estate-wide (the default), on a few repos or one (`--repos`), or on one jobs-group (no survey flag exists for groups: run the full survey and narrow Phases 2–4 to that group's boards — the survey's `job` field carries the split). The pyramid document and the dispatch-queue lanes are the operator's personal ceremony riding that spine: the queue-population step (Phase 1, assembly step 4) is a **socket** — variation point `review.populate-queue`, pluggable per team — and a review with no dispatch queue runs the rite complete without it. Verified verdicts, landed repricings and the adjudicated summary are the rite's product everywhere; the populated lanes are the ceremony's product where the queue exists. Nothing downstream depends on a queue existing.
+
 ## When to Use
 
 - Monthly or fortnightly backlog review (GTD review cadence)
@@ -29,7 +31,7 @@ Estate-wide backlog review encoded as a repeatable 5-phase workflow. Replaces th
 
 ## When NOT to Use
 
-- Single-repo triage — just read `bon list` directly
+- Single-repo triage — just read `bon list` directly (the scope dial's one-repo position means the full five phases on one repo; a quick look isn't a rite)
 - Active session work — use bon draw-down instead
 - First encounter with a repo's items — read briefs with `bon show` first
 
@@ -78,12 +80,12 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse pass
 
 **If `dolt` is `"unreachable"`, stop and tell the user** — present the degraded scope honestly (JSONL boards only, every Dolt board missing) and offer to fix the server first. Never present a degraded survey as the estate.
 
-**Present the pyramid, not count tables.** Assemble a DRAFT pyramid from the survey — jobs-grouped repo headlines with Recent Progress and Desired Outcomes at human grain, Cross-cutting Work first, a Todoist alignment block, and a proposed dispatch queue. The full format spec, jobs-group display mapping, line-grain rules and ceremony mechanics are in `references/pyramid-format.md` — read it before assembling. In brief:
+**Present the pyramid, not count tables.** Assemble a DRAFT pyramid from the survey — jobs-grouped repo headlines with Recent Progress and Desired Outcomes at human grain, Cross-cutting Work first, and — where the operator runs a dispatch queue — the alignment block and the population step's annotation inputs. The full format spec, jobs-group display mapping, line-grain rules and ceremony mechanics are in `references/pyramid-format.md` — read it before assembling. In brief:
 
 1. **Check the previous pyramid first**: diff the scratch copy against the archived snapshot — Sameer's edits since last time are the freshest desire data; fold them forward, never regenerate over them.
 2. **Draft** `~/scratch/estate-pyramid-<date>.md`: headline counts **Desired Outcomes, not items** (Parked boards excluded); Cross-cutting Work first with the ranked top-4; then each jobs-group's ✅/🚧 lists, one human-grain line per repo, small/dormant boards collapsed to a named tail line; Parked/Someday last.
-3. **Alignment block**: his Todoist & Toolmaking DOs as headings, bon outcomes grouped under them (invoke `accomplis:coaching` first for Todoist semantics). The two orphan lists — workshop motion with no Sameer-DO, Sameer-DOs with no workshop motion — are the reconciliation's product. If Todoist is unreachable, say the block is missing rather than omitting it silently.
-4. **Dispatch proposal**: render the apex top-N as `Open <repo> → <desire fragment> (<bon-id>)` lines for Sameer to adopt by hand.
+3. **Alignment block**: the lanes ARE the join now — membership answers whose move it is, order answers what's next (where accomplis exists, invoke `accomplis:coaching` first for Todoist semantics). Render both directions from the annotation pass: queue → boards (every cited bon verified live) and boards → queue (the drift sweep — board motion with no queue line). No Todoist in this book at all (no accomplis, no queue project) → skip the block in one named line, a non-event rather than a fault. Todoist expected but unreachable → say the block is missing rather than omitting it silently.
+4. **Queue population (socket: `review.populate-queue`)**: where the operator runs a dispatch queue, populating its lanes IS the ceremony's product — not a proposed top-N for hand adoption. Pre-annotate every queue line with board truth from the one survey pass, triage bucket-is-verdict, and write only inside announced write-windows **at adjudication** — drafting writes nothing; the STOP gate below holds until Sameer is in the conversation. **A live ceremony has two writers on one queue** (the human dragging in the app, the session writing through the API), and the races are silent. Recipe, buckets and the write-window protocol: `references/pyramid-format.md` → Queue population. No dispatch queue → one plain line ("no dispatch queue in this book, so no lane population this review"); the rite is complete without it, and the socket name stays stage direction, never rendered at the human.
 5. **Boards in `jobs_unassigned`** get asked about, then persisted (`bon register --job` / `.bon/job`).
 
 Alongside the pyramid, give the survey's one-line vitals: total open, `visibility_note` (a headline jump is usually clones appearing, not work), old-item flags, orphaned prefixes.
@@ -376,6 +378,8 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 > Audit complete. Closed {N} items.
 > Open items: {before} → {after} across {repos} boards.
 
+**Where the ceremony populated the queue, the read-back closes the loop on his artefact too** — one more line: `Queue: Up Next {X} in your order · With Sameer {Y} · {Z} ticked, {W} minted.` And re-check the lanes against this run's OWN closures first: Phase 4 closes bons hours after the annotation pass, so a line refreshed at Phase 1 can be stale again by snapshot — re-touch it in one final announced write-window, or flag it by name in the read-back, rather than leaving a queue that cites bons this very ceremony closed.
+
 **Then archive the run durably** — copy the run directory (before/after survey JSON, per-repo verification JSONs, the summary) to `~/notes/raw/claude/bon-audit-{date}/`, plus a snapshot of the final pyramid (and the reconciliation artefact when the run included one). The next audit diffs against it: what closed, what's still limping along, what reappeared — and the pyramid snapshot is what makes Sameer's later scratch edits detectable as edits.
 
 ## Anti-Patterns
@@ -399,13 +403,13 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 | Skill | Relationship |
 |-------|-------------|
 | **bon** | Audit uses bon CLI for closures, and `bon register` maintains the repos mapping (labels + jobs-groups) the survey reads. Does not duplicate draw-down teaching. Assumes bon is loaded. |
-| **accomplis:coaching** | Invoke before touching Todoist for the alignment block — it holds structure discovery and GTD semantics. The review renders the bon↔Todoist join; it never syncs. |
+| **accomplis:coaching** | Invoke before touching Todoist for the alignment block and queue population — it holds structure discovery and GTD semantics. The review renders the bon↔Todoist join and, at the ceremony with the operator present, populates the queue lanes inside announced write-windows (pyramid-format.md). Never an automatic sync — queue writes happen only in the ceremony, adjudicated line by line. |
 | **close** | Audit's Phase 3→4 mirrors close's Decide→Act. But audit is estate-wide; close is single-session. |
 | **open** | After review, /open re-orients to whatever's next. |
 
 ## References
 
-- `references/pyramid-format.md` — The Phase 1 pyramid: document shape, jobs display mapping, alignment block, dispatch grammar, ceremony mechanics
+- `references/pyramid-format.md` — The Phase 1 pyramid: document shape, jobs display mapping, alignment block, queue population (lanes, pre-annotation, write-windows), ceremony mechanics
 - `references/verification-patterns.md` — How to verify different brief types
 - `scripts/audit_survey.py` — Hybrid estate survey (Dolt-global + JSONL sweep) with recent wins, git signal, jobs grouping, age flags
 - `scripts/orphans.py` — Per-clone citation cross-check: commits vs board (CITED-BUT-OPEN close-candidates, UNKNOWN-ID typos, coverage telemetry)
