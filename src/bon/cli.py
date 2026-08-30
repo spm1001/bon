@@ -1757,7 +1757,11 @@ def _baton_dirs(root, cwd) -> list:
     root = Path(root)
     cwd = Path(cwd)
     dirs: list = []
-    walk = cwd if str(cwd).startswith(str(root)) else root
+    try:
+        inside = cwd.is_relative_to(root)
+    except (AttributeError, ValueError):
+        inside = False
+    walk = cwd if inside else root
     while True:
         d = walk / "handoffs"
         if d.is_dir():
@@ -1791,17 +1795,63 @@ def _baton_dirs(root, cwd) -> list:
 
 
 def _baton_items_field(head: str) -> str | None:
-    """The items: value, including plausible wrapped continuation lines."""
+    """The items: value, including wrapped continuation lines.
+
+    Only INDENTED lines continue the field: a flush-left prose line right
+    after items: ("Also reviewed bon-x in passing…") once minted a false
+    citation — a confident wrong baton, worse than none (essayeur N1).
+    """
     lines = head.splitlines()
     for i, line in enumerate(lines):
         if line.startswith("items:"):
             value = [line[len("items:"):]]
             for cont in lines[i + 1:]:
-                if not cont.strip() or re.match(r"^[A-Za-z_]+:", cont) or cont.startswith("#"):
+                if not cont.strip() or not cont[0].isspace():
                     break
                 value.append(cont)
             return " ".join(value)
     return None
+
+
+def _baton_write_stamp(path: str, head: str, name: str):
+    """(day, hhmm, tiebreak) for ranking — provenance-first, never fabricated.
+
+    Header date and v4 filename HHMM when present; else the file's GIT
+    commit date — mtime is not provenance on a git-shared board, where a
+    pull flattens every mtime to checkout time on the receiving clones and
+    a five-day-stale nonconforming file can beat the true latest with a
+    fabricated date (essayeur N2). mtime is the last resort (untracked or
+    no git), which is exactly the author's-machine case where it is honest.
+    """
+    from datetime import datetime
+    dm = re.search(r"^# Handoff — (\d{4}-\d{2}-\d{2})", head, re.MULTILINE)
+    hm = re.match(r"^\d{4}-\d{2}-\d{2}-(\d{4})-", name)
+    day = dm.group(1) if dm else None
+    hhmm = hm.group(1) if hm else None
+    if day is None or hhmm is None:
+        git_iso = None
+        try:
+            result = subprocess.run(
+                ["git", "-C", os.path.dirname(path), "log", "-1",
+                 "--format=%cI", "--", path],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                git_iso = result.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+        if git_iso:
+            if day is None:
+                day = git_iso[:10]
+            if hhmm is None:
+                hhmm = git_iso[11:13] + git_iso[14:16]
+        else:
+            mt = datetime.fromtimestamp(os.path.getmtime(path))
+            if day is None:
+                day = mt.strftime("%Y-%m-%d")
+            if hhmm is None:
+                hhmm = mt.strftime("%H%M")
+    return day, hhmm, int(os.path.getmtime(path))
 
 
 def find_baton_handoff(item_id: str) -> tuple[str, str, str] | None:
@@ -1819,8 +1869,6 @@ def find_baton_handoff(item_id: str) -> tuple[str, str, str] | None:
     scan must never break a board verb.
     """
     try:
-        from datetime import datetime
-
         from bon.storage import _data_dir
         root = _data_dir().parent
         cite = re.compile(r"(?<![A-Za-z0-9-])" + re.escape(item_id) + r"(?![A-Za-z0-9-])")
@@ -1834,18 +1882,13 @@ def find_baton_handoff(item_id: str) -> tuple[str, str, str] | None:
                 try:
                     with open(path, encoding="utf-8", errors="replace") as f:
                         head = f.read(4096)
-                    mtime = os.path.getmtime(path)
                 except OSError:
                     continue
                 field = _baton_items_field(head)
                 if not field or not cite.search(field):
                     continue
-                mt = datetime.fromtimestamp(mtime)
-                dm = re.search(r"^# Handoff — (\d{4}-\d{2}-\d{2})", head, re.MULTILINE)
-                day = dm.group(1) if dm else mt.strftime("%Y-%m-%d")
-                hm = re.match(r"^\d{4}-\d{2}-\d{2}-(\d{4})-", name)
-                hhmm = hm.group(1) if hm else mt.strftime("%H%M")
-                key = f"{day}.{hhmm}.{int(mtime):012d}"
+                day, hhmm, tiebreak = _baton_write_stamp(path, head, name)
+                key = f"{day}.{hhmm}.{tiebreak:012d}"
                 if key > best_key:
                     pm = re.search(r"^purpose:\s*(.*)$", head, re.MULTILINE)
                     best_key = key
@@ -1865,6 +1908,8 @@ def print_baton(item_id: str) -> None:
         rel = os.path.relpath(path)
     except ValueError:
         rel = path
+    if len(purpose) > 120:
+        purpose = purpose[:117] + "…"
     print()
     print(f"Baton ({day}): {rel}" + (f" — {purpose}" if purpose else ""))
     print("  The last session on this thread. Read it before starting.")

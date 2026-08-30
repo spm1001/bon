@@ -175,3 +175,57 @@ def test_wrapped_items_line_is_still_read(bon_dir, monkeypatch):
     result = run_bon("work", item_id, cwd=bon_dir)
     assert result.returncode == 0, result.stderr
     assert "Baton (2026-08-30)" in result.stdout
+
+
+def test_prose_line_after_items_does_not_cite(bon_dir, monkeypatch):
+    """N1: a flush-left prose line right after items: must not mint a
+    citation for an item the session never worked."""
+    monkeypatch.chdir(bon_dir)
+    item_id = _seed_item(bon_dir)
+    hdir = bon_dir / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    (hdir / "2026-08-30-1100-deadbeef.md").write_text(
+        "# Handoff — 2026-08-30\n\nsession_id: x\npurpose: p\n"
+        "items: bon-otherthing\n"
+        f"Also reviewed {item_id} in passing but did not touch it.\n"
+        "format: fond-v1\n"
+    )
+    result = run_bon("work", item_id, cwd=bon_dir)
+    assert result.returncode == 0, result.stderr
+    assert "Baton" not in result.stdout
+
+
+def test_git_date_beats_flattened_mtime(bon_dir, monkeypatch):
+    """N2: on a git-shared board a pull flattens mtimes — a stale
+    nonconforming-header file must rank by its GIT date, not by touch."""
+    import os as _os
+    import subprocess as _sp
+    import time as _time
+    monkeypatch.chdir(bon_dir)
+    item_id = _seed_item(bon_dir)
+    hdir = bon_dir / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    env = {**_os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+
+    def g(*args, **kw):
+        return _sp.run(["git", "-C", str(bon_dir), *args],
+                       capture_output=True, text=True, env={**env, **kw.get("env", {})})
+
+    g("init", "-q", "-b", "main")
+    g("config", "user.name", "T")
+    g("config", "user.email", "t@t")
+    stale = hdir / "campaign-close.md"  # nonconforming title AND filename
+    stale.write_text(f"# Campaign close — 2026-08-25\n\npurpose: STALE campaign\nitems: {item_id}\n")
+    g("add", "-f", str(stale))
+    g("commit", "-q", "-m", "old", env={"GIT_AUTHOR_DATE": "2026-08-25T09:00:00",
+                                        "GIT_COMMITTER_DATE": "2026-08-25T09:00:00"})
+    fresh = hdir / "2026-08-30-1400-fresh001.md"
+    fresh.write_text(f"# Handoff — 2026-08-30\n\npurpose: the true latest\nitems: {item_id}\n")
+    # A pull's mtime flattening: the stale file looks newest on disk.
+    now = _time.time()
+    _os.utime(stale, (now + 60, now + 60))
+
+    result = run_bon("work", item_id, cwd=bon_dir)
+    assert result.returncode == 0, result.stderr
+    assert "the true latest" in result.stdout
+    assert "STALE" not in result.stdout
