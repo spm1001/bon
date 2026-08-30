@@ -181,7 +181,11 @@ Then **draw-down** before touching code.
 
 ## Roaming: `/open TARGET`
 
-`/open` accepts a target — a path, or a repo name under a conventional root like `~/repos` — and runs the whole ritual against *that* repo from wherever the session launched. Treat it as a first-class move, not an exotic one: a session launched at a root can work any repo beneath it, entering repos by name as the conversation turns. It is reliable only if you supply what the harness will not — each behaviour below was hit or measured live, not assumed:
+`/open` accepts a target — a path, or a repo name — and runs the whole ritual against *that* repo from wherever the session launched. Treat it as a first-class move, not an exotic one: a session launched at a root can work any repo beneath it, entering repos by name as the conversation turns.
+
+**Resolving the target.** You are the resolver, so fuzzy input is fine — but converge deterministically, matching `bon move --to`'s convention so the two agree: anything containing a slash, or starting with `~` or `.`, is a path; a bare name globs `~/repos/*/NAME` (the owner-bucket layout). No exact hit → widen to a case-insensitive substring glob. Several candidates → list them and ask rather than guess; wrong-repo orientation fails silently, which is why guessing is the one move barred here.
+
+The ritual is reliable only if you supply what the harness will not — each behaviour below was hit or measured live, not assumed:
 
 1. **cd per command.** The harness re-anchors every Bash call at its recorded directory, so a lone `cd` does not persist. Every board or repo-relative command is `cd TARGET && …`. From a container directory a bare bon call adopts whatever board it finds walking upward — the filed-where-cd'd hazard.
 2. **No orientation arrives for the target.** The session-start hook ran where you launched. Run steps 1–6 above by hand, anchored at TARGET: understanding.md, the latest handoff, the board fetch, `bon list`. The handoff is the read sessions skip — it was skipped in the run that minted this section.
