@@ -15,6 +15,26 @@ The doctrine it encodes (see understanding.md, "Renaming anything cited across
 a corpus"): replacement is gated on membership of the board's known id set,
 never on the bare pattern; POINTERS (items, understanding.md) are corrected;
 RECORDS (handoffs, git history) are left untouched and bridged by a lookup doc.
+
+AFTERWARDS, SWEEP THE ESTATE, NOT JUST THIS REPO. This script rewrites the
+board and its own understanding.md; it cannot see citations living anywhere
+else, and other repos cite these ids freely. A sweep scoped to the migrated
+repo is the right scope for the rewrite and too narrow for the claim that
+citations still resolve:
+
+    rg --no-ignore --hidden '<oldprefix>-' ~/repos ~/notes
+
+Both flags matter — .bon/ is a hidden directory and is often ignored, so a
+default rg reports a comforting zero. Then split the hits the same way the
+doctrine splits everything: live POINTERS want updating, dated RECORDS stay.
+
+One case deserves naming because it inverts the usual verdict. When the two
+boards collided because a repo was TRANSFERRED with its .bon/ in tow, the
+surviving board holds verbatim copies of the shared items — so citations of
+those ids still resolve correctly and need no edit at all. Only ids minted
+AFTER the split are orphaned by the rename. Check which of your ids the other
+board actually has before touching a single external file; the answer is
+usually "most of them are fine, one or two are not" (bon-mogano, 2026-08-30).
 """
 import json
 import re
