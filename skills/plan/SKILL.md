@@ -58,7 +58,7 @@ chapters.
 
 ## Phases
 
-**Personal half:** if `~/.claude/mit-accent.md` exists and carries a `## plan` section, Read it before Phase 1 and honour it at the points it names (spec and laws: `docs/ACCENT.md`). No file or no section — the common case, since plan has no designated variation points yet — means skip silently: the rite is complete without it, and an empty slot is never nagged.
+**Personal half (variation point `plan.personal`):** if `~/.claude/mit-accent.md` exists and carries a `## plan.personal` section, Read it before Phase 1 and honour it at the points it names (spec and laws: `docs/ACCENT.md`). No file or no section — the common case, since plan's personal half is still reserved — means skip silently: the rite is complete without it, and an empty slot is never nagged.
 
 ### Phase 1: Orient
 

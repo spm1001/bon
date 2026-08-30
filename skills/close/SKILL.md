@@ -188,17 +188,17 @@ Now sort the remaining actions into three buckets:
 
 3. **For Claudes to come** — what one thing did you learn or discover that should be contributed to the stock of future Claude understanding; an architectural insight, a taste judgment, a decision with real alternatives, a mistake not to be repeated, a trick you discovered which would save us significant time. A shard of wisdom gleaned.
 
-### Personal half (variation point `close.pre-propose`)
+### Personal half (variation point `close.personal`)
 
-If the context script printed `ACCENT=<path>` (the operator's personal half, `~/.claude/mit-accent.md` — spec: `docs/ACCENT.md`), Read its `## close` section and run its `close.pre-propose` content here, before proposing the close-out. The worked example is an operator whose accent reads their dispatch queue, checks the session against it, and — under write sanctions the accent itself records, in their words, with dates — ticks completed lines, adds clean-case successor lines, and rewords stale ones, always telling them in the close-out block, never asking first.
+If the context script printed `ACCENT=<path>` (the operator's personal half, `~/.claude/mit-accent.md` — spec: `docs/ACCENT.md`), Read its `## close.personal` section and run it here, before proposing the close-out. The worked example is an operator whose accent reads their dispatch queue, checks the session against it, and — under write sanctions the accent itself records, in their words, with dates — ticks completed lines, adds clean-case successor lines, and rewords stale ones, always telling them in the close-out block, never asking first.
 
-The four laws (docs/ACCENT.md) apply: no `ACCENT=` line or no `## close` section → skip SILENTLY, the close is complete without it; this slot only, the spine is not overridable; a broken half is one plain line, never a banner; and NO write into the operator's own systems happens without the accent's own recorded sanction — an accent without written sanctions is read-only, however convenient the write would be.
+The four laws (docs/ACCENT.md) apply: no `ACCENT=` line or no `## close.personal` section → skip SILENTLY, the close is complete without it; this slot only, the spine is not overridable; a broken half is one plain line, never a banner; and NO write into the operator's own systems happens without the accent's own recorded sanction — an accent without written sanctions is read-only, however convenient the write would be.
 
 ### Cultivate the personal half
 
 The accent grows only from observation, and this is the one place it grows (law 1's other half). If this session watched the operator do something rite-shaped and recurring BY HAND — a queue they always consult before picking work, a ranking they always impose, a path they always archive to — propose capturing it in their accent as part of the close-out: name the habit, the variation point it would fill, and the exact text you'd add. From observed habits only: never propose for an empty slot on a machine with no accent, never turn an absence into a nudge. Any write sanction enters the accent only in the operator's own words, opt-in, dated (law 4).
 
-The file format, inlined here because minting a FIRST accent happens at this step (full spec: `docs/ACCENT.md` in the bon repo): `~/.claude/mit-accent.md`, four top-level headings (`## open`, `## close`, `## plan`, `## review`), sections beneath keyed by SOCKET ID — the dotted `rite.verb`/`rite.position` convention (`open.pre-pick`, `close.pre-propose`, `close.capture-routing`, `review.queue`, `review.exemplars`, `review.draft-path`, `review.archive`, `review.loop-map`). Socket ids are core's boring names and the only keys the rites parse; whatever the operator calls a slot's content is prose inside their section, replaceable without touching core.
+The file format, inlined here because minting a FIRST accent happens at this step (full spec: `docs/ACCENT.md` in the bon repo): `~/.claude/mit-accent.md`, four sections keyed by the personal variation-point ids — `## open.personal`, `## close.personal`, `## plan.personal`, `## review.personal` (ownership-named, settled 2026-08-30). Those four ids are the only keys the rites parse; everything inside a section — sub-headings, pet names, structure — is the operator's own prose, replaceable without touching core. (Step sockets like `review.populate-queue` are a different species: stage direction inside the spine, not accent keys.)
 
 Propose these to the user:
 
@@ -210,7 +210,7 @@ Propose these to the user:
 >
 > **Empty outcomes:** [only when Orient flagged any — per outcome: break down now, file a first action, or confirm it's intentionally a sketch]
 >
-> **Personal half:** [whatever your accent's `close.pre-propose` produced — its block, verbatim; omit this line entirely when no accent ran]
+> **Personal half:** [whatever your accent's `close.personal` produced — its block, verbatim; omit this line entirely when no accent ran]
 >
 > **Insight to capture for the future:** [one dense paragraph to contribute]
 >
@@ -291,7 +291,7 @@ patterns played out in this work. Lessons that belong in the always-on
 guidance corpus (a trap keyed on its discriminating command, a
 verification-family instance) split by what the edit IS (ratified 2026-08-13,
 bon-vinije). A NEW row defers to intake: file a bon item on the corpus's own
-board (the operator's guidance repo — their accent's `close.capture-routing`
+board (the operator's guidance repo — their accent's `close.personal` section
 names it where one exists) carrying the proposed row text, or a
 handoff candidate when no writer is reachable — because intake is the
 corpus's only valve (append-only, no eviction pass) and close-time is the

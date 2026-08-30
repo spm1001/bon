@@ -137,12 +137,12 @@ the second session was one unnoticed glance from presenting a different repo's
 board as its own (bon-potipe). Wrong-board orientation fails silently, so the
 collision-proof path is the whole guard.
 
-### 4. Personal Half (variation point `open.pre-pick`)
+### 4. Personal Half (variation point `open.personal`)
 
-The spine ends at the hierarchy; what a given operator wants rendered between the hierarchy and the direction pick — a dispatch-queue digest, a calendar glance, nothing — is theirs, and lives in their personal half (`~/.claude/mit-accent.md`, spec: `docs/ACCENT.md`). The session-start hook prints `ACCENT=<path>` when the file exists. Socket ids are deliberately boring and position-keyed, like hook events — whatever the operator calls the content inside their own file is theirs to change without touching core.
+The spine ends at the hierarchy; what a given operator wants rendered between the hierarchy and the direction pick — a dispatch-queue digest, a calendar glance, nothing — is theirs, and lives in their personal half (`~/.claude/mit-accent.md`, spec: `docs/ACCENT.md`). The session-start hook prints `ACCENT=<path>` when the file exists. The four personal variation points are named by ownership, uniformly — `open.personal`, `close.personal`, `plan.personal`, `review.personal` (settled by the operator, 2026-08-30; "personal" not "local", because local means per-machine on this estate and this split is per-person) — and whatever the operator calls the content inside their own file is theirs to change without touching core.
 
-- **`ACCENT=` present:** Read the file's `## open` section and follow its `open.pre-pick` content here, then continue to step 5. The worked example is an operator whose accent renders a three-line digest of their own task-manager dispatch queue.
-- **No `ACCENT=` line, or no `## open` section in the file:** skip SILENTLY to step 5. The rite is complete without it — no nudge, no placeholder, no "you could configure this", ever (law 1: complete-without).
+- **`ACCENT=` present:** Read the file's `## open.personal` section and follow it here, then continue to step 5. The worked example is an operator whose accent renders a three-line digest of their own task-manager dispatch queue.
+- **No `ACCENT=` line, or no `## open.personal` section in the file:** skip SILENTLY to step 5. The rite is complete without it — no nudge, no placeholder, no "you could configure this", ever (law 1: complete-without).
 - **`ACCENT=` present but the file won't read, or its section errors mid-run:** one plain line — "personal half unreadable — running the team spine" — then continue. Never banners, never abort (law 3).
 - **The accent fills THIS slot only** — it cannot skip, reorder or override steps 1–3 and 5–6 (law 2), and it writes into the operator's own systems only under a sanction the accent itself records (law 4).
 
