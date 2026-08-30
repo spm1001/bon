@@ -77,13 +77,16 @@ The session-start hook provides orientation automatically (handoff, outcomes, su
 
 The hook output may be truncated in the system-reminder preview. When you see "Output too large ... Full output saved to: {path}", Read that file — the handoff (including "For Claudes to come") is likely past the truncation point.
 
-### 1. Synthesize Knowledge
+### 1. Sweep and Synthesize Knowledge
 
-The most recent handoff may contain a `## For Claudes to come` section — durable knowledge written by the previous Claude to transcend their session. When present:
+**The sweep replaces latest-wins** (bon-supuko). The hook emits every handoff whose LEDGER.md line is still unticked, one `UNPROCESSED=<path>` line each, oldest first. Process ALL of them, not just the newest — two interleaved closes in a shared repo used to silently drop the older one: its For-Claudes-to-come never synthesised, its Candidates never minted, nothing said so. When no `UNPROCESSED=` lines appear (no ledger yet, or all ticked), process just the `HANDOFF=` file — that is the latest-wins fallback, and it stays correct for repos that haven't adopted a ledger.
 
-1. Read the project's `understanding.md` — the session-start hook resolves and prints its path as `UNDERSTANDING=<path>` (a visible root/nearest-room copy if the repo uses the visible convention, else `.bon/understanding.md`). Read *that* path.
-2. Read the `## For Claudes to come` section from the handoff
-3. **Rewrite** that same `understanding.md` (the resolved path — not blindly `.bon/`) — integrate the new knowledge, make salience judgments, restructure where needed. Don't append.
+For EACH unprocessed handoff, oldest first:
+
+1. Read the project's `understanding.md` — the session-start hook resolves and prints its path as `UNDERSTANDING=<path>` (a visible root/nearest-room copy if the repo uses the visible convention, else `.bon/understanding.md`). Read *that* path (once is enough for the whole sweep).
+2. Read the handoff's `## For Claudes to come` section, when present
+3. **Rewrite** that same `understanding.md` (the resolved path — not blindly `.bon/`) — integrate the new knowledge, make salience judgments, restructure where needed. Don't append. In a multi-handoff sweep, integrate as you go — a later handoff may supersede an earlier one's framing, and processing in write order is what lets you see that happen.
+4. Mint its Candidates (step 2 below), then **tick its ledger line**: edit `- [ ]` to `- [x]` and append `(processed YYYY-MM-DD)` — the generalisation of the candidates `(minted YYYY-MM-DD)` heading-edit. An unticked line is a handoff the next session will re-process; a ticked line without the processing done is a dropped baton. Tick AFTER the work, never before.
 
 This synthesis is onboarding. Integrating new knowledge into an existing document forces you to read the existing understanding, find where the new insight fits, and rewrite with judgment. By the time you're done, you know the project — not just the words on the page.
 
@@ -95,7 +98,7 @@ The handoff stays on disk — never delete it. Not every handoff has a compost z
 
 ### 2. Mint Pending Candidates
 
-The latest handoff may carry a `### Candidates` section — board mutations proposed by a session that could see the board but couldn't reach a writer (candidate mode; the live case is a Cowork close). They are proposals, not tracked work: mint them now, or they're lost. When the handoff has no such section — the common case — skip this step.
+Any swept handoff (step 1's loop — not only the newest) may carry a `### Candidates` section — board mutations proposed by a session that could see the board but couldn't reach a writer (candidate mode; the live case is a Cowork close). They are proposals, not tracked work: mint them now, or they're lost. When the handoff has no such section — the common case — skip this step for that file.
 
 For each candidate, run the matching verb, tagging where it came from so provenance survives:
 

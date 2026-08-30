@@ -1,4 +1,4 @@
-# Handoff Contract v6
+# Handoff Contract v7
 
 The handoff file is an interface between sessions. This document specifies the stable contract that external consumers (e.g. aboyeur, overnight composting) can depend on.
 
@@ -26,6 +26,19 @@ Most recent handoff across all resolved locations, ranked by the header date (`#
 - **v3 filename scheme:** `YYYY-MM-DD-{session-id-8}.md` (e.g. `2026-04-04-51d17dc5.md`). Still valid — old files are never renamed; within a day they rank by mtime.
 - **v2 filename scheme:** `{session-id-8}.md` (e.g. `51d17dc5.md`). Still valid — consumers must handle all three during transition.
 - Consumers must not depend on filename format beyond `.md` extension.
+
+## Ledger and the sweep (v7, bon-supuko)
+
+Each handoffs directory may carry a `LEDGER.md`: one line per handoff, newest first, led by a processed-marker checkbox.
+
+```markdown
+- [ ] 2026-08-30 [2026-08-30-2010-fb49cab3.md](2026-08-30-2010-fb49cab3.md) — {purpose line}
+```
+
+- **The writer (/close) appends its line in the same change that writes the handoff**, creating `LEDGER.md` (with a two-line header) when absent — creating it is how a repo adopts the sweep.
+- **The reader (/open) processes EVERY unticked line, oldest first** — synthesis and candidate minting are batch-safe — and ticks each: `- [x] … (processed YYYY-MM-DD)`, the generalisation of the candidates `(minted YYYY-MM-DD)` heading-edit. This replaces latest-wins, under which the older of two interleaved closes was silently dropped: never synthesised, never minted, nothing said so.
+- **Fallbacks, both honest:** a line WITHOUT a checkbox is legacy prior art (~/notes' prose ledger predates this spec) and counts as processed; a handoff in no ledger at all is covered by latest-wins only — the newest still surfaces via discovery above, older unlisted files don't. Adoption is per-directory and zero-config beyond the close appending its line.
+- The link target resolves relative to the ledger's own directory; absolute paths are accepted.
 
 ## File Format
 
@@ -114,7 +127,7 @@ The reflector may add the escalation signal to the existing handoff if it identi
 
 ### Reader: Next session (/open or session-start hook)
 
-Discovers the most recent handoff, reads it, orients. Does not know or care whether the previous session was a worker or reflector.
+Discovers the most recent handoff plus every unticked ledger line, processes them all (oldest first), ticks each. Does not know or care whether the previous session was a worker or reflector.
 
 ### Compost: Overnight processing
 
@@ -147,7 +160,7 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 
 ## Versioning
 
-This is v6.
+This is v7.
 
 - **v1** (Jan 2026): Initial contract. `~/.claude/handoffs/` location, flat sections.
 - **v2** (Feb 2026): Path encoding widened. Still `~/.claude/handoffs/`.
@@ -155,3 +168,4 @@ This is v6.
 - **v4** (Jun 2026): Visible-substrate resolution (bon-zopopu). Handoffs resolve to a visible `handoffs/` (nearest-room, then board-root) before the legacy `.bon/handoffs/`, via the shared `scripts/lib-handoff.sh`; `understanding.md` resolves the same way. The `.bon/` fallback keeps every existing repo working untouched. **Consumers that read handoffs directly** (aboyeur, overnight composting) should use that resolver — or handle visible `handoffs/` + nearest-room — rather than assuming `.bon/handoffs/`.
 - **v5** (Jul 2026): Candidate mode (bon-pujawo). An optional `### Candidates` block in Zone 1 lets a no-writer session (board visible, writer unreachable — e.g. Cowork) record board mutations for a writer-bearing `/open` to mint. Additive and optional; the handoff format stays `fond-v1`.
 - **v6** (Aug 2026): `.bon/handoffs/` retired as a resolution rung (bon-sedoze). The visible `handoffs/` is now the default for a fresh board, not just an opt-in, and the reader no longer looks under `.bon/`. Because bon ships publicly, the same change carries the migration: `handoff_migrate_legacy` converges a legacy pile onto the visible dir on the back of the next open or close, so no consumer sees a session with their handoffs missing. The v4 note above is the state this supersedes — kept because a reader may still hold it.
+- **v7** (Aug 2026): The ledger sweep (bon-supuko). `LEDGER.md` per handoffs dir with `- [ ]` processed-markers; the close appends, the open sweeps ALL unticked lines and ticks them — latest-wins survives only as the fallback for un-ledgered repos. Additive: no existing file changes shape.

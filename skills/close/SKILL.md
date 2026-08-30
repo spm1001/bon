@@ -351,6 +351,24 @@ For cross-repo handoffs, check the target `handoffs/` exists first.
 
 Use HANDOFF_FILE from the script output verbatim — it generates `YYYY-MM-DD-HHMM-{session-id-8}.md` (date+time prefix so same-day siblings sort chronologically under `ls`, session ID suffix for transcript linkage), and it has already checked that nothing sits at that path. Don't recompute it: the id comes from the harness, and deriving one yourself from what's on disk is the bug this guarantee replaced.
 
+#### Ledger line — in the same change as the handoff
+
+Append your handoff's line to `LEDGER.md` in the directory you wrote the handoff to (bon-supuko; the notes convention, now core). This is what lets the next `/open` sweep EVERY unprocessed handoff instead of just the newest — without your line, an interleaved close's baton is silently dropped by latest-wins. Format, newest first under the header:
+
+```markdown
+- [ ] {DATE} [{filename}]({filename}) — {purpose line}
+```
+
+The unticked checkbox means "not yet processed by an /open"; the sweep ticks it to `- [x] … (processed YYYY-MM-DD)` after synthesising and minting. No `LEDGER.md` there yet? Create it with your line and this two-line header — creating it is how a repo adopts the sweep:
+
+```markdown
+# Handoffs ledger
+
+One line per handoff, newest first. `- [ ]` = not yet processed by an /open sweep; every close appends its line in the same change that writes the handoff.
+```
+
+Candidate mode included — the ledger append is a Write-tool edit, no CLI needed, and the candidate-bearing handoffs are exactly the ones the sweep must not drop. A repo with its own richer ledger convention (~/notes' prose lines): keep its register, but lead the line with the checkbox so the sweep can see it.
+
 
 ### Commit and go
 

@@ -32,6 +32,7 @@ fi
 STANDALONE_MAX=12
 OUTCOME_MAX=12
 SUGGESTED_MAX=6
+UNPROCESSED_MAX=6
 
 # === PATHS ===
 BASE_CONTEXT_DIR="$HOME/.claude/.session-context"
@@ -186,6 +187,39 @@ if [ -n "$LATEST_FILE" ]; then
     fi
 fi
 
+# --- Unprocessed handoffs (bon-supuko) ---
+# The sweep replaces latest-wins. Every close appends an unticked ledger
+# line ('- [ ] date [file](file) — purpose') to its handoff dir's
+# LEDGER.md; /open processes EVERY unticked line (synthesis + candidate
+# minting are batch-safe) and ticks each. Latest-wins silently dropped
+# the older of two interleaved closes — its For-Claudes-to-come never
+# synthesised, its Candidates never minted, nothing said so (the
+# Judi 11:00 / Stef 12:30 scenario, common-core design 2026-08-29).
+# Lines without a checkbox are legacy prior art (~/notes) and count as
+# processed; a handoff in no ledger at all is covered by latest-wins only.
+UNPROCESSED_PATHS=""
+UNPROCESSED_MISSING=0
+while IFS= read -r HDIR; do
+    [ -f "$HDIR/LEDGER.md" ] || continue
+    while IFS= read -r TARGET; do
+        [ -n "$TARGET" ] || continue
+        case "$TARGET" in
+            /*) FPATH="$TARGET" ;;
+            *)  FPATH="$HDIR/$TARGET" ;;
+        esac
+        if [ -f "$FPATH" ]; then
+            UNPROCESSED_PATHS="${UNPROCESSED_PATHS}${FPATH}"$'\n'
+        else
+            UNPROCESSED_MISSING=$((UNPROCESSED_MISSING + 1))
+        fi
+    done < <(sed -n 's/^- \[ \][^][]*\[[^]]*\](\([^)]*\)).*/\1/p' "$HDIR/LEDGER.md")
+done < <(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
+# Oldest first (filenames lead YYYY-MM-DD-HHMM, so basename sort is
+# chronological) — the sweep processes in write order.
+if [ -n "$UNPROCESSED_PATHS" ]; then
+    UNPROCESSED_PATHS=$(printf '%s' "$UNPROCESSED_PATHS" | awk -F/ '{print $NF "\t" $0}' | sort | cut -f2-)
+fi
+
 # --- Bon context ---
 BON_FILE="$CONTEXT_DIR/bon.txt"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -305,6 +339,23 @@ echo ""
 if [ -n "$LATEST_FILE" ]; then
     echo "Last session ($LATEST_STR): $LATEST_PURPOSE"
     echo "HANDOFF=$LATEST_FILE"
+    echo ""
+fi
+
+# --- 2b. Unprocessed handoffs (bon-supuko: the sweep replaces latest-wins) ---
+if [ -n "$UNPROCESSED_PATHS" ]; then
+    UNPROCESSED_COUNT=$(printf '%s\n' "$UNPROCESSED_PATHS" | wc -l | tr -d ' ')
+    echo "Unprocessed handoffs ($UNPROCESSED_COUNT) — sweep oldest-first before draw-down, tick each ledger line:"
+    printf '%s\n' "$UNPROCESSED_PATHS" | head -n "$UNPROCESSED_MAX" | while IFS= read -r p; do
+        echo "  UNPROCESSED=$p"
+    done
+    if [ "$UNPROCESSED_COUNT" -gt "$UNPROCESSED_MAX" ]; then
+        echo "  … +$((UNPROCESSED_COUNT - UNPROCESSED_MAX)) more — see the handoffs dir's LEDGER.md"
+    fi
+    echo ""
+fi
+if [ "$UNPROCESSED_MISSING" -gt 0 ]; then
+    echo "Warning: $UNPROCESSED_MISSING unticked LEDGER.md line(s) point at files that no longer exist — tick or fix them by hand."
     echo ""
 fi
 

@@ -523,3 +523,93 @@ def test_suggested_label_names_its_source(tmp_path):
     assert result.returncode == 0
     assert "From the last handoff's Opportunities:" in result.stdout
     assert "Suggested:" not in result.stdout
+
+
+# --- Unprocessed-handoff sweep (bon-supuko) -----------------------------------
+# The interleaved-close fixture: Judi's session closes at 11:00, Stef's (opened
+# before that close) at 12:30. Latest-wins surfaced only Stef's handoff; Judi's
+# For-Claudes-to-come was never synthesised and its Candidates never minted,
+# silently. The ledger sweep must surface BOTH — zero dropped handoffs.
+
+def _interleaved_handoffs(tmp_path: Path, tick_first: bool = False) -> tuple[Path, Path]:
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    judi = hdir / "2026-08-29-1100-judi0001.md"
+    stef = hdir / "2026-08-29-1230-stef0002.md"
+    judi.write_text("# Handoff — 2026-08-29\n\npurpose: Judi's close\n")
+    stef.write_text("# Handoff — 2026-08-29\n\npurpose: Stef's close\n")
+    judi_box = "- [x]" if tick_first else "- [ ]"
+    (hdir / "LEDGER.md").write_text(
+        "# Handoffs ledger\n\n"
+        "One line per handoff, newest first.\n\n"
+        f"- [ ] 2026-08-29 [{stef.name}]({stef.name}) — Stef's close\n"
+        f"{judi_box} 2026-08-29 [{judi.name}]({judi.name}) — Judi's close"
+        + (" (processed 2026-08-29)\n" if tick_first else "\n")
+    )
+    return judi, stef
+
+
+def test_interleaved_closes_zero_dropped(tmp_path):
+    """Both unticked handoffs surface, oldest first — the bon-supuko --done."""
+    judi, stef = _interleaved_handoffs(tmp_path)
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "Unprocessed handoffs (2)" in result.stdout
+    assert f"UNPROCESSED={judi}" in result.stdout
+    assert f"UNPROCESSED={stef}" in result.stdout
+    # Oldest first: Judi (11:00) before Stef (12:30).
+    assert (result.stdout.index(f"UNPROCESSED={judi}")
+            < result.stdout.index(f"UNPROCESSED={stef}"))
+
+
+def test_ticked_line_is_processed(tmp_path):
+    """A ticked ledger line is spent — only the unticked one surfaces."""
+    judi, stef = _interleaved_handoffs(tmp_path, tick_first=True)
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "Unprocessed handoffs (1)" in result.stdout
+    assert f"UNPROCESSED={stef}" in result.stdout
+    assert f"UNPROCESSED={judi}" not in result.stdout
+
+
+def test_no_ledger_falls_back_to_latest_wins(tmp_path):
+    """Without a LEDGER.md the section is absent and HANDOFF= still points
+    at the newest — un-ledgered repos keep today's behaviour exactly."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    (hdir / "2026-08-29-1230-stef0002.md").write_text(
+        "# Handoff — 2026-08-29\n\npurpose: Stef's close\n"
+    )
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "Unprocessed handoffs" not in result.stdout
+    assert "HANDOFF=" in result.stdout
+
+
+def test_legacy_prose_ledger_lines_are_processed(tmp_path):
+    """A checkbox-less line (~/notes prior art) never reads as unprocessed."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    f = hdir / "2026-08-29-1100-judi0001.md"
+    f.write_text("# Handoff — 2026-08-29\n\npurpose: Judi's close\n")
+    (hdir / "LEDGER.md").write_text(
+        "# Handoffs ledger\n\n"
+        f"- `2026-08-29` [{f.name}]({f.name}) — prose line, notes style\n"
+    )
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "Unprocessed handoffs" not in result.stdout
+
+
+def test_missing_ledger_target_warns(tmp_path):
+    """An unticked line pointing at a moved/deleted file warns, never dies."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    (hdir / "LEDGER.md").write_text(
+        "# Handoffs ledger\n\n"
+        "- [ ] 2026-08-29 [gone.md](gone.md) — points nowhere\n"
+    )
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "point at files that no longer exist" in result.stdout
+    assert "UNPROCESSED=" not in result.stdout
