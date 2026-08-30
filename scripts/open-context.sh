@@ -129,6 +129,10 @@ find_latest_in() {
     [ -d "$dir" ] || return 0
     for f in "$dir"/*.md; do
         [ -e "$f" ] || continue
+        # The ledger is an index, not a handoff — and being touched by
+        # every close and every tick it is mtime-newest, so in a dir of
+        # headerless handoffs it would WIN the ranking (essayeur, 2026-08-30).
+        case "$(basename "$f")" in LEDGER.md) continue ;; esac
         d=$(sed -n 's/^# Handoff — \([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/p' "$f" 2>/dev/null | head -1)
         [ -z "$d" ] && d="0000-00-00"
         mt=$(file_mtime "$f")
@@ -199,10 +203,17 @@ fi
 # processed; a handoff in no ledger at all is covered by latest-wins only.
 UNPROCESSED_PATHS=""
 UNPROCESSED_MISSING=0
+LEDGER_DRIFT=0
 while IFS= read -r HDIR; do
+    # The global stash serves container sessions and holds OTHER repos'
+    # history — sweeping it would synthesise foreign handoffs into this
+    # repo's understanding.md. Latest-wins still reads it, unchanged.
+    if [ "$HDIR" = "$HOME/.bon/handoffs" ]; then continue; fi
     [ -f "$HDIR/LEDGER.md" ] || continue
+    PARSED_COUNT=0
     while IFS= read -r TARGET; do
         [ -n "$TARGET" ] || continue
+        PARSED_COUNT=$((PARSED_COUNT + 1))
         case "$TARGET" in
             /*) FPATH="$TARGET" ;;
             *)  FPATH="$HDIR/$TARGET" ;;
@@ -213,6 +224,28 @@ while IFS= read -r HDIR; do
             UNPROCESSED_MISSING=$((UNPROCESSED_MISSING + 1))
         fi
     done < <(sed -n 's/^- \[ \][^][]*\[[^]]*\](\([^)]*\)).*/\1/p' "$HDIR/LEDGER.md")
+    # A checkbox line the parser could not read is an unticked handoff
+    # nothing will sweep — drifted format, silent-open failure direction.
+    RAW_UNTICKED=$(grep -c '^[-*] \[ \]' "$HDIR/LEDGER.md" 2>/dev/null || true)
+    RAW_UNTICKED=${RAW_UNTICKED:-0}
+    if [ "$RAW_UNTICKED" -gt "$PARSED_COUNT" ]; then
+        LEDGER_DRIFT=$((LEDGER_DRIFT + RAW_UNTICKED - PARSED_COUNT))
+    fi
+    # The un-ledgered net: a handoff file NO ledger line mentions at all —
+    # a pre-ledger plugin's close, a close that forgot its append, a
+    # hand-dropped file. Without this, one coexisting unticked line closes
+    # the latest-wins fallback and the file becomes permanently unreachable
+    # after the next ledgered close (essayeur refutation, 2026-08-30).
+    # Substring match on the basename, so drifted line formats still count
+    # as "mentioned".
+    for F in "$HDIR"/*.md; do
+        [ -e "$F" ] || continue
+        BASE=$(basename "$F")
+        if [ "$BASE" = "LEDGER.md" ]; then continue; fi
+        if ! grep -qF "$BASE" "$HDIR/LEDGER.md"; then
+            UNPROCESSED_PATHS="${UNPROCESSED_PATHS}${F} [no ledger line — process, then ADD a ticked line for it]"$'\n'
+        fi
+    done
 done < <(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
 # Oldest first (filenames lead YYYY-MM-DD-HHMM, so basename sort is
 # chronological) — the sweep processes in write order.
@@ -355,7 +388,11 @@ if [ -n "$UNPROCESSED_PATHS" ]; then
     echo ""
 fi
 if [ "$UNPROCESSED_MISSING" -gt 0 ]; then
-    echo "Warning: $UNPROCESSED_MISSING unticked LEDGER.md line(s) point at files that no longer exist — tick or fix them by hand."
+    echo "Warning: $UNPROCESSED_MISSING unticked LEDGER.md line(s) point at files that no longer exist — find where each file went (moved room? renamed?) and fix the line before ticking it."
+    echo ""
+fi
+if [ "$LEDGER_DRIFT" -gt 0 ]; then
+    echo "Warning: $LEDGER_DRIFT unticked LEDGER.md line(s) are in a format the sweep cannot parse — normalise them to '- [ ] DATE [file](file) — purpose' or they will never be swept."
     echo ""
 fi
 

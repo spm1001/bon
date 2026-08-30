@@ -613,3 +613,79 @@ def test_missing_ledger_target_warns(tmp_path):
     assert result.returncode == 0
     assert "point at files that no longer exist" in result.stdout
     assert "UNPROCESSED=" not in result.stdout
+
+
+# --- The un-ledgered net (essayeur refutation, 2026-08-30) --------------------
+# A handoff no ledger line mentions (a pre-supuko plugin's close, a forgotten
+# append) coexisting with ONE unticked line closed the latest-wins fallback,
+# and after the next ledgered close the file became permanently unreachable.
+
+def test_unledgered_file_in_ledgered_dir_is_swept(tmp_path):
+    """The rollout-week interleave: Judi ledgered, Stef's close ran the OLD
+    plugin (no ledger line). Both must surface."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    judi = hdir / "2026-08-29-1100-judi0001.md"
+    stef = hdir / "2026-08-29-1230-stef0002.md"
+    judi.write_text("# Handoff — 2026-08-29\n\npurpose: Judi's close\n")
+    stef.write_text("# Handoff — 2026-08-29\n\npurpose: Stef's close\n")
+    (hdir / "LEDGER.md").write_text(
+        "# Handoffs ledger\n\n"
+        f"- [ ] 2026-08-29 [{judi.name}]({judi.name}) — Judi's close\n"
+    )
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "Unprocessed handoffs (2)" in result.stdout
+    assert f"UNPROCESSED={judi}" in result.stdout
+    assert f"UNPROCESSED={stef} [no ledger line" in result.stdout
+
+
+def test_buried_unledgered_file_still_surfaces(tmp_path):
+    """After a NEWER ledgered close, the un-ledgered file is no longer the
+    latest — the net is the only thing that can still reach it."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    judi = hdir / "2026-08-29-1100-judi0001.md"
+    stef = hdir / "2026-08-29-1230-stef0002.md"
+    tom = hdir / "2026-08-29-1700-tomm0003.md"
+    for f, who in ((judi, "Judi"), (stef, "Stef"), (tom, "Tom")):
+        f.write_text(f"# Handoff — 2026-08-29\n\npurpose: {who}'s close\n")
+    (hdir / "LEDGER.md").write_text(
+        "# Handoffs ledger\n\n"
+        f"- [ ] 2026-08-29 [{tom.name}]({tom.name}) — Tom's close\n"
+        f"- [x] 2026-08-29 [{judi.name}]({judi.name}) — Judi's close (processed 2026-08-29)\n"
+    )
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert f"UNPROCESSED={stef} [no ledger line" in result.stdout
+    assert f"UNPROCESSED={tom}" in result.stdout
+    assert f"UNPROCESSED={judi}" not in result.stdout
+
+
+def test_drifted_checkbox_lines_warn(tmp_path):
+    """An unticked line the parser can't read must warn, not vanish."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    f = hdir / "2026-08-29-1100-judi0001.md"
+    f.write_text("# Handoff — 2026-08-29\n\npurpose: Judi's close\n")
+    (hdir / "LEDGER.md").write_text(
+        "# Handoffs ledger\n\n"
+        f"* [ ] 2026-08-29 {f.name} — star bullet, no link\n"
+    )
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "format the sweep cannot parse" in result.stdout
+
+
+def test_ledger_never_wins_the_handoff_ranking(tmp_path):
+    """LEDGER.md is mtime-newest by construction; it must not become
+    HANDOFF= in a dir of headerless handoffs."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    f = hdir / "old-headerless.md"
+    f.write_text("no header at all\n")
+    (hdir / "LEDGER.md").write_text("# Handoffs ledger\n")
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "HANDOFF=" in result.stdout
+    assert "LEDGER.md" not in result.stdout.split("HANDOFF=")[1].splitlines()[0]

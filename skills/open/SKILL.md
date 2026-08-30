@@ -79,7 +79,7 @@ The hook output may be truncated in the system-reminder preview. When you see "O
 
 ### 1. Sweep and Synthesize Knowledge
 
-**The sweep replaces latest-wins** (bon-supuko). The hook emits every handoff whose LEDGER.md line is still unticked, one `UNPROCESSED=<path>` line each, oldest first. Process ALL of them, not just the newest — two interleaved closes in a shared repo used to silently drop the older one: its For-Claudes-to-come never synthesised, its Candidates never minted, nothing said so. When no `UNPROCESSED=` lines appear (no ledger yet, or all ticked), process just the `HANDOFF=` file — that is the latest-wins fallback, and it stays correct for repos that haven't adopted a ledger.
+**The sweep replaces latest-wins** (bon-supuko). The hook emits every handoff whose LEDGER.md line is still unticked, one `UNPROCESSED=<path>` line each, oldest first — and, in a ledgered dir, every handoff file NO ledger line mentions at all, annotated `[no ledger line — process, then ADD a ticked line for it]`. That annotation means some close never registered the file (an older plugin's close, a forgotten append, a hand-dropped file): process it identically, then ADD a fresh ticked line for it rather than editing one — without this, one coexisting unticked line would make that file permanently unreachable. Process ALL of them, not just the newest — two interleaved closes in a shared repo used to silently drop the older one: its For-Claudes-to-come never synthesised, its Candidates never minted, nothing said so. When no `UNPROCESSED=` lines appear (no ledger yet, or all ticked), process just the `HANDOFF=` file — that is the latest-wins fallback, and it stays correct for repos that haven't adopted a ledger.
 
 For EACH unprocessed handoff, oldest first:
 
@@ -197,7 +197,7 @@ Then **draw-down** before touching code.
 The ritual is reliable only if you supply what the harness will not — each behaviour below was hit or measured live, not assumed:
 
 1. **cd per command.** The harness re-anchors every Bash call at its recorded directory, so a lone `cd` does not persist. Every board or repo-relative command is `cd TARGET && …`. From a container directory a bare bon call adopts whatever board it finds walking upward — the filed-where-cd'd hazard.
-2. **No orientation arrives for the target.** The session-start hook ran where you launched. Run steps 1–6 above by hand, anchored at TARGET: understanding.md, the latest handoff, the board fetch, `bon list`. The handoff is the read sessions skip — it was skipped in the run that minted this section.
+2. **No orientation arrives for the target.** The session-start hook ran where you launched. Run steps 1–6 above by hand, anchored at TARGET: understanding.md, the handoff sweep (read the target's `handoffs/LEDGER.md` for unticked lines — not just the latest file; the sweep of step 1 applies to a roamed repo too), the board fetch, `bon list`. The handoff is the read sessions skip — it was skipped in the run that minted this section.
 3. **Rank handoffs by header date, never `ls -t`** — file migrations reset mtimes, so a years-old handoff can look newest. `lib-handoff.sh` carries the ranking. **And if the target still has a `.bon/handoffs/` pile, converge it first**: `source <bon-scripts>/lib-handoff.sh; handoff_migrate_legacy TARGET`. The reader stopped looking under `.bon/` in bon-sedoze, and the session-start hook that normally migrates ran at your launch dir, not here — so a roaming session is the one path that can read a repo whose handoffs are still stranded, and conclude it has none.
 4. **The target's CLAUDE.md self-loads only when TARGET sits under the session's working directories** (the launch dir, or an added one). Under a root launch that is everything beneath the root — measured: editing a sibling repo's files pulled its CLAUDE.md in unbidden. Anywhere else, Read it yourself before working.
 5. **No tactical nudges for the target.** The UserPromptSubmit injection keys on the launch cwd, so step discipline is manual: `cd TARGET && bon work --status` on each return. Mirror hazard: claims key on the invoking cwd, so two roaming sessions working the same target read as one session to the claim guard — declare the lane where a collision is plausible.
@@ -218,6 +218,7 @@ A target carrying its own visiting protocol in CLAUDE.md (route → read on entr
 2. **`bon work <id>`** — initialize tactical steps from `--what`
    - Shows "Approach:" context from `--how` when present
    - If `--what` has no numbered steps, provide explicit ones: `bon work <id> "Step 1" "Step 2"`
+   - **A `Baton (date): <handoff>` line means another session last worked this thread** (bon-jeweke: the newest handoff citing this item in its `items:` frontmatter). Read that handoff before starting — it is the directional briefing addressed to whoever picks the thread up, which is now you. A fresh item shows no Baton line.
 3. **Work through with checkpoints:** `bon step` after each
 4. **Final step auto-completes** the action
 
