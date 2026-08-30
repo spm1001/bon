@@ -49,11 +49,13 @@ Each handoffs directory may carry a `LEDGER.md`: one line per handoff, newest fi
 
 session_id: <uuid or identifier>
 purpose: <one-line summary>
+items: <bon IDs worked, comma-separated>
 format: fond-v1
 ```
 
 - `session_id` — identifies the originating session. Used for debugging and log correlation.
 - `purpose` — human-readable summary.
+- `items` — optional (v7, bon-jeweke): the bon IDs this session worked. This is the baton's address — `bon work` surfaces the newest handoff citing the drawn item at draw-down, so the thread's briefing reaches its next runner rather than whoever opens next. Absent when no board items were worked, and in all pre-v7 handoffs.
 - `format` — template version. `fond-v1` indicates the two-zone layout below. Absent in legacy handoffs.
 
 ### Two-Zone Layout (fond-v1)
@@ -168,4 +170,4 @@ This is v7.
 - **v4** (Jun 2026): Visible-substrate resolution (bon-zopopu). Handoffs resolve to a visible `handoffs/` (nearest-room, then board-root) before the legacy `.bon/handoffs/`, via the shared `scripts/lib-handoff.sh`; `understanding.md` resolves the same way. The `.bon/` fallback keeps every existing repo working untouched. **Consumers that read handoffs directly** (aboyeur, overnight composting) should use that resolver — or handle visible `handoffs/` + nearest-room — rather than assuming `.bon/handoffs/`.
 - **v5** (Jul 2026): Candidate mode (bon-pujawo). An optional `### Candidates` block in Zone 1 lets a no-writer session (board visible, writer unreachable — e.g. Cowork) record board mutations for a writer-bearing `/open` to mint. Additive and optional; the handoff format stays `fond-v1`.
 - **v6** (Aug 2026): `.bon/handoffs/` retired as a resolution rung (bon-sedoze). The visible `handoffs/` is now the default for a fresh board, not just an opt-in, and the reader no longer looks under `.bon/`. Because bon ships publicly, the same change carries the migration: `handoff_migrate_legacy` converges a legacy pile onto the visible dir on the back of the next open or close, so no consumer sees a session with their handoffs missing. The v4 note above is the state this supersedes — kept because a reader may still hold it.
-- **v7** (Aug 2026): The ledger sweep (bon-supuko). `LEDGER.md` per handoffs dir with `- [ ]` processed-markers; the close appends, the open sweeps ALL unticked lines and ticks them — latest-wins survives only as the fallback for un-ledgered repos. Additive: no existing file changes shape.
+- **v7** (Aug 2026): The ledger sweep (bon-supuko) and the baton (bon-jeweke). `LEDGER.md` per handoffs dir with `- [ ]` processed-markers; the close appends, the open sweeps ALL unticked lines and ticks them — latest-wins survives only as the fallback for un-ledgered repos. Metadata gains the optional `items:` field (the bon IDs a session worked); `bon work` surfaces the newest handoff citing the drawn item, so the thread briefing follows the ticket. Both additive: no existing file changes shape.

@@ -1740,6 +1740,75 @@ def parse_steps_from_what(what: str) -> list[str] | None:
     return steps if steps else None
 
 
+def find_baton_handoff(item_id: str) -> tuple[str, str, str] | None:
+    """Newest handoff citing item_id in its `items:` frontmatter (bon-jeweke).
+
+    The baton follows the ticket: the directional briefing — "here is where
+    this thread was left" — goes to whoever draws the item down, not whoever
+    opens next. Closes stamp `items: <ids worked>` in the handoff metadata;
+    this scans every handoffs/ dir under the board root for the newest file
+    citing the id, ranked by header date then filename HHMM (the v4 scheme)
+    then name. Returns (path, date, purpose) or None. Best-effort by
+    construction: a prose scan must never break a board verb.
+    """
+    try:
+        from bon.storage import _data_dir
+        root = _data_dir().parent
+        cite = re.compile(r"(?<![A-Za-z0-9-])" + re.escape(item_id) + r"(?![A-Za-z0-9-])")
+        best_key = ""
+        best = None
+        scanned = 0
+        for dirpath, dirnames, filenames in os.walk(root):
+            scanned += 1
+            if scanned > 6000:
+                break  # a pathological tree; the baton is a courtesy, not a right
+            dirnames[:] = [d for d in dirnames
+                           if not d.startswith(".")
+                           and d not in ("node_modules", "__pycache__")]
+            if os.path.basename(dirpath) != "handoffs":
+                continue
+            dirnames[:] = []
+            for name in filenames:
+                if not name.endswith(".md") or name == "LEDGER.md":
+                    continue
+                path = os.path.join(dirpath, name)
+                try:
+                    with open(path, encoding="utf-8", errors="replace") as f:
+                        head = f.read(800)
+                except OSError:
+                    continue
+                m = re.search(r"^items:(.*)$", head, re.MULTILINE)
+                if not m or not cite.search(m.group(1)):
+                    continue
+                dm = re.search(r"^# Handoff — (\d{4}-\d{2}-\d{2})", head, re.MULTILINE)
+                day = dm.group(1) if dm else "0000-00-00"
+                hm = re.match(r"^\d{4}-\d{2}-\d{2}-(\d{4})-", name)
+                hhmm = hm.group(1) if hm else "0000"
+                key = f"{day}.{hhmm}.{name}"
+                if key > best_key:
+                    pm = re.search(r"^purpose:\s*(.*)$", head, re.MULTILINE)
+                    best_key = key
+                    best = (path, day, pm.group(1).strip() if pm else "")
+        return best
+    except Exception:
+        return None
+
+
+def print_baton(item_id: str) -> None:
+    """One line surfacing the thread's latest handoff at draw-down time."""
+    baton = find_baton_handoff(item_id)
+    if not baton:
+        return  # a fresh item surfaces nothing — by design
+    path, day, purpose = baton
+    try:
+        rel = os.path.relpath(path)
+    except ValueError:
+        rel = path
+    print()
+    print(f"Baton ({day}): {rel}" + (f" — {purpose}" if purpose else ""))
+    print("  The last session on this thread. Read it before starting.")
+
+
 def cmd_work(args):
     """Initialize or manage tactical steps for an action."""
     check_initialized()
@@ -1948,6 +2017,7 @@ def cmd_work(args):
         print(f"Resumed: {item['id']} (progress intact)")
         print()
         print(format_tactical(item["tactical"], action_status=item["status"]))
+        print_baton(item["id"])
         return
     if existing and existing.get("current", 0) > 0 and not args.force:
         error(f"Steps in progress (step {existing['current'] + 1}). Run `bon work {work_id} --force` to restart")
@@ -1978,6 +2048,7 @@ def cmd_work(args):
         print(f"Approach: {how}")
         print()
     print(format_tactical(item["tactical"]))
+    print_baton(item["id"])
 
 
 def cmd_step(args):

@@ -253,6 +253,8 @@ Your handoff has two specific audiences.
 
 2. Then there are the background processes which will run overnight to incorporate and index your learning and insight into the collective memory. The bits that will live on. 
 
+**The `items:` line is the baton's address** (bon-jeweke): list the bon IDs this session actually worked — comma-separated, full IDs. `bon work` looks up the newest handoff citing the drawn item and surfaces it at draw-down, so the directional briefing reaches whoever picks up the thread, not just whoever opens next. An ID you omit is a thread whose next runner starts cold.
+
 #### Template
 
 ```markdown
@@ -260,6 +262,7 @@ Your handoff has two specific audiences.
 
 session_id: {SESSION_ID}
 purpose: {one line — what the session was for}
+items: {bon IDs this session worked — closed, stepped, edited, or filed; omit the line when none}
 format: fond-v1
 
 ## For the next Claude
