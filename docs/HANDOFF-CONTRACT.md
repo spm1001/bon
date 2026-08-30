@@ -55,7 +55,7 @@ format: fond-v1
 
 - `session_id` — identifies the originating session. Used for debugging and log correlation.
 - `purpose` — human-readable summary.
-- `items` — optional (v7, bon-jeweke): the bon IDs this session worked. This is the baton's address — `bon work` surfaces the newest handoff citing the drawn item at draw-down, so the thread's briefing reaches its next runner rather than whoever opens next. Absent when no board items were worked, and in all pre-v7 handoffs.
+- `items` — optional (v7, bon-jeweke): the bon IDs this session WORKED (closed, stepped, materially advanced — never merely filed, whose briefs carry their own origin). One physical line, comma-separated, full IDs. This is the baton's address — `bon work` surfaces the newest handoff citing the drawn item at draw-down, so the thread's briefing reaches its next runner rather than whoever opens next. Absent when no board items were worked, and in all pre-v7 handoffs.
 - `format` — template version. `fond-v1` indicates the two-zone layout below. Absent in legacy handoffs.
 
 ### Two-Zone Layout (fond-v1)

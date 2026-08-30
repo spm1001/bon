@@ -188,24 +188,15 @@ Now sort the remaining actions into three buckets:
 
 3. **For Claudes to come** — what one thing did you learn or discover that should be contributed to the stock of future Claude understanding; an architectural insight, a taste judgment, a decision with real alternatives, a mistake not to be repeated, a trick you discovered which would save us significant time. A shard of wisdom gleaned.
 
-### Toolmaking tap — compass out
+### Personal half: the queue tap (variation point `close.tap`)
 
-Before proposing the close-out, read Sameer's dispatch queue and check the session against it. Gate and failure mode as in /open's compass: skip only when `accomplis` is absent; unreachable renders as "not shown", never silence.
+If the context script printed `ACCENT=<path>` (the operator's personal half, `~/.claude/mit-accent.md` — spec: `docs/ACCENT.md`), Read its `## close` section and run its `close.tap` content here, before proposing the close-out. The worked example is an operator whose accent reads their dispatch queue, checks the session against it, and — under write sanctions the accent itself records, in their words, with dates — ticks completed lines, adds clean-case successor lines, and rewords stale ones, always telling them in the close-out block, never asking first.
 
-```bash
-accomplis tasks --project "& Toolmaking" 2>/dev/null | jq -r '.[] | .content'
-```
+The four laws (docs/ACCENT.md) apply: no `ACCENT=` line or no `## close` section → skip SILENTLY, the close is complete without it; this slot only, the spine is not overridable; a broken half is one plain line, never a banner; and NO write into the operator's own systems happens without the accent's own recorded sanction — an accent without written sanctions is read-only, however convenient the write would be.
 
-(The jq filter is load-bearing: the raw JSON runs ~37KB on a real queue and blows the Bash output cap — same fix as /open's compass, measured 2026-08-19.)
+### Cultivate the personal half
 
-Three checks, rendered as one 🧭 block inside the close-out proposal:
-
-- **Tick (sanctioned, tell-after):** queue lines whose work this session completed — CLOSE them (`accomplis done <task-id>`) and say which in the block. (Sameer, 2026-08-13, mit-garni close: "happy for you to tick any that are completed, that guidance is a bit too cautious." Recorded in bon-leturo's `--how`; this skill carried the pre-correction wording for a fortnight after.)
-- **Propose-and-add (sanctioned, tell-after):** when a clean case exists — a queue line's bon closed with an obvious successor, or the session minted dispatch-shaped work he ranked — ADD the line (`accomplis add "Open <repo> → <desire> (<bon-id>)" --project "& Toolmaking"`) and TELL him in the block: "added: …". Never ask first; never add speculative lines — clean cases only, his grammar, his grain. (Norm: Sameer, 2026-08-09 review ceremony — "I'd like you to tell me, but doing it is fine"; recorded in bon-leturo's `--how`.)
-- **Edit (sanctioned, tell-after):** a queue line that has gone stale against its board — the outcome renamed, the bon id superseded, the desire reworded — REWORD it (`accomplis update <task-id> --content "…"`) and say so. Keep his grammar and his grain; you are correcting drift, not rewriting his intent. (Sameer, 2026-08-28: "completing and editing are fine too".)
-- **Stalling:** a queue line pointing at a board with no motion for 30+ days — one nudge, max one.
-
-The tap reads, and writes single dispatch lines in the three sanctioned cases above — tick, add, edit — always telling him in the block, never asking first. Two boundaries survive. **Scope:** `& Toolmaking` only; his other projects stay untouched. **No sync:** never mirror the board into Todoist — typed manual edges only. That second one is what the kuwivo rule actually says (bon-kuwivo: "Todoist stays his book, typed edges only — never board sync"); it is a rule about MIRRORING, not about writing, and this skill previously cited it to justify a no-edit/no-complete rule it does not support. If you find yourself citing kuwivo against a single deliberate write, you are citing it wrongly.
+The accent grows only from observation, and this is the one place it grows (law 1's other half). If this session watched the operator do something rite-shaped and recurring BY HAND — a queue they always consult before picking work, a ranking they always impose, a path they always archive to — propose capturing it in their accent as part of the close-out: name the habit, the variation point it would fill, and the exact text you'd add. From observed habits only: never propose for an empty slot on a machine with no accent, never turn an absence into a nudge. Any write sanction enters the accent only in the operator's own words, opt-in, dated (law 4).
 
 Propose these to the user:
 
@@ -217,7 +208,7 @@ Propose these to the user:
 >
 > **Empty outcomes:** [only when Orient flagged any — per outcome: break down now, file a first action, or confirm it's intentionally a sketch]
 >
-> **🧭 Toolmaking:** [tickable lines · lines added under the norm · the one stall nudge — or "unreachable, not shown"]
+> **Personal half:** [whatever your accent's `close.tap` produced — its block, verbatim; omit this line entirely when no accent ran]
 >
 > **Insight to capture for the future:** [one dense paragraph to contribute]
 >
@@ -241,7 +232,7 @@ Work through the list. Finish the quick fixes, close off completed Bon items - g
 
 When filing bons, the `--why` should explain what's at stake — not just describe the work. Use `bon new --json` for anything with technical content. Capture enough detail in the `--how` that a future Claude could pick it up without your context load.
 
-**File it, then do it** (bon-nalube). After filing, sweep the just-filed items once more: any that are small, in-context and surgery-free — a doc line you already know the wording of, a config tweak, a one-function fix in a file you have open — get executed NOW, in this session, before you exit. Filing an item you could knock out in five minutes hands a future session your context-load for free, and the human had to ask for exactly this after nearly every close before it became a House rule. Say which you knocked out and which you deliberately left, so the split is visible. A nudge, not a gate: your own judgment on "inapt for this context" stands — bigger surgery, a cold-context need, or a decision that isn't yours all stay filed.
+**File it, then do it** (bon-nalube). After filing, sweep the just-filed items once more: any that are small, in-context and surgery-free — a doc line you already know the wording of, a config tweak, a one-function fix in a file you have open — get executed NOW, in this session, before you exit, **and closed (`bon done` with a note) so the board and the handoff's Done section carry the split, not just the chat**. Filing an item you could knock out in five minutes hands a future session your context-load for free, and the human had to ask for exactly this after nearly every close before it became a House rule. Say which you knocked out and which you deliberately left, so the split is visible. A nudge, not a gate: your own judgment on "inapt for this context" stands — bigger surgery, a cold-context need, a decision that isn't yours, or anything the user explicitly demoted to file-only during review, all stay filed.
 
 For cross-repo issues: file a bon in the relevant repo rather than making changes there. Cabinet responsibility means noticing and capturing, not committing in repos where you may not have the full picture.
 
@@ -255,7 +246,7 @@ Your handoff has two specific audiences.
 
 2. Then there are the background processes which will run overnight to incorporate and index your learning and insight into the collective memory. The bits that will live on. 
 
-**The `items:` line is the baton's address** (bon-jeweke): list the bon IDs this session actually worked — comma-separated, full IDs. `bon work` looks up the newest handoff citing the drawn item and surfaces it at draw-down, so the directional briefing reaches whoever picks up the thread, not just whoever opens next. An ID you omit is a thread whose next runner starts cold.
+**The `items:` line is the baton's address** (bon-jeweke): list the bon IDs this session actually worked — comma-separated, full IDs, ONE physical line (a wrapped list is invisible to a strict reader). Worked means closed, stepped, or materially advanced — never merely filed. `bon work` looks up the newest handoff citing the drawn item and surfaces it at draw-down, so the directional briefing reaches whoever picks up the thread, not just whoever opens next. An ID you omit is a thread whose next runner starts cold; an ID you pad in is a false "last session on this thread" claim.
 
 #### Template
 
@@ -264,7 +255,7 @@ Your handoff has two specific audiences.
 
 session_id: {SESSION_ID}
 purpose: {one line — what the session was for}
-items: {bon IDs this session worked — closed, stepped, edited, or filed; omit the line when none}
+items: {bon IDs this session WORKED — closed, stepped, or materially advanced. One physical line, comma-separated, full IDs. NOT items merely filed at close: their brief carries its own origin, and listing them would brief the next runner on a thread no session has run. Omit the line when none}
 format: fond-v1
 
 ## For the next Claude
@@ -298,7 +289,8 @@ patterns played out in this work. Lessons that belong in the always-on
 guidance corpus (a trap keyed on its discriminating command, a
 verification-family instance) split by what the edit IS (ratified 2026-08-13,
 bon-vinije). A NEW row defers to intake: file a bon item on the corpus's own
-board (in this estate: ~/.claude) carrying the proposed row text, or a
+board (the operator's guidance repo — their accent's `close.capture-routing`
+names it where one exists) carrying the proposed row text, or a
 handoff candidate when no writer is reachable — because intake is the
 corpus's only valve (append-only, no eviction pass) and close-time is the
 documented worst moment for residence judgement (completion drive, token
@@ -329,12 +321,11 @@ Provenance: {vehicle, e.g. Cowork} session {session_id} — {YYYY-MM-DD}
 - **EDIT** `bon-yyyy` — --how: "new text"
 ```
 
-One line per mutation, with enough detail to mint without your context. This is what
-the two worked examples did (`~/notes/handoffs/2026-06-10-7c379a74.md`,
-`2026-06-12-804b6ba8.md`) — their candidates rode an "Opportunities — bon candidates"
-list in prose; the dedicated `### Candidates` heading is the same idea, structured so
-the next open mints reliably instead of re-deriving the convention. Format spec:
-`docs/HANDOFF-CONTRACT.md`.
+One line per mutation, with enough detail to mint without your context. Two worked
+examples predate this spec and rode an "Opportunities — bon candidates" prose list;
+the dedicated `### Candidates` heading is the same idea, structured so the next open
+mints reliably instead of re-deriving the convention. Format spec (and the worked
+examples' citations): `docs/HANDOFF-CONTRACT.md`.
 
 #### Where does it go?
 
@@ -372,7 +363,16 @@ The unticked checkbox means "not yet processed by an /open"; the sweep ticks it 
 One line per handoff, newest first. `- [ ]` = not yet processed by an /open sweep; every close appends its line in the same change that writes the handoff.
 ```
 
-Candidate mode included — the ledger append is a Write-tool edit, no CLI needed, and the candidate-bearing handoffs are exactly the ones the sweep must not drop. A repo with its own richer ledger convention (~/notes' prose lines): keep its register, but lead the line with the checkbox so the sweep can see it.
+**Adoption backfill — mandatory when the dir already holds handoffs.** The sweep treats a file with no ledger line as unprocessed, so a fresh one-line ledger beside 80 historical handoffs floods the next /open with the entire archive (measured on a replica: 13 files emitted, the real baton buried). Latest-wins already served that history — backfill it TICKED, below your own unticked line:
+
+```bash
+for f in <handoff-dir>/*.md; do b=$(basename "$f"); [ "$b" = LEDGER.md ] && continue; \
+  echo "- [x] ${b:0:10} [$b]($b) — pre-ledger history (processed at adoption $(date +%F))"; done
+```
+
+(Skip the file you just wrote — your unticked line above covers it.)
+
+Candidate mode included — the ledger append is a Write-tool edit, no CLI needed, and the candidate-bearing handoffs are exactly the ones the sweep must not drop. A repo with its own richer ledger convention (prose-heavy lines, extra columns): keep its register, but lead the line with the checkbox so the sweep can see it.
 
 
 ### Commit and go

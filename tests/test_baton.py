@@ -99,3 +99,79 @@ def test_room_handoffs_are_found(bon_dir, monkeypatch):
     assert result.returncode == 0, result.stderr
     assert "Baton (2026-08-30)" in result.stdout
     assert "roomroom" in result.stdout
+
+
+# --- Essayeur refutation repairs (2026-08-30) ---------------------------------
+
+def test_vendored_clone_handoffs_are_never_batons(bon_dir, monkeypatch):
+    """A handoffs dir behind a foreign .git/.bon boundary (a vendored plugin
+    cache, a nested repo) is another repo's territory — never served."""
+    monkeypatch.chdir(bon_dir)
+    item_id = _seed_item(bon_dir)
+    vendored = bon_dir / "plugins" / "cache" / "somepkg"
+    (vendored / "handoffs").mkdir(parents=True)
+    (vendored / ".git").mkdir()
+    (vendored / "handoffs" / "2026-08-30-1100-vendored.md").write_text(
+        "# Handoff — 2026-08-30\n\nsession_id: x\npurpose: foreign\n"
+        f"items: {item_id}\nformat: fond-v1\n"
+    )
+    result = run_bon("work", item_id, cwd=bon_dir)
+    assert result.returncode == 0, result.stderr
+    assert "Baton" not in result.stdout
+
+
+def test_nonconforming_names_rank_by_mtime_not_sentinel(bon_dir, monkeypatch):
+    """A drifted filename/title must not hand a STALE handoff the confident
+    'last session' label — mtime replaces the 0000 sentinels."""
+    import os as _os
+    import time as _time
+    monkeypatch.chdir(bon_dir)
+    item_id = _seed_item(bon_dir)
+    hdir = bon_dir / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    old = hdir / "2026-08-30-0900-morning1.md"
+    old.write_text(f"# Handoff — 2026-08-30\n\npurpose: STALE morning pass\nitems: {item_id}\n")
+    new = hdir / "evening-wrap.md"  # no v4 HHMM, nonconforming title
+    new.write_text(f"# Campaign close — 2026-08-30\n\npurpose: the real latest\nitems: {item_id}\n")
+    now = _time.time()
+    _os.utime(old, (now - 7200, now - 7200))
+    _os.utime(new, (now, now))
+    result = run_bon("work", item_id, cwd=bon_dir)
+    assert result.returncode == 0, result.stderr
+    assert "the real latest" in result.stdout
+    assert "STALE" not in result.stdout
+
+
+def test_items_line_past_800_bytes_is_still_read(bon_dir, monkeypatch):
+    """A long purpose line must not push the citation out of the head read
+    (a real 1,232-byte metadata block exists in the estate)."""
+    monkeypatch.chdir(bon_dir)
+    item_id = _seed_item(bon_dir)
+    hdir = bon_dir / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    long_purpose = "p" * 900
+    (hdir / "2026-08-30-1100-deadbeef.md").write_text(
+        f"# Handoff — 2026-08-30\n\nsession_id: x\npurpose: {long_purpose}\n"
+        f"items: {item_id}\nformat: fond-v1\n"
+    )
+    result = run_bon("work", item_id, cwd=bon_dir)
+    assert result.returncode == 0, result.stderr
+    assert "Baton (2026-08-30)" in result.stdout
+
+
+def test_wrapped_items_line_is_still_read(bon_dir, monkeypatch):
+    """A continuation line under items: (a plausible LLM rendering of a long
+    list) still counts as cited."""
+    monkeypatch.chdir(bon_dir)
+    item_id = _seed_item(bon_dir)
+    hdir = bon_dir / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    others = ", ".join(f"bon-filler{i:02d}" for i in range(12))
+    (hdir / "2026-08-30-1100-deadbeef.md").write_text(
+        "# Handoff — 2026-08-30\n\nsession_id: x\npurpose: p\n"
+        f"items: {others},\n  {item_id}\n"
+        "format: fond-v1\n"
+    )
+    result = run_bon("work", item_id, cwd=bon_dir)
+    assert result.returncode == 0, result.stderr
+    assert "Baton (2026-08-30)" in result.stdout

@@ -1740,51 +1740,112 @@ def parse_steps_from_what(what: str) -> list[str] | None:
     return steps if steps else None
 
 
+def _baton_dirs(root, cwd) -> list:
+    """The handoffs dirs the baton may read — the resolver's semantics.
+
+    NEVER a bounded walk of the whole tree: the first cut's 6000-dir budget
+    tripped on the live ~/.claude board before reaching its own handoffs/,
+    while the only dirs it DID reach were vendored plugin-cache copies of
+    other repos' handoffs (essayeur refutation, 2026-08-30). Instead:
+    upward from cwd to the board root (lib-handoff.sh's read set — the
+    guaranteed floor), then room handoffs downward at depth ≤ 4 (the
+    scan_down_candidates bound), skipping any dir that sits behind a
+    foreign .git/.bon boundary — another repo's or board's territory,
+    which is exactly what a vendored clone is.
+    """
+    from pathlib import Path
+    root = Path(root)
+    cwd = Path(cwd)
+    dirs: list = []
+    walk = cwd if str(cwd).startswith(str(root)) else root
+    while True:
+        d = walk / "handoffs"
+        if d.is_dir():
+            dirs.append(d)
+        if walk == root or walk.parent == walk:
+            break
+        walk = walk.parent
+    for pattern in ("*/handoffs", "*/*/handoffs", "*/*/*/handoffs",
+                    "*/*/*/*/handoffs"):
+        for d in root.glob(pattern):  # glob's * never matches dot-dirs
+            if not d.is_dir():
+                continue
+            anc = d.parent
+            foreign = False
+            while anc != root:
+                if ((anc / ".git").exists() or (anc / ".bon").exists()
+                        or anc.name in ("node_modules", "__pycache__")):
+                    foreign = True
+                    break
+                anc = anc.parent
+            if not foreign:
+                dirs.append(d)
+    seen = set()
+    unique = []
+    for d in dirs:
+        r = os.path.realpath(d)
+        if r not in seen:
+            seen.add(r)
+            unique.append(d)
+    return unique
+
+
+def _baton_items_field(head: str) -> str | None:
+    """The items: value, including plausible wrapped continuation lines."""
+    lines = head.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("items:"):
+            value = [line[len("items:"):]]
+            for cont in lines[i + 1:]:
+                if not cont.strip() or re.match(r"^[A-Za-z_]+:", cont) or cont.startswith("#"):
+                    break
+                value.append(cont)
+            return " ".join(value)
+    return None
+
+
 def find_baton_handoff(item_id: str) -> tuple[str, str, str] | None:
     """Newest handoff citing item_id in its `items:` frontmatter (bon-jeweke).
 
     The baton follows the ticket: the directional briefing — "here is where
     this thread was left" — goes to whoever draws the item down, not whoever
     opens next. Closes stamp `items: <ids worked>` in the handoff metadata;
-    this scans every handoffs/ dir under the board root for the newest file
-    citing the id, ranked by header date then filename HHMM (the v4 scheme)
-    then name. Returns (path, date, purpose) or None. Best-effort by
-    construction: a prose scan must never break a board verb.
+    this reads the resolver-legitimate handoffs dirs for the newest file
+    citing the id. Ranking mirrors open-context.sh's find_latest_in: header
+    date (mtime-derived when the header is nonconforming — a sentinel would
+    make format drift surface a STALE handoff under a confident label),
+    then filename HHMM (mtime-derived fallback), then raw mtime. Returns
+    (path, date, purpose) or None. Best-effort by construction: a prose
+    scan must never break a board verb.
     """
     try:
+        from datetime import datetime
+
         from bon.storage import _data_dir
         root = _data_dir().parent
         cite = re.compile(r"(?<![A-Za-z0-9-])" + re.escape(item_id) + r"(?![A-Za-z0-9-])")
         best_key = ""
         best = None
-        scanned = 0
-        for dirpath, dirnames, filenames in os.walk(root):
-            scanned += 1
-            if scanned > 6000:
-                break  # a pathological tree; the baton is a courtesy, not a right
-            dirnames[:] = [d for d in dirnames
-                           if not d.startswith(".")
-                           and d not in ("node_modules", "__pycache__")]
-            if os.path.basename(dirpath) != "handoffs":
-                continue
-            dirnames[:] = []
-            for name in filenames:
-                if not name.endswith(".md") or name == "LEDGER.md":
+        for hdir in _baton_dirs(root, os.getcwd()):
+            for name in sorted(os.listdir(hdir)):
+                if not name.endswith(".md") or name in ("LEDGER.md", "README.md"):
                     continue
-                path = os.path.join(dirpath, name)
+                path = os.path.join(str(hdir), name)
                 try:
                     with open(path, encoding="utf-8", errors="replace") as f:
-                        head = f.read(800)
+                        head = f.read(4096)
+                    mtime = os.path.getmtime(path)
                 except OSError:
                     continue
-                m = re.search(r"^items:(.*)$", head, re.MULTILINE)
-                if not m or not cite.search(m.group(1)):
+                field = _baton_items_field(head)
+                if not field or not cite.search(field):
                     continue
+                mt = datetime.fromtimestamp(mtime)
                 dm = re.search(r"^# Handoff — (\d{4}-\d{2}-\d{2})", head, re.MULTILINE)
-                day = dm.group(1) if dm else "0000-00-00"
+                day = dm.group(1) if dm else mt.strftime("%Y-%m-%d")
                 hm = re.match(r"^\d{4}-\d{2}-\d{2}-(\d{4})-", name)
-                hhmm = hm.group(1) if hm else "0000"
-                key = f"{day}.{hhmm}.{name}"
+                hhmm = hm.group(1) if hm else mt.strftime("%H%M")
+                key = f"{day}.{hhmm}.{int(mtime):012d}"
                 if key > best_key:
                     pm = re.search(r"^purpose:\s*(.*)$", head, re.MULTILINE)
                     best_key = key
