@@ -1,6 +1,6 @@
 ---
 name: open
-description: "Activate at session start when .bon/ exists AND before any bon CLI command. Handles session orientation (process contributions, present hierarchy, pick direction) and structures draw-down workflow (bon show → bon work → bon step). Triggers on: session start with .bon/, /open, /bon, 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', or when .bon/ directory exists."
+description: "Activate at session start when .bon/ exists AND before any bon CLI command. Handles session orientation (process contributions, present hierarchy, pick direction), structures draw-down workflow (bon show → bon work → bon step), and covers roaming — orienting against a named repo from a session launched elsewhere. Triggers on: session start with .bon/, /open, '/open REPO' (a path or repo name), /bon, 'bon init', 'bon new', 'bon list', 'bon done', 'what can I work on', 'next action', 'desired outcome', 'file this for later', 'track this work', 'work on that repo from here', or when .bon/ directory exists."
 allowed-tools:
   - "Bash(bon:*)"
   - Read
@@ -176,6 +176,22 @@ In a **multi-room repo** — one with a `rooms.md` index, or nested `CLAUDE.md` 
 This fires **regardless of where the session launched**: a room-launched session still needs the explicit understanding.md + handoffs read, because the harness's upward walk carries only CLAUDE.md. `rooms.md`, when present, is the map of what rooms exist — read it first to place your work. In a single-room repo this is a no-op: the tissue the hook already resolved is the whole story.
 
 Then **draw-down** before touching code.
+
+---
+
+## Roaming: `/open TARGET`
+
+`/open` accepts a target — a path, or a repo name under a conventional root like `~/repos` — and runs the whole ritual against *that* repo from wherever the session launched. Treat it as a first-class move, not an exotic one: a session launched at a root can work any repo beneath it, entering repos by name as the conversation turns. It is reliable only if you supply what the harness will not — each behaviour below was hit or measured live, not assumed:
+
+1. **cd per command.** The harness re-anchors every Bash call at its recorded directory, so a lone `cd` does not persist. Every board or repo-relative command is `cd TARGET && …`. From a container directory a bare bon call adopts whatever board it finds walking upward — the filed-where-cd'd hazard.
+2. **No orientation arrives for the target.** The session-start hook ran where you launched. Run steps 1–6 above by hand, anchored at TARGET: understanding.md, the latest handoff, the board fetch, `bon list`. The handoff is the read sessions skip — it was skipped in the run that minted this section.
+3. **Rank handoffs by header date, never `ls -t`** — file migrations reset mtimes, so a years-old handoff can look newest. `lib-handoff.sh` carries the ranking.
+4. **The target's CLAUDE.md self-loads only when TARGET sits under the session's working directories** (the launch dir, or an added one). Under a root launch that is everything beneath the root — measured: editing a sibling repo's files pulled its CLAUDE.md in unbidden. Anywhere else, Read it yourself before working.
+5. **No tactical nudges for the target.** The UserPromptSubmit injection keys on the launch cwd, so step discipline is manual: `cd TARGET && bon work --status` on each return. Mirror hazard: claims key on the invoking cwd, so two roaming sessions working the same target read as one session to the claim guard — declare the lane where a collision is plausible.
+6. **Check the target's billing pin.** A repo can pin its own billing route (an `env` block in its `.claude/settings.local.json`, or a launcher-level pin registry); pins bind at launch, so a roaming session silently dodges them. If the target carries a pin this session isn't honouring, say so in one line before heavy work — the user owns the lane choice.
+7. **Tell /close where you were.** Handoff placement is work-based, not launch-based (the /close skill's placement table) — name the repo(s) actually worked, so the handoff lands in the target's `handoffs/`, not the launch cwd's.
+
+A target carrying its own visiting protocol in CLAUDE.md (route → read on entry → search before mint → register on write) is stating this same rite in local terms — follow the stricter. The list covers the seams found so far, not every seam; where it runs out, reason from the mechanism: nothing launch-scoped follows you, everything on-demand does.
 
 ---
 
