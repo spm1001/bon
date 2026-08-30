@@ -114,4 +114,4 @@ The drift sweep runs the join's other direction — board motion with no queue l
 - **No hard line-wrapping** — the operator edits this file; one line per bullet, let their editor soft-wrap.
 - Draft lands at the accent's `review.draft-path` (default `/tmp/estate-pyramid-<date>.md`); the durable copy goes to the accent's `review.archive` location at Phase 5 (no accent → the run directory the survey wrote is the durable record).
 - Adjudication happens in **conversational Q&A clusters** (AskUserQuestion with a recommendation first), not file-homework — the operator preference recorded at the first ceremony (2026-08-02).
-- Queue writes happen only inside announced write-windows during adjudication — see Queue population above; the compass and every other read surface stay read-only.
+- Queue writes happen only inside announced write-windows during adjudication — see Queue population above; every other surface that touches the queue stays read-only.

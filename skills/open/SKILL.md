@@ -137,18 +137,18 @@ the second session was one unnoticed glance from presenting a different repo's
 board as its own (bon-potipe). Wrong-board orientation fails silently, so the
 collision-proof path is the whole guard.
 
-### 4. Personal Half (variation point `open.compass`)
+### 4. Personal Half (variation point `open.pre-pick`)
 
-The spine ends at the hierarchy; what a given operator wants rendered between the hierarchy and the direction pick — a dispatch-queue compass, a calendar glance, nothing — is theirs, and lives in their personal half (`~/.claude/mit-accent.md`, spec: `docs/ACCENT.md`). The session-start hook prints `ACCENT=<path>` when the file exists.
+The spine ends at the hierarchy; what a given operator wants rendered between the hierarchy and the direction pick — a dispatch-queue digest, a calendar glance, nothing — is theirs, and lives in their personal half (`~/.claude/mit-accent.md`, spec: `docs/ACCENT.md`). The session-start hook prints `ACCENT=<path>` when the file exists. Socket ids are deliberately boring and position-keyed, like hook events — whatever the operator calls the content inside their own file is theirs to change without touching core.
 
-- **`ACCENT=` present:** Read the file's `## open` section and follow its `open.compass` content here, then continue to step 5. The worked example is an operator whose accent renders a three-line compass from their own task-manager dispatch queue.
+- **`ACCENT=` present:** Read the file's `## open` section and follow its `open.pre-pick` content here, then continue to step 5. The worked example is an operator whose accent renders a three-line digest of their own task-manager dispatch queue.
 - **No `ACCENT=` line, or no `## open` section in the file:** skip SILENTLY to step 5. The rite is complete without it — no nudge, no placeholder, no "you could configure this", ever (law 1: complete-without).
 - **`ACCENT=` present but the file won't read, or its section errors mid-run:** one plain line — "personal half unreadable — running the team spine" — then continue. Never banners, never abort (law 3).
 - **The accent fills THIS slot only** — it cannot skip, reorder or override steps 1–3 and 5–6 (law 2), and it writes into the operator's own systems only under a sanction the accent itself records (law 4).
 
 ### 5. Pick Direction
 
-Assess which ready items align with what's already in context — files read, handoff content, understanding document, the compass. State your reasoning briefly. When context is thin, just present the list.
+Assess which ready items align with what's already in context — files read, handoff content, understanding document, whatever the personal half rendered at step 4. State your reasoning briefly. When context is thin, just present the list.
 
 User picks direction.
 

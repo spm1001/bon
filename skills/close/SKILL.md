@@ -188,9 +188,9 @@ Now sort the remaining actions into three buckets:
 
 3. **For Claudes to come** — what one thing did you learn or discover that should be contributed to the stock of future Claude understanding; an architectural insight, a taste judgment, a decision with real alternatives, a mistake not to be repeated, a trick you discovered which would save us significant time. A shard of wisdom gleaned.
 
-### Personal half: the queue tap (variation point `close.tap`)
+### Personal half (variation point `close.pre-propose`)
 
-If the context script printed `ACCENT=<path>` (the operator's personal half, `~/.claude/mit-accent.md` — spec: `docs/ACCENT.md`), Read its `## close` section and run its `close.tap` content here, before proposing the close-out. The worked example is an operator whose accent reads their dispatch queue, checks the session against it, and — under write sanctions the accent itself records, in their words, with dates — ticks completed lines, adds clean-case successor lines, and rewords stale ones, always telling them in the close-out block, never asking first.
+If the context script printed `ACCENT=<path>` (the operator's personal half, `~/.claude/mit-accent.md` — spec: `docs/ACCENT.md`), Read its `## close` section and run its `close.pre-propose` content here, before proposing the close-out. The worked example is an operator whose accent reads their dispatch queue, checks the session against it, and — under write sanctions the accent itself records, in their words, with dates — ticks completed lines, adds clean-case successor lines, and rewords stale ones, always telling them in the close-out block, never asking first.
 
 The four laws (docs/ACCENT.md) apply: no `ACCENT=` line or no `## close` section → skip SILENTLY, the close is complete without it; this slot only, the spine is not overridable; a broken half is one plain line, never a banner; and NO write into the operator's own systems happens without the accent's own recorded sanction — an accent without written sanctions is read-only, however convenient the write would be.
 
@@ -208,7 +208,7 @@ Propose these to the user:
 >
 > **Empty outcomes:** [only when Orient flagged any — per outcome: break down now, file a first action, or confirm it's intentionally a sketch]
 >
-> **Personal half:** [whatever your accent's `close.tap` produced — its block, verbatim; omit this line entirely when no accent ran]
+> **Personal half:** [whatever your accent's `close.pre-propose` produced — its block, verbatim; omit this line entirely when no accent ran]
 >
 > **Insight to capture for the future:** [one dense paragraph to contribute]
 >

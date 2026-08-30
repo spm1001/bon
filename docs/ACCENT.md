@@ -11,18 +11,18 @@ The four rites (open, close, plan, review) ship as a byte-identical team core. W
 
 ## File format
 
-`~/.claude/mit-accent.md`, four top-level headings, one per rite:
+`~/.claude/mit-accent.md`, four top-level headings, one per rite. Sections beneath are keyed by SOCKET ID — the dotted `rite.verb` / `rite.position` convention (`review.populate-queue` set the style): plain, greppable, and deliberately boring, like hook event names. Whatever the operator privately calls a slot's content is prose inside their section, never a key — so their pet names stay replaceable without touching core or format.
 
 ```markdown
 # Accent — <owner>
 
 ## open
-### open.compass
+### open.pre-pick
 <what to render between the hierarchy and the direction pick>
 
 ## close
-### close.tap
-<what to do at close's queue-tap slot, including any write sanctions>
+### close.pre-propose
+<what to do before the close-out proposal, including any write sanctions>
 ### close.capture-routing
 <where this estate routes always-on-guidance lessons>
 
@@ -34,10 +34,10 @@ The four rites (open, close, plan, review) ship as a byte-identical team core. W
 ### review.exemplars    <canonical pyramid exemplar paths on this estate>
 ### review.draft-path   <where pyramid drafts land>
 ### review.archive      <where review runs archive durably>
-### review.loop-map     <canonical stockpot/loop map, if this operator keeps one>
+### review.loop-map     <canonical loop map, if this operator keeps one>
 ```
 
-Section names under each rite heading are the variation points. A rite reads its own `## <rite>` heading only.
+Socket ids under each rite heading are the variation points. A rite reads its own `## <rite>` heading only.
 
 ## How a rite reads it
 
@@ -45,10 +45,10 @@ The session hooks emit `ACCENT=<path>` when the file exists (open-context.sh, cl
 
 ## The worked example — Sameer's accent
 
-The first accent is the operator this split extracted (see `docs/accent-audit-2026-08-30.md` for the tissue audit that fed it). His halves, in sketch — the live file is `~/.claude/mit-accent.md` on his machines, not this repo:
+The first accent is the operator this split extracted (see `docs/accent-audit-2026-08-30.md` for the tissue audit that fed it). His halves, in sketch — the live file is `~/.claude/mit-accent.md` on his machines, not this repo, and the names he gives their contents inside that file are his own:
 
-- **open.compass** — renders a three-line compass from his `& Toolmaking` Todoist dispatch queue (sectioned status lanes, drag-order semantics from his `~/.claude/loop.md`), loud when his book is missing its queue, silent on a stranger's book.
-- **close.tap** — reads the same queue at close and, under his recorded tell-after sanctions (2026-08-09/13/28), ticks completed lines, adds clean-case successor lines, and rewords stale ones.
-- **review.\*** — queue name and lane names (`Up Next` / `With Sameer`), pyramid exemplars under `~/scratch` and `~/notes/raw/claude/bon-audit-*/`, drafts to `~/scratch`, durable archive to `~/notes/raw/claude/bon-audit-{date}/`, stockpot loop map at `~/notes/practices/stockpot-map.html`.
+- **open.pre-pick** — renders a three-line digest of his Todoist dispatch queue (sectioned status lanes, drag-order semantics from a pointer his accent carries), loud when his book is missing its queue, silent on a stranger's book.
+- **close.pre-propose** — reads the same queue at close and, under his recorded tell-after sanctions (2026-08-09/13/28), ticks completed lines, adds clean-case successor lines, and rewords stale ones.
+- **review.\*** — queue and lane names, pyramid exemplar paths, draft and durable-archive locations, and a canonical loop map, all on his estate's own paths.
 
 Why the split exists: before it, every teammate's /open tried his queue — a teammate hit a permanent "Project '& Toolmaking' not found" nag on 2026-08-11 — and a teammate whose own book legitimately carried a same-named project would have had their queue rendered under his lane semantics, silently. The core carries no operator's furniture; each accent carries exactly its owner's.
