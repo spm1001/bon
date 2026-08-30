@@ -58,6 +58,8 @@ chapters.
 
 ## Phases
 
+**Personal half:** if `~/.claude/mit-accent.md` exists and carries a `## plan` section, Read it before Phase 1 and honour it at the points it names (spec and laws: `docs/ACCENT.md`). No file or no section — the common case, since plan has no designated variation points yet — means skip silently: the rite is complete without it, and an empty slot is never nagged.
+
 ### Phase 1: Orient
 
 Read the terrain. Same exploration you'd do in plan mode, without entering
@@ -138,9 +140,10 @@ do, which is exactly the thing that needed independent checking. So an invented
 `--badly` is a test that cannot fail, and an empty one is an honest gap.
 
 **But if they don't answer, the question is unasked — not declined.** Silence means
-*"I didn't see it"*, never *"I don't care"* (a documented rule about how Sameer
-communicates; the previous version of this section said "leave it absent and move
-on", which institutionalises the wrong reading and predicts its own empty column).
+*"I didn't see it"*, never *"I don't care"* (a busy human misses questions far more
+often than they dismiss them; the previous version of this section said "leave it
+absent and move on", which institutionalises the wrong reading and predicts its own
+empty column).
 So an empty `--badly` is honest only while it is a **stated** gap: name the
 outcomes that have no falsifier yet, on their own line near the end of the turn
 where a question is actually visible, and raise it again next time rather than
@@ -190,7 +193,7 @@ nothing else to write.
 | Architecture decisions | understanding.md | "Y.Text not Y.XmlFragment because..." |
 | Cross-cutting constraints | understanding.md | "Don't import Combine anywhere" |
 | Gotchas from spikes | understanding.md | "StickyIndex constructor doesn't work" |
-| Scope boundaries | understanding.md | "Not multi-user beyond Sameer + Claude" |
+| Scope boundaries | understanding.md | "Not multi-user beyond one human + Claude" |
 | Implementation strategy | Outcome --how | "Redis distributed locks, not file locks" |
 | Per-step approach | Action --how | "Mirror Injector.swift:89-108 pattern" |
 | Deliverables | Action --what | "1. Add middleware 2. Configure limits" |

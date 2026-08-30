@@ -689,3 +689,35 @@ def test_ledger_never_wins_the_handoff_ranking(tmp_path):
     assert result.returncode == 0
     assert "HANDOFF=" in result.stdout
     assert "LEDGER.md" not in result.stdout.split("HANDOFF=")[1].splitlines()[0]
+
+
+def test_readme_in_ledgered_dir_is_not_netted(tmp_path):
+    """A handoffs/README.md is index prose, not an un-ledgered handoff."""
+    hdir = tmp_path / "handoffs"
+    hdir.mkdir(exist_ok=True)
+    f = hdir / "2026-08-29-1100-judi0001.md"
+    f.write_text("# Handoff — 2026-08-29\n\npurpose: Judi's close\n")
+    (hdir / "README.md").write_text("about this dir\n")
+    (hdir / "LEDGER.md").write_text(
+        "# Handoffs ledger\n\n"
+        f"- [ ] 2026-08-29 [{f.name}]({f.name}) — Judi's close\n"
+    )
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "Unprocessed handoffs (1)" in result.stdout
+    assert "README.md" not in result.stdout
+
+
+def test_accent_emitted_only_when_file_exists(tmp_path):
+    """ACCENT= appears iff ~/.claude/mit-accent.md exists (bon-hedatu) —
+    an absent accent is a complete rite, not a gap: no line, no nudge."""
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert "ACCENT=" not in result.stdout
+
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir(exist_ok=True)
+    (claude_dir / "mit-accent.md").write_text("# Accent — test\n\n## open\nhi\n")
+    result = run_open_context(tmp_path, OUTCOME)
+    assert result.returncode == 0
+    assert f"ACCENT={claude_dir / 'mit-accent.md'}" in result.stdout

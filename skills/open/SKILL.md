@@ -106,7 +106,7 @@ For each candidate, run the matching verb, tagging where it came from so provena
 - **DONE** → `bon done ID --note "…"`
 - **EDIT** → `bon edit ID …`
 
-Mint deliberately, not on autopilot: if a candidate is stale, already done, or wrong, drop it and say so to the user — a conscious drop is a real decision; an unnoticed one is the leak this step exists to close. The two worked examples (`~/notes/handoffs/2026-06-10-7c379a74.md`, `2026-06-12-804b6ba8.md`) carry their candidates as an "Opportunities — bon candidates" list rather than a `### Candidates` heading — treat that shape as candidates too.
+Mint deliberately, not on autopilot: if a candidate is stale, already done, or wrong, drop it and say so to the user — a conscious drop is a real decision; an unnoticed one is the leak this step exists to close. Two worked examples predate the spec and carry their candidates as an "Opportunities — bon candidates" prose list rather than a `### Candidates` heading — treat that shape as candidates too (citations: `docs/HANDOFF-CONTRACT.md`).
 
 **Then mark them minted**, so a re-open doesn't double-mint: edit the handoff's candidate heading to `### Candidates (minted YYYY-MM-DD)`. This is the step that re-syncs the board with the handoffs — it's what cures "where do I pick up".
 
@@ -121,7 +121,7 @@ git fetch -q origin 2>/dev/null
 behind=$(git rev-list --count HEAD..@{u} -- .bon/items.jsonl 2>/dev/null || echo 0)
 ```
 
-If `behind` is greater than 0, say so in the orientation ("board is N commits behind origin") and bring it current with `git pull --ff-only` when the working tree is clean. One boundary, phrased by mechanism: the fetch touches only the remote-tracking ref, but a pull is a branch write — so in a repo whose git writes belong to a robot (`~/notes` and notes-sync), stop at the warning and let the robot carry the merge. After this fetch, `bon new`'s own staleness check (which compares against the tracking ref without network) stays honest for the rest of the session.
+If `behind` is greater than 0, say so in the orientation ("board is N commits behind origin") and bring it current with `git pull --ff-only` when the working tree is clean. One boundary, phrased by mechanism: the fetch touches only the remote-tracking ref, but a pull is a branch write — so in a repo whose git writes belong to a robot (an auto-committing sync agent; such boards carry `off` in `.bon/sync` for the same reason), stop at the warning and let the robot carry the merge. After this fetch, `bon new`'s own staleness check (which compares against the tracking ref without network) stays honest for the rest of the session.
 
 Show the full picture — outcomes with progress and their actions — **as text in your response** (not via Bash, which collapses behind Ctrl+O).
 
@@ -137,40 +137,14 @@ the second session was one unnoticed glance from presenting a different repo's
 board as its own (bon-potipe). Wrong-board orientation fails silently, so the
 collision-proof path is the whole guard.
 
-### 4. Toolmaking Compass
+### 4. Personal Half (variation point `open.compass`)
 
-Sameer's session-boundary guide — where this session sits in his intentions. Render it right after the hierarchy, before picking direction: the compass informs the pick. (Origin and contract: bon-leturo; his framing — "the high level guide for me and a reminder of what we're going to do together." Lane-era rewrite: bon-vatoge.)
+The spine ends at the hierarchy; what a given operator wants rendered between the hierarchy and the direction pick — a dispatch-queue compass, a calendar glance, nothing — is theirs, and lives in their personal half (`~/.claude/mit-accent.md`, spec: `docs/ACCENT.md`). The session-start hook prints `ACCENT=<path>` when the file exists.
 
-**The queue is sectioned, and the sections are status lanes** (his design, 2026-08-23; semantics in `~/.claude/loop.md`): **Up Next** is what the loop works, top-down, in his drag order — `child_order` carries it; **With Sameer** is ball-in-his-court, so a line there pointing at this repo means the next move is his, not yours; the unsectioned rest is backlog the loop leaves alone. Read the sections FIRST — a flat read of the project renders three lanes as one undifferentiated queue, which is the untruth this step used to ship.
-
-```bash
-accomplis sections --project "& Toolmaking"                    # the gate AND the lane map — run bare, read the exit status
-accomplis tasks --project "& Toolmaking" \
-  | jq -r '.[] | "\(.section_id // "")|\(.priority)|\(.order)|\(.content)"'   # every line, lane-tagged; stderr stays visible on purpose
-```
-
-Partition client-side: map `section_id` to lane names from the first call (match "Up Next" / "With Sameer" case-insensitively; empty = backlog), and sort Up Next by `order` — his drag order, the steering wheel. The field is `order` on this surface: accomplis emits the Sync API's `child_order` under that name, and a jq on `.child_order` prints null for every task, sorting to a no-op that merely inherits API return order — right by luck (caught live, 2026-08-30 cold read). A section named neither lane gets counted under its own name and appended to the Lanes line — a task falling out of every count is a silent residual, the one thing this render must never mint. Leave the tasks call's stderr visible: accomplis prints its "Showing N of M" truncation notice there, and discarding it turns an undercounted lane into a confident count. The jq filter is load-bearing, not taste: the raw JSON runs tens of KB on a 30-line queue (37KB measured 2026-08-19, 28KB on 2026-08-30 — every task carries full metadata and comments), near or over the Bash output cap. The render and its nudge consume four fields; ask for four fields (`priority` feeds the With Sameer P1 gloss).
-
-Render exactly three arrow-lines under the fixed header — the budget is fixed, do not grow it:
-
-```
-🧭 Toolmaking compass (read-only, HH:MM)
-→ This repo: <each line pointing here, tagged with its lane — "Up Next #2", "With Sameer", "backlog"> — or "nothing points here"
-→ Lanes: Up Next <N> (top: <first line, clipped>) · With Sameer <M> · backlog <K>
-→ <one nudge — Up Next running dry, a queue line citing a bon this board shows closed, or this repo's only line sitting in With Sameer (his move — don't draw it down)>
-```
-
-Matching "points here": the dispatch grammar is `Open <repo> → <desire> (<bon-id>)` — match the repo name against this repo, and any cited bon-id against this board's prefix. Always name the lane the match sits in: the lane is the verdict on whose move it is. NB the Todoist API inverts the app's priority scale: the UI's P1 arrives as `priority: 4` (his P1 marks in With Sameer flag the staying conversations).
-
-Rules:
-- **Gate on the CLI.** `command -v accomplis` absent → skip silently (not our estate, not his book).
-- **Gate on the exit status, never on empty output.** A missing project exits 1 with its error on stderr, so `2>/dev/null | jq` renders "project not found" as a zero-line queue — a lie. Any failure other than not-found → `🧭 Toolmaking compass: Todoist unreachable — not shown`. On Sameer's estate a missing compass must be visible, never silent — and never dressed as a zero.
-- **Not-found discriminates the book before it renders anything.** The compass is Sameer's personal half riding core text (extraction tracked as bon-hedatu); accomplis ships publicly, so tool presence does not mean his estate. On "project not found" — the rare branch, so the extra call is cheap there — run `accomplis whoami`: his book missing its queue is a fault, render `🧭 Toolmaking compass: no & Toolmaking queue in this book — not shown` (and read the error's own "Available projects" list before diagnosing — it shows what the book does hold); any other book never had the project — skip SILENTLY, an empty slot rather than a fault, never a per-session nag with someone else's furniture (a teammate hit exactly this error line on 2026-08-11).
-- **No sections is a flat queue, not an error.** `sections` returning `[]` on a live project → render the second arrow-line as `→ Queue: <N> lines (no lanes)` and match this-repo across all of them. Never assert a lane count you didn't measure — and the nudge slot goes laneless too ("flat queue — no drag order visible" is an honest one).
-- **The tap never writes.** Two reads, three lines. Writes to the queue are deliberate acts — the review ceremony's population step and /close's tap own them, never here.
-- Cost: two CLI calls, ~2–3s. Invoke `accomplis:coaching` first if the session will touch Todoist beyond these two reads.
-
-*(Dropped 2026-08-30, bon-vatoge: the second read — "Projects - Toolmaking" filtered on `priority==4 and section_id==null` for a "His P1 DOs" line. Measured that day it matches nothing twice over: the project no longer carries any priority-4 task, and its outcomes are drifting into sections, invisible to a task-grain query. The DO-level join is /review's alignment block; the compass reads the queue.)*
+- **`ACCENT=` present:** Read the file's `## open` section and follow its `open.compass` content here, then continue to step 5. The worked example is an operator whose accent renders a three-line compass from their own task-manager dispatch queue.
+- **No `ACCENT=` line, or no `## open` section in the file:** skip SILENTLY to step 5. The rite is complete without it — no nudge, no placeholder, no "you could configure this", ever (law 1: complete-without).
+- **`ACCENT=` present but the file won't read, or its section errors mid-run:** one plain line — "personal half unreadable — running the team spine" — then continue. Never banners, never abort (law 3).
+- **The accent fills THIS slot only** — it cannot skip, reorder or override steps 1–3 and 5–6 (law 2), and it writes into the operator's own systems only under a sanction the accent itself records (law 4).
 
 ### 5. Pick Direction
 

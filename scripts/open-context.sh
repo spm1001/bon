@@ -241,7 +241,8 @@ while IFS= read -r HDIR; do
     for F in "$HDIR"/*.md; do
         [ -e "$F" ] || continue
         BASE=$(basename "$F")
-        if [ "$BASE" = "LEDGER.md" ]; then continue; fi
+        # README.md: a dir-level readme is index prose, not a handoff.
+        case "$BASE" in LEDGER.md|README.md) continue ;; esac
         if ! grep -qF "$BASE" "$HDIR/LEDGER.md"; then
             UNPROCESSED_PATHS="${UNPROCESSED_PATHS}${F} [no ledger line — process, then ADD a ticked line for it]"$'\n'
         fi
@@ -393,6 +394,17 @@ if [ "$UNPROCESSED_MISSING" -gt 0 ]; then
 fi
 if [ "$LEDGER_DRIFT" -gt 0 ]; then
     echo "Warning: $LEDGER_DRIFT unticked LEDGER.md line(s) are in a format the sweep cannot parse — normalise them to '- [ ] DATE [file](file) — purpose' or they will never be swept."
+    echo ""
+fi
+
+# --- 2c. Personal half (bon-hedatu) ---
+# The accent file carries this operator's variation-point content, read by
+# the rites at designated points (docs/ACCENT.md). Emit the path only when
+# the file exists: an absent accent is a complete rite, not a gap — no
+# nudge, no placeholder line, ever (law 1: complete-without).
+ACCENT_FILE="$HOME/.claude/mit-accent.md"
+if [ -f "$ACCENT_FILE" ]; then
+    echo "ACCENT=$ACCENT_FILE"
     echo ""
 fi
 

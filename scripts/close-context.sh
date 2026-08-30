@@ -336,3 +336,11 @@ fi
 echo ""
 echo "=== META ==="
 echo "TODAY=$(date +%Y-%m-%d)"
+
+# === PERSONAL HALF (bon-hedatu) ===
+# Emitted only when the operator's accent file exists — an absent accent is
+# a complete rite, not a gap (docs/ACCENT.md, law 1). The close skill reads
+# its ## close section at the tap slot.
+if [ -f "$HOME/.claude/mit-accent.md" ]; then
+    echo "ACCENT=$HOME/.claude/mit-accent.md"
+fi
