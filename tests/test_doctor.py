@@ -413,8 +413,10 @@ class TestOrderDupRepair:
 
 
 def test_doctor_gitignored_bon_advisory(bon_dir):
-    """A root .gitignore that swallows .bon/ strands handoffs/understanding/bottle
-    silently (bon-kizeje) — doctor surfaces it as an advisory, never an issue."""
+    """A root .gitignore that swallows .bon/ strands understanding.md and the
+    bottle silently (bon-kizeje) — doctor surfaces it as an advisory, never an
+    issue. Handoffs left the probe list in bon-sedoze: they no longer live
+    under .bon/, so a .bon/ ignore cannot reach them."""
     import subprocess
     subprocess.run(["git", "init", "-q"], cwd=bon_dir, check=True)
     (bon_dir / ".gitignore").write_text(".bon/\n")
@@ -423,8 +425,10 @@ def test_doctor_gitignored_bon_advisory(bon_dir):
 
     assert result.returncode == 0
     assert "Sync hazard (advisory" in result.stdout
-    assert ".bon/handoffs/any.md" in result.stdout
+    assert ".bon/understanding.md" in result.stdout
+    assert ".bon/README.md" in result.stdout
     assert ".bon/items.jsonl" in result.stdout  # JSONL board: the board itself is stranded too
+    assert ".bon/handoffs" not in result.stdout, "retired probe (bon-sedoze)"
     assert "All clear." in result.stdout  # advisory rides a clean bill, not an issue count
 
 

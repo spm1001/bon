@@ -58,15 +58,16 @@ BON_SCRIPTS=$(ls -1d ~/.claude/plugins/cache/*/bon/*/scripts 2>/dev/null | grep 
 
 If the script isn't found either way, diagnose with `find ~/.claude/plugins/cache -name "close-context.sh"`. If unfixable, gather context manually — but closure should always result in a handoff, even without the script.
 
-The script outputs TIME, GIT, BON, LOCATION context, plus the values you'll need in Act: **HANDOFF_DIR**, **SESSION_ID** and **HANDOFF_FILE**. Five companion keys appear only when they apply, and each one changes what you do:
+The script outputs TIME, GIT, BON, LOCATION context, plus the values you'll need in Act: **HANDOFF_DIR**, **SESSION_ID** and **HANDOFF_FILE**. Six companion keys appear only when they apply, and each one changes what you do:
 
 | Key | Meaning | What to do |
 |---|---|---|
 | `SESSION_ID_SOURCE=unavailable` (with `SESSION_ID_CUE`) | The harness gave no session id, so the filename carries a timestamp | Leave `session_id:` blank in the frontmatter and say so in the close summary. Never substitute an id you inferred — the suffix exists for transcript linkage, so a wrong one sends a future reader into a stranger's conversation |
 | `HANDOFF_FILE_TAKEN=<name>` | The natural filename was already on disk; `HANDOFF_FILE` is suffixed | Normally just use the suffixed name — it means this session is closing twice today. Worth a sentence if you weren't expecting it |
-| `HANDOFF_GITIGNORED=true` (with `HANDOFF_ADD_CMD`) | The handoff lands under a gitignored `.bon/`, so a plain `git add` will refuse | Use `HANDOFF_ADD_CMD` verbatim at the commit step and say you had to |
+| `HANDOFF_MIGRATED=<n>` (with `HANDOFF_MIGRATED_DEST`) | This repo still had handoffs in the retired `.bon/handoffs/`; the script moved them to the visible `handoffs/` (bon-sedoze) | **Stage the move in your commit** — `git mv` staged it for tracked files, but an untracked pile is now sitting as new files. Mention it in one line: their history just changed location |
+| `HANDOFF_MIGRATE_INCOMPLETE=true` | At least one legacy handoff could not be moved | Those files are no longer read by anything. Say so plainly and move them by hand — don't let it pass as a detail |
 | `HANDOFF_DIR_SOURCE=global-fallback` | No board was found, so the handoff goes to `~/.bon/handoffs` | It won't sync anywhere. Say so, and consider whether it belongs on a real board instead |
-| `HANDOFF_DIR_SOURCE=ambiguous` (with `HANDOFF_CANDIDATE` lines, **no `HANDOFF_DIR`**) | Cwd is outside any board repo and several sibling repos sit below it — the script refuses to guess among them (bon-gojeni: recency picks whichever repo the last publish touched, not where you worked) | Placement is **work-based**: pick the candidate this session actually worked in (you know; the script can't), and write `HANDOFF_FILE` into that repo's visible `handoffs/` if it has one, else its `.bon/handoffs/`. If the session's work matches none of the candidates, `~/.bon/handoffs` is the honest fallback — say so |
+| `HANDOFF_DIR_SOURCE=ambiguous` (with `HANDOFF_CANDIDATE` lines, **no `HANDOFF_DIR`**) | Cwd is outside any board repo and several sibling repos sit below it — the script refuses to guess among them (bon-gojeni: recency picks whichever repo the last publish touched, not where you worked) | Placement is **work-based**: pick the candidate this session actually worked in (you know; the script can't), and write `HANDOFF_FILE` into that repo's visible `handoffs/` — the room you worked in if it has one, else the repo root. If the session's work matches none of the candidates, `~/.bon/handoffs` is the honest fallback — say so |
 
 ### Which mode are you in?
 
@@ -332,7 +333,7 @@ the next open mints reliably instead of re-deriving the convention. Format spec:
 
 #### Where does it go?
 
-Handoffs live in the room's **visible `handoffs/`** (falling back to `.bon/handoffs/`), git-tracked so they sync across machines. `close-context.sh` resolves this via the shared `scripts/lib-handoff.sh` — the same walk the next `/open` reads from, so a handoff always lands where the next one looks. `HANDOFF_DIR` is usually right, but placement is a judgment you make, not only a cwd heuristic:
+Handoffs live in the room's **visible `handoffs/`**, falling back to the board root's — git-tracked so they sync across machines. `close-context.sh` resolves this via the shared `scripts/lib-handoff.sh` — the same walk the next `/open` reads from, so a handoff always lands where the next one looks. (`.bon/handoffs/` was a rung until bon-sedoze; a repo still carrying a pile there has it migrated to the visible dir on the first open or close.) `HANDOFF_DIR` is usually right, but placement is a judgment you make, not only a cwd heuristic:
 
 **Placement is work-based, not launch-based.** You know the primary room you worked in better than any cwd walk does — name it, and the resolver places the handoff in that room's `handoffs/`. "Launched at root" (a `claude agents @repo`, a Cowork folder-pick) is the worst case, not the target: a root-launched session that spent itself in one room still files there. Substrate-wide sessions file at the repo root.
 
@@ -355,7 +356,7 @@ Use HANDOFF_FILE from the script output verbatim — it generates `YYYY-MM-DD-HH
 
 Stage relevant files (including the handoff), commit in modular commits with descriptive messages, and offer to push. Each commit cites the bon it serves — trailing `(bon-ID)` in the subject or body — when the work was tracked; untracked work commits without one. If nothing's dirty, just move on — not every session produces code changes.
 
-**If the context script reported `HANDOFF_GITIGNORED=true`:** the repo ignores `.bon/` wholesale to keep volatile board state out of git, which catches the handoff too. A plain `git add` refuses and the handoff is written to disk but never syncs — so the next session on another machine cannot see it. Stage it with the `HANDOFF_ADD_CMD` the script printed (`git add -f -- <path>`), and check whether `understanding.md` needs the same treatment. Say that you had to force-add: it's a property of that repo worth surfacing, not a detail to absorb silently.
+**If the context script reported `HANDOFF_MIGRATED=<n>`:** this repo's handoffs have just moved out of the retired `.bon/handoffs/` into the visible `handoffs/`. Stage that move alongside your own changes — for tracked files `git mv` already staged the rename, but a repo that gitignored `.bon/` had an untracked pile, which now needs a plain `git add` of the new directory. Say it happened in one line; a reader seeing their handoff history change path deserves the reason.
 
 **Candidate mode has no commit step.** There's no writer and usually no git in the sandbox — the handoff you wrote to the mount *is* the deliverable, and a writer-bearing session sweeps and mints its candidates at the next open. Leave it uncommitted; say so, so the next full-fat session knows to look.
 

@@ -71,25 +71,44 @@ time_ago() {
     fi
 }
 
+# === LEGACY HANDOFF CONVERGENCE (bon-sedoze) ===
+# Runs BEFORE resolution: the .bon/handoffs rung is gone, so a repo still
+# carrying a pile there would otherwise open with its whole history invisible
+# and no line saying why. Migrating first means this session reads the
+# migrated location. Announced, never silent — it moves files in the user's
+# working tree, and they need to know to commit them.
+handoff_migrate_legacy "$CWD"
+if [ "${HANDOFF_MIGRATED_N:-0}" -gt 0 ]; then
+    echo "Migrated $HANDOFF_MIGRATED_N legacy handoff(s) from .bon/handoffs/ to $HANDOFF_MIGRATED_DEST"
+    echo "  (bon now keeps handoffs visible at the board root — commit the move with your next change.)"
+    echo ""
+fi
+if [ "${HANDOFF_MIGRATED_FAILED:-0}" -eq 1 ]; then
+    echo "Warning: could not migrate every handoff out of .bon/handoffs/ — the ones left there are NOT read any more."
+    echo "  Move them into the repo's visible handoffs/ by hand."
+    echo ""
+fi
+
 # === LOCAL HANDOFF WARNING ===
 LOCAL_HANDOFFS=$(find . -maxdepth 1 -name '.handoff*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$LOCAL_HANDOFFS" -gt 0 ]; then
-    echo "Warning: $LOCAL_HANDOFFS orphaned local .handoff* files (should move to .bon/handoffs/)"
+    echo "Warning: $LOCAL_HANDOFFS orphaned local .handoff* files (should move to the repo's handoffs/)"
     echo ""
 fi
 
 # === GATHER TO DISK (silent) ===
 
 # --- Handoff resolution ---
-# Primary: .bon/handoffs/ (walk up from CWD)
+# Primary: every visible handoffs/ walking up from CWD to the board root
 # Fallback: ~/.bon/handoffs/ (global, for container sessions)
 NOW=$(date +%s)
 
-# Handoff dirs to search come from the shared resolver (visible handoffs/ up
-# the tree, then the board root's .bon/handoffs/, then global). /open thus
-# reads from exactly where /close writes. Fixes the 2026-06-17 bug where a
-# newer handoff in a visible root handoffs/ was invisible to /open because it
-# only ever looked in .bon/handoffs/.
+# Handoff dirs to search come from the shared resolver, so /open reads from
+# exactly where /close writes. Fixes the 2026-06-17 bug where a newer handoff
+# in a visible root handoffs/ was invisible to /open because it only ever
+# looked in .bon/handoffs/ — the rung that is now retired at the other end
+# (bon-sedoze), with handoff_migrate_legacy above converging any pile that
+# still sits there.
 
 # Find the most recent handoff across all candidate locations
 LATEST_FILE=""
@@ -120,13 +139,20 @@ find_latest_in() {
             best_file="$f"
         fi
     done
-    [ -n "$best_file" ] && echo "${best_key}|${best_file}"
+    # An if-block, NOT `[ -n "$best_file" ] && echo` — as the function's last
+    # command that idiom returns 1 on an empty dir, and `CANDIDATE=$(...)`
+    # under `set -euo pipefail` then kills this script before ANY briefing
+    # reaches stdout. session-start.sh wraps the call in `|| true`, so the
+    # symptom is a session that silently gets no briefing at all, every time.
+    # (lib-handoff.sh's header bans the same idiom for the same reason.)
+    if [ -n "$best_file" ]; then echo "${best_key}|${best_file}"; fi
+    return 0
 }
 
 # Rank the latest handoff across every candidate dir (de-duplicated, order
-# preserved). Visible handoffs/ and legacy .bon/handoffs/ compete on the same
-# header-date key, so a migration-in-progress repo (both populated) surfaces
-# the genuinely newest regardless of where it sits.
+# preserved). A room's handoffs/ and the board root's compete on the same
+# header-date key, so a repo with prose at several levels surfaces the
+# genuinely newest regardless of where it sits.
 BEST_KEY=""
 while IFS= read -r HDIR; do
     [ -d "$HDIR" ] || continue

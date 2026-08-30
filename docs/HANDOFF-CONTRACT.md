@@ -1,19 +1,22 @@
-# Handoff Contract v5
+# Handoff Contract v6
 
 The handoff file is an interface between sessions. This document specifies the stable contract that external consumers (e.g. aboyeur, overnight composting) can depend on.
 
 ## Location
 
-Handoffs are resolved by a shared walk (`scripts/lib-handoff.sh`, sourced by both the reader and the writer so they cannot drift). The "visible substrate" convention: prose (handoffs/, understanding.md) lives VISIBLE at the room where work happens, with `.bon/` as the legacy fallback; the board (`.bon/items.jsonl`) stays hidden + repo-global.
+Handoffs are resolved by a shared walk (`scripts/lib-handoff.sh`, sourced by both the reader and the writer so they cannot drift). The "visible substrate" convention: prose (handoffs/, understanding.md) lives VISIBLE at the room where work happens; the board (`.bon/items.jsonl`) stays hidden + repo-global.
 
 Resolution order, walking up from CWD to the board root (the repo's `.bon/` dir):
 
 1. A visible `handoffs/` at the nearest room — a room adopts the convention simply by having one — then
-2. A visible `handoffs/` at the board root, then
-3. `.bon/handoffs/` at the board root — the legacy default; fresh repos still write here — then
-4. `~/.bon/handoffs/` — global catch-all, not git-tracked.
+2. A visible `handoffs/` at the board root — the default, created on first write — then
+3. `~/.bon/handoffs/` — global catch-all for a session outside any board, not git-tracked.
 
-The **writer** picks the first that applies (visible-first); the **reader** ranks the latest across all of them, so a migration-in-progress repo (both populated) surfaces the genuinely newest. A handoff is always read from exactly where it was written.
+The **writer** picks the first that applies; the **reader** ranks the latest across all of them, so a repo holding prose at several levels surfaces the genuinely newest. A handoff is always read from exactly where it was written.
+
+**`.bon/handoffs/` is no longer a rung** (v6, bon-sedoze). A repo still holding a pile there has it moved into the board root's visible `handoffs/` by `handoff_migrate_legacy`, which both the reader and the writer run *before* resolving — so the first `/open` or `/close` after upgrading converges the repo and then reads the migrated location. Tracked files move with `git mv` (the rename is staged); untracked ones — the wholesale-`.bon/`-ignore case — move plainly. Nothing is ever overwritten: a name collision whose content differs is kept as `<name>-legacy2.md`.
+
+**Consumers that read handoffs directly** (aboyeur, overnight composting, gueridon) should source the resolver rather than hardcoding any of these paths. A consumer still globbing `.bon/handoffs/` will find it empty after the owning repo's first post-upgrade session.
 
 ## Discovery
 
@@ -119,7 +122,7 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 
 ## What's Stable (don't break these)
 
-- Handoff resolution via `scripts/lib-handoff.sh`: visible `handoffs/` (room/root) preferred, `.bon/handoffs/` legacy fallback, `~/.bon/handoffs/` global catch-all
+- Handoff resolution via `scripts/lib-handoff.sh`: visible `handoffs/` (nearest room, then board root), `~/.bon/handoffs/` global catch-all
 - Discovery by header date (newest wins), mtime breaking same-day ties
 - Metadata fields: `session_id`, `purpose`
 - Escalation signal: `HUMAN REVIEW NEEDED` as grep target
@@ -144,10 +147,11 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 
 ## Versioning
 
-This is v5.
+This is v6.
 
 - **v1** (Jan 2026): Initial contract. `~/.claude/handoffs/` location, flat sections.
 - **v2** (Feb 2026): Path encoding widened. Still `~/.claude/handoffs/`.
 - **v3** (Apr 2026): Location moved to `.bon/handoffs/` (git-tracked). Two-zone layout (fond-v1). Date-prefixed filenames. `format:` metadata field.
 - **v4** (Jun 2026): Visible-substrate resolution (bon-zopopu). Handoffs resolve to a visible `handoffs/` (nearest-room, then board-root) before the legacy `.bon/handoffs/`, via the shared `scripts/lib-handoff.sh`; `understanding.md` resolves the same way. The `.bon/` fallback keeps every existing repo working untouched. **Consumers that read handoffs directly** (aboyeur, overnight composting) should use that resolver — or handle visible `handoffs/` + nearest-room — rather than assuming `.bon/handoffs/`.
 - **v5** (Jul 2026): Candidate mode (bon-pujawo). An optional `### Candidates` block in Zone 1 lets a no-writer session (board visible, writer unreachable — e.g. Cowork) record board mutations for a writer-bearing `/open` to mint. Additive and optional; the handoff format stays `fond-v1`.
+- **v6** (Aug 2026): `.bon/handoffs/` retired as a resolution rung (bon-sedoze). The visible `handoffs/` is now the default for a fresh board, not just an opt-in, and the reader no longer looks under `.bon/`. Because bon ships publicly, the same change carries the migration: `handoff_migrate_legacy` converges a legacy pile onto the visible dir on the back of the next open or close, so no consumer sees a session with their handoffs missing. The v4 note above is the state this supersedes — kept because a reader may still hold it.

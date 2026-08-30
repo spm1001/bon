@@ -142,7 +142,7 @@ DURABLE_KNOWLEDGE_TAIL_MARKER
 
 
 def write_handoff(tmp_path: Path, body: str) -> Path:
-    hdir = tmp_path / ".bon" / "handoffs"
+    hdir = tmp_path / "handoffs"
     hdir.mkdir(parents=True, exist_ok=True)
     path = hdir / "2026-07-20-deadbeef.md"
     path.write_text(body)
@@ -238,7 +238,7 @@ def test_same_day_tie_prefers_filename_time_over_mtime(tmp_path):
     true write time, so the reader must trust it over mtime (notes-sovike).
     """
     import os
-    hdir = tmp_path / ".bon" / "handoffs"
+    hdir = tmp_path / "handoffs"
     hdir.mkdir(parents=True)
     superseded = hdir / "2026-07-31-0901-ffffffff.md"
     latest = hdir / "2026-07-31-1813-11111111.md"
@@ -259,7 +259,7 @@ def test_same_day_v3_names_still_rank_by_mtime(tmp_path):
     mtime, exactly as before the v4 scheme (no retro-rename, no regression).
     """
     import os
-    hdir = tmp_path / ".bon" / "handoffs"
+    hdir = tmp_path / "handoffs"
     hdir.mkdir(parents=True)
     older = hdir / "2026-07-31-ffffffff.md"
     newer = hdir / "2026-07-31-11111111.md"
@@ -271,6 +271,54 @@ def test_same_day_v3_names_still_rank_by_mtime(tmp_path):
     result = run_open_context(tmp_path, OUTCOME)
     assert result.returncode == 0
     assert f"HANDOFF={newer}" in result.stdout
+
+
+def test_ranking_survives_the_legacy_migration(tmp_path):
+    """bon-sedoze, the external-consumer case. Their pile sits in the retired
+    .bon/handoffs and gets migrated on this very open — so the ranking runs on
+    files that just moved. v3 names carry no time, so they rank by MTIME, and
+    a move that reset mtimes would silently hand the consumer their oldest
+    handoff. Inverted mtimes make that failure visible rather than lucky.
+    """
+    import os
+    hdir = tmp_path / ".bon" / "handoffs"
+    hdir.mkdir(parents=True)
+    older = hdir / "2026-07-31-ffffffff.md"
+    newer = hdir / "2026-07-31-11111111.md"
+    older.write_text("# Handoff — 2026-07-31\n\npurpose: earlier v3\n")
+    newer.write_text("# Handoff — 2026-07-31\n\npurpose: later v3\n")
+    t = datetime.now(timezone.utc).timestamp()
+    os.utime(older, (t - 3600, t - 3600))
+    os.utime(newer, (t, t))
+
+    result = run_open_context(tmp_path, OUTCOME)
+
+    assert result.returncode == 0
+    assert "Migrated 2 legacy handoff(s)" in result.stdout, "the migration must announce itself"
+    assert f"HANDOFF={tmp_path / 'handoffs' / '2026-07-31-11111111.md'}" in result.stdout
+    assert not (tmp_path / ".bon" / "handoffs").exists()
+
+
+def test_empty_handoffs_dir_does_not_kill_the_briefing(tmp_path):
+    """An empty visible handoffs/ used to abort the whole script.
+
+    find_latest_in ended with `[ -n "$best_file" ] && echo` — as the function's
+    last command that returns 1 on an empty dir, and the `$( )` capture under
+    `set -euo pipefail` exited before ANY stdout. session-start.sh's `|| true`
+    swallowed it, so the consumer silently got no briefing at all, every
+    session. The migration's failure path can mint exactly this state (it
+    creates the destination before attempting each move), which is how an
+    adversarial verifier surfaced it on 2026-08-30.
+    """
+    (tmp_path / ".bon").mkdir(exist_ok=True)
+    (tmp_path / "handoffs").mkdir()  # exists, empty
+
+    result = run_open_context(tmp_path, OUTCOME)
+
+    assert result.returncode == 0
+    assert "=== SESSION ===" in result.stdout, "the briefing must still be emitted"
+    assert "Outcomes we're working towards" in result.stdout
+    assert "HANDOFF=" not in result.stdout  # nothing to point at, and that's fine
 
 
 def test_suggested_precedes_the_item_lists(tmp_path):

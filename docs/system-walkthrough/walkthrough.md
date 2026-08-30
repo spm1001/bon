@@ -288,7 +288,7 @@ Done: bon-tumira
 
 ## Phase 4: Session End
 
-There are two paths for ending a session. Both produce a handoff file in `.bon/handoffs/`.
+There are two paths for ending a session. Both produce a handoff file in the repo's visible `handoffs/`.
 
 ### Path A: /close Skill (Recommended)
 
@@ -412,7 +412,7 @@ open-context.sh ── briefing stream           OR
       │                                /close skill ────── GODAR framework
       ▼                                      │
 /open skill (LLM)                            ▼
-  ├─ Process contributions             .bon/handoffs/xxx.md
+  ├─ Process contributions             handoffs/xxx.md
   ├─ Present hierarchy                 (persists for next session)
   └─ Pick direction
       │

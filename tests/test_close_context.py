@@ -16,9 +16,12 @@ clones, so /close from a boardless repo resolved HANDOFF_DIR into
 plugins/marketplaces/trousse-personal/.bon/handoffs: gitignored cache that
 marketplace sync clobbers.
 
-bon-kizeje — a repo that gitignores `.bon/` wholesale also ignores its
-handoffs, so `git add` refuses and the handoff never syncs. Observed in
-mit-plongeur, whose 13 handoffs are all force-added by hand.
+bon-sedoze — `.bon/handoffs` retired as a resolution rung. close-context.sh
+converges any pile still sitting there before it resolves, and the
+HANDOFF_GITIGNORED / HANDOFF_ADD_CMD force-add probe that bon-kizeje added for
+the wholesale-`.bon/`-ignore case is gone with it: handoffs no longer live
+under `.bon/`, so that shape cannot arise. (bon doctor still advises on the
+artefacts that DO remain there — understanding.md, the bottle, a JSONL board.)
 """
 
 import subprocess
@@ -159,7 +162,7 @@ def test_missing_session_id_never_borrows_an_ambient_one(tmp_path):
 def test_existing_handoff_is_never_overwritten(tmp_path):
     """A computed path that already exists gets suffixed, and says so."""
     repo = make_board_repo(tmp_path / "repo")
-    handoffs = repo / ".bon" / "handoffs"
+    handoffs = repo / "handoffs"
     handoffs.mkdir(parents=True)
     (handoffs / f"{TODAY}-1200-abcd1234.md").write_text("an earlier handoff\n")
 
@@ -169,20 +172,25 @@ def test_existing_handoff_is_never_overwritten(tmp_path):
     assert (handoffs / f"{TODAY}-1200-abcd1234.md").read_text() == "an earlier handoff\n"
 
 
-def test_clobber_guard_finds_the_next_free_suffix(tmp_path):
+def test_clobber_guard_counts_migrated_handoffs_too(tmp_path):
+    """Seeded at the RETIRED location on purpose: the migration runs first, so
+    by the time the clobber guard looks, all three are in the visible dir and
+    it must count them. Seed and guard talk to different paths — this is the
+    test that would catch a migration wired in AFTER resolution."""
     repo = make_board_repo(tmp_path / "repo")
-    handoffs = repo / ".bon" / "handoffs"
-    handoffs.mkdir(parents=True)
+    legacy = repo / ".bon" / "handoffs"
+    legacy.mkdir(parents=True)
     for name in (f"{TODAY}-1200-abcd1234.md", f"{TODAY}-1200-abcd1234-2.md", f"{TODAY}-1200-abcd1234-3.md"):
-        (handoffs / name).write_text("x\n")
+        (legacy / name).write_text("x\n")
 
     out = run_close(repo, tmp_path / "home")
+    assert out["HANDOFF_MIGRATED"] == "3"
     assert out["HANDOFF_FILE"] == f"{TODAY}-1200-abcd1234-4.md"
 
 
 def test_no_collision_reported_when_the_path_is_free(tmp_path):
     repo = make_board_repo(tmp_path / "repo")
-    (repo / ".bon" / "handoffs").mkdir(parents=True)
+    (repo / "handoffs").mkdir(parents=True)
     out = run_close(repo, tmp_path / "home")
     assert "HANDOFF_FILE_TAKEN" not in out
     assert out["HANDOFF_FILE"] == f"{TODAY}-1200-abcd1234.md"
@@ -223,7 +231,7 @@ def test_scan_down_still_finds_a_real_child_repo(tmp_path):
     real = make_board_repo(container / "realrepo")
 
     out = run_close(container, tmp_path / "home")
-    assert out["HANDOFF_DIR"] == str(real / ".bon" / "handoffs")
+    assert out["HANDOFF_DIR"] == str(real / "handoffs")
     assert out["HANDOFF_DIR_SOURCE"] == f"scan-down:{real}"
 
 
@@ -239,7 +247,7 @@ def test_a_newer_plugin_board_still_loses_to_a_real_repo(tmp_path):
     _vendored_plugin_board(container, newer=True)
 
     out = run_close(container, tmp_path / "home")
-    assert out["HANDOFF_DIR"] == str(real / ".bon" / "handoffs")
+    assert out["HANDOFF_DIR"] == str(real / "handoffs")
 
 
 # --- bon-gojeni: never silently pick among legitimate siblings --------------
@@ -274,18 +282,6 @@ def test_ambiguous_still_names_the_handoff_file(tmp_path):
     assert out["HANDOFF_FILE"] == f"{TODAY}-1200-abcd1234.md"
 
 
-def test_ambiguous_emits_no_gitignore_flag(tmp_path):
-    """With no dir chosen there is nothing to probe for gitignore."""
-    bucket = tmp_path / "bucket"
-    bucket.mkdir()
-    make_board_repo(bucket / "repo-a")
-    make_board_repo(bucket / "repo-b")
-
-    out = run_close(bucket, tmp_path / "home")
-    assert "HANDOFF_GITIGNORED" not in out
-    assert "HANDOFF_ADD_CMD" not in out
-
-
 def test_ambiguous_does_not_fall_through_to_global(tmp_path):
     """The candidates ARE the answer — global-fallback would bury them."""
     bucket = tmp_path / "bucket"
@@ -295,7 +291,7 @@ def test_ambiguous_does_not_fall_through_to_global(tmp_path):
 
     out = run_close(bucket, tmp_path / "home")
     assert out["HANDOFF_DIR_SOURCE"] == "ambiguous"
-    assert ".bon/handoffs" not in out.get("HANDOFF_DIR", "")
+    assert "HANDOFF_DIR" not in out, "no dir is chosen — emitting one relocates the trap"
 
 
 def test_vendored_board_does_not_create_ambiguity(tmp_path):
@@ -306,36 +302,94 @@ def test_vendored_board_does_not_create_ambiguity(tmp_path):
     _vendored_plugin_board(bucket, newer=True)
 
     out = run_close(bucket, tmp_path / "home")
-    assert out["HANDOFF_DIR"] == str(real / ".bon" / "handoffs")
+    assert out["HANDOFF_DIR"] == str(real / "handoffs")
     assert out["HANDOFF_DIR_SOURCE"] == f"scan-down:{real}"
 
 
-# --- bon-kizeje: a gitignored .bon/ swallows the handoff -------------------
+# --- bon-sedoze: the force-add probe is gone, the migration is not ----------
 
-def test_gitignored_handoff_is_flagged_with_a_force_add(tmp_path):
+def test_force_add_probe_is_retired(tmp_path):
+    """The kizeje shape — a repo gitignoring `.bon/` wholesale — no longer
+    reaches the handoff, because the handoff no longer lands under `.bon/`.
+    Both keys must be absent, including on the repo that used to trigger them."""
     repo = make_board_repo(tmp_path / "repo")
     (repo / ".gitignore").write_text(".bon/\n")
 
     out = run_close(repo, tmp_path / "home")
-    assert out["HANDOFF_GITIGNORED"] == "true"
-    assert out["HANDOFF_ADD_CMD"].startswith("git add -f -- ")
-    assert out["HANDOFF_FILE"] in out["HANDOFF_ADD_CMD"]
+    assert out["HANDOFF_DIR"] == str(repo / "handoffs")
+    assert "HANDOFF_GITIGNORED" not in out
+    assert "HANDOFF_ADD_CMD" not in out
 
 
-def test_tracked_handoff_dir_is_not_flagged(tmp_path):
-    """Negative control — the flag must not fire on an ordinary repo."""
+def test_ordinary_repo_emits_no_force_add_keys(tmp_path):
     repo = make_board_repo(tmp_path / "repo")
     out = run_close(repo, tmp_path / "home")
     assert "HANDOFF_GITIGNORED" not in out
     assert "HANDOFF_ADD_CMD" not in out
 
 
-def test_visible_handoffs_dir_outside_bon_is_not_flagged(tmp_path):
-    """A repo ignoring .bon/ but writing to a VISIBLE handoffs/ is fine."""
+def test_close_converges_a_legacy_pile_and_says_so(tmp_path):
+    """A consumer whose next contact with bon is a CLOSE rather than an open
+    still gets migrated — /open is not the only door."""
     repo = make_board_repo(tmp_path / "repo")
-    (repo / ".gitignore").write_text(".bon/\n")
-    (repo / "handoffs").mkdir()
+    legacy = repo / ".bon" / "handoffs"
+    legacy.mkdir(parents=True, exist_ok=True)
+    (legacy / "2026-08-20-0930-ccccdddd.md").write_text(
+        "# Handoff — 2026-08-20\n\nsession_id: x\npurpose: residue\nformat: fond-v1\n"
+    )
 
     out = run_close(repo, tmp_path / "home")
+
+    assert out["HANDOFF_MIGRATED"] == "1"
+    assert out["HANDOFF_MIGRATED_DEST"] == str(repo / "handoffs")
+    assert "HANDOFF_MIGRATE_INCOMPLETE" not in out
+    assert (repo / "handoffs" / "2026-08-20-0930-ccccdddd.md").exists()
+    # And the handoff this close is about to write lands beside it.
     assert out["HANDOFF_DIR"] == str(repo / "handoffs")
-    assert "HANDOFF_GITIGNORED" not in out
+
+
+def test_scan_down_migrates_the_child_it_resolves_into(tmp_path):
+    """cwd is an owner bucket ABOVE the board, so the walk-UP migration never
+    reaches it. Without a second call the close writes into the child's visible
+    handoffs/ while the child's old pile stays stranded where nothing reads."""
+    bucket = tmp_path / "bucket"
+    bucket.mkdir()
+    real = make_board_repo(bucket / "realrepo")
+    legacy = real / ".bon" / "handoffs"
+    legacy.mkdir(parents=True, exist_ok=True)
+    (legacy / "2026-08-20-0930-ccccdddd.md").write_text(
+        "# Handoff — 2026-08-20\n\nsession_id: x\npurpose: residue\nformat: fond-v1\n"
+    )
+
+    out = run_close(bucket, tmp_path / "home")
+
+    assert out["HANDOFF_DIR_SOURCE"] == f"scan-down:{real}"
+    assert out["HANDOFF_MIGRATED"] == "1"
+    assert (real / "handoffs" / "2026-08-20-0930-ccccdddd.md").exists()
+    assert not (real / ".bon" / "handoffs").exists()
+
+
+def test_ambiguous_migrates_nothing(tmp_path):
+    """Refusing to pick a repo means refusing to move one's files around."""
+    bucket = tmp_path / "bucket"
+    bucket.mkdir()
+    for name in ("repo-a", "repo-b"):
+        repo = make_board_repo(bucket / name)
+        legacy = repo / ".bon" / "handoffs"
+        legacy.mkdir(parents=True, exist_ok=True)
+        (legacy / "h.md").write_text("# Handoff — 2026-08-20\n\npurpose: residue\n")
+
+    out = run_close(bucket, tmp_path / "home")
+
+    assert out["HANDOFF_DIR_SOURCE"] == "ambiguous"
+    assert "HANDOFF_MIGRATED" not in out
+    for name in ("repo-a", "repo-b"):
+        assert (bucket / name / ".bon" / "handoffs" / "h.md").exists()
+
+
+def test_clean_repo_emits_no_migration_keys(tmp_path):
+    """Negative control — the keys must not fire on a repo with no residue."""
+    repo = make_board_repo(tmp_path / "repo")
+    out = run_close(repo, tmp_path / "home")
+    assert "HANDOFF_MIGRATED" not in out
+    assert "HANDOFF_MIGRATE_INCOMPLETE" not in out

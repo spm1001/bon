@@ -2273,15 +2273,18 @@ def _gitignored_durable_advisory() -> list[str]:
     """Advisory lines when a root .gitignore strands durable .bon artefacts (bon-kizeje).
 
     A wholesale `.bon/` ignore usually arrives as init boilerplate (the
-    mit-plongeur case). Handoffs, understanding.md and the bottle then write
-    locally but never commit — nothing errors, the next machine just never
-    sees them. `git check-ignore` matches paths that don't exist yet, so a
-    fresh board reports before its first stranded write. Exceptions can't be
-    added inside an ignored directory (git never descends into one); the fix
-    lives in the ROOT .gitignore.
+    mit-plongeur case). understanding.md and the bottle then write locally but
+    never commit — nothing errors, the next machine just never sees them.
+    `git check-ignore` matches paths that don't exist yet, so a fresh board
+    reports before its first stranded write. Exceptions can't be added inside
+    an ignored directory (git never descends into one); the fix lives in the
+    ROOT .gitignore.
+
+    Handoffs are NOT probed any more (bon-sedoze): they live in the visible
+    `handoffs/` outside `.bon/`, so a `.bon/` ignore no longer reaches them.
     """
     data_dir = _data_dir()
-    candidates = ["README.md", "understanding.md", "handoffs/any.md"]
+    candidates = ["README.md", "understanding.md"]
     if _get_backend() != "dolt":
         candidates.append("items.jsonl")
     ignored = []
@@ -2299,9 +2302,9 @@ def _gitignored_durable_advisory() -> list[str]:
         return []
     return [
         f"gitignored durable artefact(s): {', '.join(ignored)} — they write locally but never commit,",
-        "so handoffs/understanding/bottle silently stop travelling to other machines.",
+        "so understanding.md and the bottle silently stop travelling to other machines.",
         "Fix the ROOT .gitignore (exceptions inside an ignored dir are inert): replace a wholesale",
-        "`.bon/` rule with scoped patterns that keep handoffs/, understanding.md, README.md,",
+        "`.bon/` rule with scoped patterns that keep understanding.md, README.md,",
         "prefix and backend tracked (plus items.jsonl on JSONL boards).",
     ]
 

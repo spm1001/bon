@@ -120,7 +120,7 @@ and `diagnostic-2026-08-16.md` in that room.
 | Falsifier *authorship* (who may write it, and when) | Rite | The data layer cannot know who typed a string — see below |
 | Tactical claims (steps, position, session identity) | Docket | Coordination state — must be visible to all sessions |
 | Claim *surfacing* (hooks, prompt injection, UI) | Rite, per vehicle | Each vehicle projects state its own way: CC via UserPromptSubmit hook, programmatic vehicles natively |
-| Handoffs (`.bon/handoffs/`, fond-v1) | Vehicle | Session memory, not registry data — see HANDOFF-CONTRACT.md |
+| Handoffs (visible `handoffs/`, fond-v1) | Vehicle | Session memory, not registry data — see HANDOFF-CONTRACT.md |
 | understanding.md | Vehicle | Cross-session knowledge synthesis is rite behaviour |
 | The "For Claudes to come" zone | Vehicle | Ditto |
 | The probe | Rite | Detection-gating is rite behaviour |
@@ -176,9 +176,9 @@ Piano's couvert is a lightweight open/close skill with `SESSION_LOG.md` as its m
 Sanity check that the contract is implementable without reading bon source (bon-bilegu step 3). A Gemini-style vehicle would need:
 
 1. **Probe** — at session start: `test -d` walk-up for `.bon/` (stop at `.git`), `command -v bon`. Both pass → board branch; else silent skip. No CC machinery required: this is two shell checks.
-2. **Orientation** — run `bon list --json` and `bon list --ready --json`; render in the vehicle's own idiom (Gemini's system-prompt projection, a TUI panel, whatever). Read the newest file in `.bon/handoffs/` for the previous session's suggestions — format per HANDOFF-CONTRACT.md.
+2. **Orientation** — run `bon list --json` and `bon list --ready --json`; render in the vehicle's own idiom (Gemini's system-prompt projection, a TUI panel, whatever). Read the newest file in the repo's visible `handoffs/` for the previous session's suggestions — format per HANDOFF-CONTRACT.md.
 3. **Mid-session** — optionally use the tactical tier (`work`, `step`, `work --status`) and surface the current step natively. No UserPromptSubmit hook exists in this vehicle; surfacing is its problem, per the ownership table.
-4. **Close** — file new items by piping JSON to `bon new`; complete with `done --note`; write a fond-v1 handoff into `.bon/handoffs/`; synthesize its own understanding document.
+4. **Close** — file new items by piping JSON to `bon new`; complete with `done --note`; write a fond-v1 handoff into the repo's visible `handoffs/`; synthesize its own understanding document.
 
 Every call is instructions + CLI. Nothing requires Claude Code, hooks, or bon internals. The one CC-flavoured artifact the vehicle touches is the handoff *format* (fond-v1) — which is why HANDOFF-CONTRACT.md is vehicle-side spec, versioned independently of the docket.
 

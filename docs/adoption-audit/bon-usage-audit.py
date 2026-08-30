@@ -31,8 +31,10 @@ KNOWN_VERBS = {
     "edit", "convert", "move", "status", "archive", "doctor", "migrate",
     "register", "reopen", "someday", "unsomeday", "ready", "--version", "--help",
 }
-# Paths that mean "maintaining the tool". NOTE .bon/ is deliberately excluded —
-# editing .bon/understanding.md or .bon/handoffs/ is USING the rite, not building it.
+# Paths that mean "maintaining the tool". NOTE .bon/ and handoffs/ are both
+# deliberately absent — editing understanding.md or a handoff is USING the
+# rite, not building it. (handoffs/ sat under .bon/ until bon-sedoze; it is
+# excluded now by simply not being listed, which is the same outcome.)
 SRC_DIRS = ("src/", "tests/", "skills/", "scripts/", "hooks/", "docs/",
             "fixtures/", "CLAUDE.md", "README.md", "pyproject.toml",
             ".claude-plugin/")

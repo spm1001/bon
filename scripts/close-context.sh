@@ -142,10 +142,18 @@ is_container() {
     return 1
 }
 
+# Converge any legacy .bon/handoffs pile onto the visible convention before
+# resolving (bon-sedoze). /open does the same on the way in; doing it here too
+# covers the repo whose next contact with bon is a close rather than an open.
+# The scan-down branch below migrates again, for the case this call cannot
+# reach — the two are mutually exclusive, so the keys emitted after the
+# resolution block always describe whichever one actually ran.
+handoff_migrate_legacy "$CWD"
+
 # Resolve where this session's handoff is written. The shared resolver walks
-# up to the board root and prefers a visible handoffs/ over the legacy
-# .bon/handoffs/ — the SAME resolution /open reads from, so a handoff is read
-# from exactly where it was written.
+# up to the board root and picks the nearest visible handoffs/, defaulting to
+# the board root's — the SAME resolution /open reads from, so a handoff is
+# read from exactly where it was written.
 HANDOFF_DIR=""
 HANDOFF_DIR_SOURCE=""
 if board_root "$CWD" >/dev/null 2>&1; then
@@ -167,12 +175,29 @@ if [ -z "$HANDOFF_DIR" ]; then
     SCAN_CANDIDATES=$(scan_down_candidates "$CWD")
     if [ -n "$SCAN_CANDIDATES" ]; then
         if [ "$(printf '%s\n' "$SCAN_CANDIDATES" | wc -l)" -eq 1 ]; then
+            # cwd sits ABOVE this board, so the migration call earlier — which
+            # walks UP from cwd — never saw it. Converge the child we are about
+            # to write into, BEFORE resolving where that write lands, or the new
+            # handoff joins a visible dir while the old pile stays stranded in a
+            # location nothing reads any more (bon-sedoze).
+            handoff_migrate_legacy "$SCAN_CANDIDATES"
             HANDOFF_DIR=$(handoff_write_dir "$SCAN_CANDIDATES")
             HANDOFF_DIR_SOURCE="scan-down:$SCAN_CANDIDATES"
         else
+            # Ambiguous: we refuse to pick a repo, so we refuse to migrate one
+            # too. Each converges on its own next open or close.
             HANDOFF_DIR_SOURCE="ambiguous"
         fi
     fi
+fi
+
+# Report the convergence (whichever call above ran — they are exclusive).
+if [ "${HANDOFF_MIGRATED_N:-0}" -gt 0 ]; then
+    echo "HANDOFF_MIGRATED=$HANDOFF_MIGRATED_N"
+    echo "HANDOFF_MIGRATED_DEST=$HANDOFF_MIGRATED_DEST"
+fi
+if [ "${HANDOFF_MIGRATED_FAILED:-0}" -eq 1 ]; then
+    echo "HANDOFF_MIGRATE_INCOMPLETE=true"
 fi
 
 # Fallback: global bon handoffs (never legacy ~/.claude/handoffs/). Named
@@ -191,7 +216,7 @@ if [ "$HANDOFF_DIR_SOURCE" = "ambiguous" ]; then
     while IFS= read -r cand; do
         echo "HANDOFF_CANDIDATE=$cand"
     done <<< "$SCAN_CANDIDATES"
-    echo "HANDOFF_HINT=multiple sibling board repos under cwd and no basis to choose between them. Placement is WORK-based: pick the repo this session actually worked, then write into its handoffs dir (visible handoffs/ if present, else .bon/handoffs/)."
+    echo "HANDOFF_HINT=multiple sibling board repos under cwd and no basis to choose between them. Placement is WORK-based: pick the repo this session actually worked, then write into its visible handoffs/ (at the room you worked, else the repo root)."
 else
     echo "HANDOFF_DIR=$HANDOFF_DIR"
     echo "HANDOFF_DIR_SOURCE=$HANDOFF_DIR_SOURCE"
@@ -255,23 +280,12 @@ if [ -e "$HANDOFF_DIR/$HANDOFF_FILE" ]; then
 fi
 echo "HANDOFF_FILE=$HANDOFF_FILE"
 
-# A repo can gitignore `.bon/` wholesale to keep volatile board state out of
-# git — which also catches handoffs and understanding.md. `git add` then
-# refuses, and the handoff is written to disk but never syncs, so the next
-# session on another machine cannot see it (bon-kizeje; live in mit-plongeur,
-# whose 13 handoffs are all force-added by hand). Detect it here so /close
-# force-adds deliberately rather than depending on someone noticing.
-if [ -n "$HANDOFF_DIR" ]; then
-    IGNORE_PROBE="$HANDOFF_DIR"
-    while [ ! -d "$IGNORE_PROBE" ] && [ "$IGNORE_PROBE" != "/" ]; do
-        IGNORE_PROBE=$(dirname "$IGNORE_PROBE")
-    done
-    if git -C "$IGNORE_PROBE" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-        && git -C "$IGNORE_PROBE" check-ignore -q "$HANDOFF_DIR/$HANDOFF_FILE" 2>/dev/null; then
-        echo "HANDOFF_GITIGNORED=true"
-        echo "HANDOFF_ADD_CMD=git add -f -- $HANDOFF_DIR/$HANDOFF_FILE"
-    fi
-fi
+# (The HANDOFF_GITIGNORED / HANDOFF_ADD_CMD force-add probe lived here until
+# bon-sedoze. It existed for one shape: a repo gitignoring `.bon/` wholesale,
+# which also swallowed the handoff underneath it. Handoffs no longer live
+# under `.bon/`, so the shape is gone. `bon doctor`'s sync-hazard advisory
+# still covers the artefacts that DO remain there — understanding.md, the
+# bottle, and a JSONL board.)
 
 if is_container "$CWD"; then
     echo "IS_CONTAINER=true"
