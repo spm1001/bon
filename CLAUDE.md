@@ -295,12 +295,18 @@ self-gating: items.jsonl must be git-TRACKED (committing the board is the delibe
 adoption step — fresh `bon init` boards and gitignored `.bon/` repos never sync), the
 branch needs a configured upstream, and `.bon/sync` containing `off` disables it
 (`~/notes` carries that marker: notes-sync owns every git write there; `BON_SYNC=off`
-in the environment is the per-process override). Semantics worth knowing: a same-item
-edit on two clones is ONE loud conflict before anything is written — origin's version
-stays in the tree, the verb's change is not applied, nothing is lost; offline degrades
-to write + commit locally with one warning, and a later verb pushes the backlog; a
-push is refused (with the reason named) when unpushed commits touch non-board files,
-so a board verb can never publish code as a side effect. The item-grain three-way
+in the environment is the per-process override). Conflict semantics are
+two-tier (the second tier added after a live essayeur refutation, 2026-08-30): an
+IN-SESSION collision (this verb's change vs origin) is ONE loud refusal before
+anything is written — origin's version stays in the tree, the verb's change is not
+applied, nothing lost; a WHILE-APART collision (an already-committed offline/deferred
+edit meeting origin's at integration) resolves newest-wins with every displaced
+version preserved in the committed `.bon/sync-conflicts.jsonl` sidecar, the collision
+named loudly, and a standing warning on every clone's every verb until the sidecar is
+reviewed and deleted. Offline degrades to write + commit locally with one warning,
+and a later verb pushes the backlog; a push is refused (with the reason named) when
+unpushed commits touch non-board files, so a board verb can never publish code as a
+side effect. The item-grain three-way
 merge (`merge_items`) is the same grain lesson as Dolt's diff-at-save: a whole-file
 write after an integrate would clobber the other clone. `bon init` seeds
 `.bon/.gitattributes` (`*.jsonl merge=union`) so the git-level merge is line-wise

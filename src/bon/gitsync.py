@@ -17,10 +17,30 @@ Engagement is conservative and self-gating:
 
 Failure philosophy: a sync failure must never lose the save. Offline or
 deferred states degrade to "write + commit locally, warn once, push on a
-future verb". The only hard stop is a same-item conflict — an item
-changed both locally and on origin — which aborts BEFORE the local write
-so neither side's edit is silently dropped (the resena lesson at git
-grain: whole-file writes after an integrate clobber the other lane).
+future verb".
+
+Conflict semantics are two-tier, by WHERE the colliding edit lives:
+
+- IN-SESSION (this verb's in-memory change vs origin): hard stop — the
+  item-grain merge aborts BEFORE the local write, so neither side's edit
+  is silently dropped (the resena lesson at git grain).
+- WHILE-APART (an already-COMMITTED local edit vs origin — the offline
+  backlog, a deferred verb's commit, the push-retry race): the load
+  snapshot can't see it, and git's union merge quietly kept both lines
+  until load-time dedup silently picked the newest (refuted live by the
+  2026-08-30 essayeur, three reproductions). Blocking the rebase would
+  strand a teammate in git surgery — the exact failure this module
+  exists to kill — so instead every integration is followed by
+  resolve_union_artifacts(): newest wins (matching what every reader
+  already showed), every displaced version is PRESERVED in the committed
+  .bon/sync-conflicts.jsonl sidecar, and the collision is named loudly.
+  A standing warning fires on every verb while the sidecar is non-empty,
+  so the clone whose edit was displaced hears about it too.
+
+One known quiet edge remains: a cross-clone archive-vs-edit collision
+(delete on one side, modify on the other) unions to "the edit survives"
+with no duplicate line to detect — the item resurfaces rather than
+vanishing, which is the safe direction, but no cue fires.
 """
 import os
 import subprocess
@@ -28,7 +48,8 @@ import sys
 from pathlib import Path
 
 # Board files a sync commit may carry. Relative to the .bon directory.
-_BOARD_FILES = ("items.jsonl", "archive.jsonl", "README.md", ".gitattributes")
+_BOARD_FILES = ("items.jsonl", "archive.jsonl", "README.md", ".gitattributes",
+                "sync-conflicts.jsonl")
 
 _FETCH_TIMEOUT = 8
 _PUSH_TIMEOUT = 20
@@ -217,6 +238,105 @@ def merge_items(base: list[dict], ours: list[dict], theirs: list[dict]):
     return list(merged.values()), sorted(set(conflicts))
 
 
+def resolve_union_artifacts(ctx: SyncContext) -> bool:
+    """Turn a silent newest-wins into a loud, lossless resolution.
+
+    After a git-level integration (rebase here or in finalize, or a human's
+    plain pull), a same-item edit made on two clones WHILE APART sits in
+    items.jsonl as duplicate lines for one id — git's union driver kept
+    both, and load-time dedup would silently drop the older on the next
+    save. This scans the RAW file: materially-different duplicates are
+    resolved by the loader's own rule (newest timestamp wins, so views
+    never flicker), every displaced version is appended to the committed
+    .bon/sync-conflicts.jsonl sidecar, and each collision is named loudly.
+    Byte-identical duplicates (an interrupted run's residue) dedup silently.
+
+    Returns True when it rewrote the file. Bails without touching anything
+    on conflict markers or unparseable lines — those are the loader's
+    warnings to make, and a rewrite would destroy the evidence.
+    """
+    import json
+
+    from bon.storage import _most_recent_timestamp
+
+    items_file = ctx.bon_dir / "items.jsonl"
+    try:
+        raw = items_file.read_text()
+    except OSError:
+        return False
+
+    entries: list[dict] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(("<<<<<<", "======", ">>>>>>")):
+            return False
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            return False
+
+    kept: dict[str, dict] = {}
+    displaced: list[dict] = []
+    collided: set[str] = set()
+    for item in entries:
+        item_id = item.get("id", "")
+        if item_id in kept:
+            if item == kept[item_id]:
+                continue  # byte-identical residue — silent dedup
+            collided.add(item_id)
+            if _most_recent_timestamp(item) >= _most_recent_timestamp(kept[item_id]):
+                displaced.append(kept[item_id])
+                kept[item_id] = item
+            else:
+                displaced.append(item)
+        else:
+            kept[item_id] = item
+
+    if not collided:
+        return False
+
+    sidecar = ctx.bon_dir / "sync-conflicts.jsonl"
+    try:
+        with open(sidecar, "a") as f:
+            for item in displaced:
+                f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        tmp = items_file.with_suffix(".tmp")
+        with open(tmp, "w") as f:
+            for item in sorted(kept.values(), key=lambda i: i.get("id", "")):
+                f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        tmp.rename(items_file)
+    except OSError as e:
+        _warn(f"could not resolve duplicate-item sync artifacts ({e})")
+        return False
+
+    for item_id in sorted(collided):
+        _warn(f"'{item_id}' was edited on two clones while apart — kept the "
+              "newest version; the displaced version is preserved in "
+              ".bon/sync-conflicts.jsonl. Review with `bon show " + item_id +
+              "`, re-apply anything missing, then delete the sidecar file.")
+    return True
+
+
+def _standing_conflict_cue(ctx: SyncContext) -> None:
+    """Every clone keeps hearing about unreviewed sync conflicts.
+
+    The clone whose edit was displaced never sees the resolving verb's
+    warning — the sidecar travels to it in a commit. This fires on every
+    verb, on every clone, until someone reviews and deletes the file.
+    """
+    sidecar = ctx.bon_dir / "sync-conflicts.jsonl"
+    try:
+        if sidecar.is_file() and sidecar.stat().st_size > 0:
+            _warn("unreviewed sync conflicts in .bon/sync-conflicts.jsonl — "
+                  "each line is an item version displaced by a while-apart "
+                  "edit; review, re-apply anything missing, then delete the "
+                  "file to clear this warning.")
+    except OSError:
+        pass
+
+
 def presync(ctx: SyncContext, items: list[dict], snapshot: list[dict] | None,
             load_file) -> list[dict]:
     """Integrate origin before the write. Returns the item list to write.
@@ -235,6 +355,10 @@ def presync(ctx: SyncContext, items: list[dict], snapshot: list[dict] | None,
             ga.write_text(GITATTRIBUTES_CONTENT)
         except OSError:
             pass
+    _standing_conflict_cue(ctx)
+    # Residue from a HUMAN's plain git pull (no bon verb ran the resolver)
+    # can already be sitting in the file — resolve it before banking.
+    resolve_union_artifacts(ctx)
     _commit_board(ctx, "bon: board state (pre-sync)")
 
     if not _fetch(ctx):
@@ -261,6 +385,15 @@ def presync(ctx: SyncContext, items: list[dict], snapshot: list[dict] | None,
               "aborted — saved and committed locally; resolve the repo's "
               "divergence, then any verb will sync.")
         return items
+
+    # The rebase just integrated any committed local backlog (offline
+    # edits, deferred verbs) with origin's — a while-apart same-item edit
+    # now sits as duplicate lines. Resolve loudly and losslessly BEFORE
+    # reading the file as "theirs", or the loader's silent newest-wins
+    # dedup decides the collision instead (the essayeur's attack 1).
+    if resolve_union_artifacts(ctx):
+        _commit_board(ctx, "bon: sync conflict resolution (displaced versions "
+                           "in .bon/sync-conflicts.jsonl)")
 
     # The rebase may have changed the board under us: reconcile at item
     # grain rather than letting a whole-file write clobber origin's edits.
@@ -324,6 +457,12 @@ def finalize(ctx: SyncContext) -> None:
             if rebase.returncode != 0:
                 _git(ctx.root, "rebase", "--abort", timeout=30)
                 break
+            # The race rebase can union two same-item edits exactly like
+            # presync's (the essayeur's attack 3) — resolve before re-push
+            # so origin never carries a silent newest-wins.
+            if resolve_union_artifacts(ctx):
+                _commit_board(ctx, "bon: sync conflict resolution (displaced "
+                                   "versions in .bon/sync-conflicts.jsonl)")
         _warn("push failed — board is committed locally; a future verb "
               "will push (check remote access / branch protection).")
     except (OSError, subprocess.SubprocessError, ValueError) as e:

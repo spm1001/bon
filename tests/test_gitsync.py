@@ -286,3 +286,128 @@ class TestMergeItems:
         merged, conflicts = merge_items(base, ours, theirs)
         assert conflicts == []
         assert {i["id"] for i in merged} == {"t-one", "t-two", "t-mine", "t-theirs"}
+
+
+class TestWhileApartCollisions:
+    """The essayeur's refutation (2026-08-30): a same-item edit that reaches
+    git as a COMMITTED line (offline backlog) bypassed the load-snapshot
+    check, and union merge + newest-wins dedup silently discarded one side.
+    The repair: resolve loudly and losslessly at every integration."""
+
+    def test_offline_collision_is_loud_and_lossless(self, two_clones):
+        import time
+        a, b, origin = two_clones
+        item_id = new_item(a, "Contested while apart")
+        new_item(b, "B converges")  # brings the item into B
+
+        # B goes offline and edits the item (committed locally).
+        url = git(b, "remote", "get-url", "origin").stdout.strip()
+        git(b, "remote", "set-url", "origin", str(b.parent / "nowhere.git"))
+        result = bon(b, "edit", item_id, "--why", "B's offline why")
+        assert result.returncode == 0, result.stderr
+
+        # A edits the same item online, LATER, so A's timestamp wins.
+        time.sleep(1.1)
+        result = bon(a, "edit", item_id, "--why", "A's later why")
+        assert result.returncode == 0, result.stderr
+
+        # B reconnects; an unrelated verb integrates the backlog.
+        git(b, "remote", "set-url", "origin", url)
+        result = bon(b, "new", "Unrelated", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0, result.stderr
+
+        # Loud: the collision is named. Lossless: the displaced version is
+        # in the sidecar, and the board holds the newest.
+        assert "edited on two clones while apart" in result.stderr
+        assert item_id in result.stderr
+        assert board_items(b)[item_id]["brief"]["why"] == "A's later why"
+        sidecar = b / ".bon" / "sync-conflicts.jsonl"
+        assert sidecar.is_file()
+        displaced = [json.loads(l) for l in sidecar.read_text().splitlines()]
+        assert any(d["id"] == item_id and d["brief"]["why"] == "B's offline why"
+                   for d in displaced)
+
+        # The sidecar travels: origin carries it, so the other clone hears.
+        c = b.parent / "C-collision"
+        git(b.parent, "clone", str(origin), str(c))
+        assert (c / ".bon" / "sync-conflicts.jsonl").is_file()
+
+        # Standing cue: B's next verb still warns until the file is cleared.
+        result = bon(b, "new", "Another", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0
+        assert "unreviewed sync conflicts" in result.stderr
+        (b / ".bon" / "sync-conflicts.jsonl").unlink()
+        result = bon(b, "new", "Third", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0
+        assert "unreviewed sync conflicts" not in result.stderr
+
+    def test_reverse_collision_preserves_the_pushed_edit(self, two_clones):
+        """When the offline edit is NEWER, the displaced version is the one
+        that had already pushed — it must land in the sidecar, not vanish."""
+        import time
+        a, b, origin = two_clones
+        item_id = new_item(a, "Reverse contest")
+        new_item(b, "B converges")
+
+        result = bon(a, "edit", item_id, "--why", "A's earlier why")
+        assert result.returncode == 0, result.stderr
+
+        url = git(b, "remote", "get-url", "origin").stdout.strip()
+        git(b, "remote", "set-url", "origin", str(b.parent / "nowhere.git"))
+        time.sleep(1.1)
+        result = bon(b, "edit", item_id, "--why", "B's later offline why")
+        assert result.returncode == 0, result.stderr
+        git(b, "remote", "set-url", "origin", url)
+
+        result = bon(b, "new", "Trigger", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0, result.stderr
+        assert "edited on two clones while apart" in result.stderr
+        assert board_items(b)[item_id]["brief"]["why"] == "B's later offline why"
+        sidecar = b / ".bon" / "sync-conflicts.jsonl"
+        displaced = [json.loads(l) for l in sidecar.read_text().splitlines()]
+        assert any(d["id"] == item_id and d["brief"]["why"] == "A's earlier why"
+                   for d in displaced)
+
+
+class TestResolveUnionArtifacts:
+    def _ctx(self, tmp_path):
+        from bon.gitsync import SyncContext
+        bon_dir = tmp_path / ".bon"
+        bon_dir.mkdir(exist_ok=True)
+        return SyncContext(tmp_path, bon_dir, "origin", "main", "origin/main")
+
+    def test_material_duplicates_resolve_and_sidecar(self, tmp_path, capsys):
+        from bon.gitsync import resolve_union_artifacts
+        ctx = self._ctx(tmp_path)
+        old = {"id": "t-dup", "title": "old", "updated_at": "2026-08-30T10:00:00Z"}
+        new = {"id": "t-dup", "title": "new", "updated_at": "2026-08-30T11:00:00Z"}
+        (tmp_path / ".bon" / "items.jsonl").write_text(
+            json.dumps(old) + "\n" + json.dumps(new) + "\n")
+        assert resolve_union_artifacts(ctx) is True
+        lines = (tmp_path / ".bon" / "items.jsonl").read_text().splitlines()
+        assert len(lines) == 1 and json.loads(lines[0])["title"] == "new"
+        displaced = json.loads(
+            (tmp_path / ".bon" / "sync-conflicts.jsonl").read_text().strip())
+        assert displaced["title"] == "old"
+        assert "t-dup" in capsys.readouterr().err
+
+    def test_identical_duplicates_dedup_silently(self, tmp_path, capsys):
+        from bon.gitsync import resolve_union_artifacts
+        ctx = self._ctx(tmp_path)
+        item = {"id": "t-same", "title": "same"}
+        (tmp_path / ".bon" / "items.jsonl").write_text(
+            json.dumps(item) + "\n" + json.dumps(item) + "\n")
+        assert resolve_union_artifacts(ctx) is False
+        assert not (tmp_path / ".bon" / "sync-conflicts.jsonl").exists()
+
+    def test_conflict_markers_bail_untouched(self, tmp_path):
+        from bon.gitsync import resolve_union_artifacts
+        ctx = self._ctx(tmp_path)
+        content = '{"id": "t-x", "title": "a"}\n<<<<<<< HEAD\n'
+        (tmp_path / ".bon" / "items.jsonl").write_text(content)
+        assert resolve_union_artifacts(ctx) is False
+        assert (tmp_path / ".bon" / "items.jsonl").read_text() == content
