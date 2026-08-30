@@ -210,21 +210,37 @@ elif [ -n "${CLAUDE_CONTEXT_WINDOW:-}" ]; then
 else
     # No sidecar — true for every bg session (no statusline render). Infer:
     # a fable/[1m] model implies a 1M window; real input beyond 200k proves
-    # 1M regardless of model string. On a genuine turn 1 the transcript has
-    # no assistant entry yet, so fall back to the configured default model
-    # (settings.json) — self-corrects from turn 2 via the transcript.
-    # Bare 200k only as last resort.
-    if [ -z "$MODEL" ]; then
-        MODEL=$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
+    # 1M regardless of model string. Bare 200k only as last resort.
+    #
+    # The transcript's model is NOT sufficient on its own. `message.model`
+    # records the BASE id with the variant marker stripped: a 1M Opus session
+    # writes `claude-opus-5`, indistinguishable from a 200k one. (CC's
+    # statusline payload does the same — `.model.id` is `claude-opus-5` there
+    # too. Only `.context_window.context_window_size` is authoritative, and
+    # only the statusline sees it, which is why the sidecar is preferred.)
+    #
+    # settings.json keeps the marker (`"model": "opus[1m]"`) and is the only
+    # local source that separates the variants. It used to be consulted only
+    # when the transcript model was empty — i.e. turn 1 — so from turn 2 the
+    # correct answer sat on disk and was skipped, and a 1M session was read as
+    # 200k for the rest of its life. Observed 2026-08-22: "1% free" reported at
+    # 197k of a 1M window, and the Claude reading it spent several turns
+    # rushing and deferring work against a shortage that did not exist —
+    # exactly the desperation-driven corner-cutting this hook's framing is
+    # designed to avoid. Read both sources; a match from either means 1M.
+    #
+    # Erring towards 1M is the safer bias: over-reporting free context costs a
+    # late surprise, while under-reporting degrades every turn until it ends.
+    CONFIGURED_MODEL=$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
+    [ -z "$MODEL" ] && MODEL="$CONFIGURED_MODEL"
+    _is_1m() { case "$1" in *fable*|*"[1m]"*) return 0 ;; *) return 1 ;; esac; }
+    if _is_1m "$MODEL" || _is_1m "$CONFIGURED_MODEL"; then
+        MAX_TOKENS=1000000
+    elif [ "$TOTAL_IN" -gt 200000 ] 2>/dev/null; then
+        MAX_TOKENS=1000000
+    else
+        MAX_TOKENS=200000
     fi
-    case "$MODEL" in
-        *fable*|*"[1m]"*) MAX_TOKENS=1000000 ;;
-        *) if [ "$TOTAL_IN" -gt 200000 ] 2>/dev/null; then
-               MAX_TOKENS=1000000
-           else
-               MAX_TOKENS=200000
-           fi ;;
-    esac
 fi
 CURRENT_WINDOW=${MAX_TOKENS:-200000}
 # Belt-and-braces: guarantee every downstream $(( CURRENT_WINDOW … )) (WINDOW_K,
