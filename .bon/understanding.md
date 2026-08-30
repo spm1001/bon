@@ -153,7 +153,7 @@ Backend dispatch is at the function boundary in `storage.py`. Six functions disp
 
 ## This repo is public, and that includes `.bon/`
 
-`spm1001/bon` is a PUBLIC repo (verified 2026-08-08 via `gh repo view`), and `.bon/handoffs/` plus `.bon/understanding.md` are git-tracked inside it — so **every `/close` here publishes**. The board *items* are safe by accident of backend: bon's own board is Dolt-backed, so `items.jsonl` isn't in the repo and a brief's contents stay on tube. Everything else — this file, every handoff, everything under `docs/` — is world-readable the moment it is pushed.
+`spm1001/bon` is a PUBLIC repo (verified 2026-08-08 via `gh repo view`), and the visible root `handoffs/` (home of every handoff since the 2026-08-22 migration; the `.bon/handoffs/` rung retired in bon-sedoze) plus `.bon/understanding.md` are git-tracked inside it — so **every `/close` here publishes**. The board *items* are safe by accident of backend: bon's own board is Dolt-backed, so `items.jsonl` isn't in the repo and a brief's contents stay on tube. Everything else — this file, every handoff, everything under `docs/` — is world-readable the moment it is pushed.
 
 Most sibling repos are the opposite way round: carnet, mary-bujournal and mary-bujournal-engine are all private (checked the same day). That asymmetry is the trap, because bon is the repo a session is most likely to be *sitting in* while thinking about the others.
 
@@ -235,9 +235,10 @@ The general shape worth keeping: every rejected field served the *shared-store* 
 Per-repo resolution — WHERE *within* a repo a handoff or understanding.md lives — runs through the shared `scripts/lib-handoff.sh`, sourced by both the reader (`open-context.sh` → `handoff_read_dirs`, `understanding_path`) and the writer (`close-context.sh` → `handoff_write_dir`). One source of truth means you always read a handoff from exactly where the next one would be written — this is what fixed the 2026-06-17 stale-handoff bug end-to-end (round-trip verified). Resolution walks up from CWD to the board root (`board_root` mirrors the CLI's `.bon` discovery: any `.bon` at the start dir, only a prefix-bearing one above it, stop at a `.git` boundary):
 
 1. nearest visible `handoffs/` (a room adopts the convention just by having one), then
-2. the board root's visible `handoffs/`, then
-3. the board root's `.bon/handoffs/` (legacy default — fresh repos still write here), then
-4. `~/.bon/handoffs/` (global catch-all, not git-tracked).
+2. the board root's visible `handoffs/` (the default for fresh boards too, since bon-sedoze), then
+3. `~/.bon/handoffs/` (global catch-all, not git-tracked).
+
+The `.bon/handoffs/` rung and the HANDOFF_GITIGNORED case were retired 2026-08-30 (bon-sedoze), with the Common Core session's two constraints honoured: surviving `.bon/handoffs/*.md` residue migrated in the same change, and `lib-handoff.sh` kept alive as the shared READ+WRITE resolver because the common-core choreography will add a ledger processed-marker sweep and an item-citation baton lookup to the same library (bon-supuko, bon-jeweke).
 
 The **writer** picks the first that applies (visible-first). The **reader** ranks the newest across all of them by header date (mtime breaks same-day ties), so a migration-in-progress repo with both populated surfaces the genuinely newest. `understanding_path` resolves the same way (nearest visible → root visible → `.bon/understanding.md`). This is HANDOFF-CONTRACT v4. The legacy `~/.claude/handoffs/` path is fully gone; `~/.bon/` is safe from `check_initialized()` because that looks for `.bon/items.jsonl`, absent there.
 
