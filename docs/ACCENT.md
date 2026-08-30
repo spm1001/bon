@@ -11,7 +11,7 @@ The four rites (open, close, plan, review) ship as a byte-identical team core. W
 
 ## File format
 
-`~/.claude/mit-accent.md`, four sections, one per rite, keyed by the personal variation-point ids — named by OWNERSHIP, uniformly (settled by the operator, 2026-08-30): `open.personal`, `close.personal`, `plan.personal`, `review.personal`. Dotted to match the shipped `review.populate-queue` convention; deliberately "personal" and not "-local", because local means per-machine on this estate (settings.local.json) and this split is per-person. These four ids are the ONLY keys the rites parse. Everything inside a section — sub-headings, pet names, structure — is the operator's own prose, replaceable without touching core or format.
+`~/.claude/mit-accent.md`, four sections, one per rite, keyed by the personal variation-point ids — named by OWNERSHIP, uniformly (settled by the operator, 2026-08-30): `open.personal`, `close.personal`, `plan.personal`, `review.personal`. Dotted to match the shipped `review.populate-queue` convention; deliberately "personal" and not "-local", because local means per-machine on this estate (settings.local.json) and this split is per-person. These four ids are the ONLY keys the rites parse — and each names a POINT INSIDE its single rite, never a sibling command: there is exactly one /open, /close, /plan and /review for everyone; the personal half is a file the rite reads at that point, silently absent for anyone without one. Everything inside a section — sub-headings, pet names, structure — is the operator's own prose, replaceable without touching core or format.
 
 ```markdown
 # Accent — <owner>
@@ -37,7 +37,7 @@ A rite reads its own `## <rite>.personal` section only. **Step sockets are a dif
 
 ## How a rite reads it
 
-The session hooks emit `ACCENT=<path>` when the file exists (open-context.sh, close-context.sh); the review and plan skills check for the file directly. The skill text at each variation point says what to do with the section and what "absent" means — always: skip silently, rite complete.
+The session hooks emit `ACCENT=<path>` when the file exists (open-context.sh, close-context.sh); the plan skill checks for the file directly, and review reaches it via the session-start emission. The skill text at each variation point says what to do with the section and what "absent" means — always: skip silently, rite complete.
 
 ## The worked example — Sameer's accent
 
