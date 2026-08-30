@@ -787,9 +787,16 @@ def _git(cwd, *args):
 def test_new_staleness_warn_is_one_sided(tmp_path):
     """bon-wevodu: bon new warns when items.jsonl is behind the LAST-FETCHED origin.
 
-    One-sided by design — no fetch in the CLI (the /open rite owns that), so an
-    unfetched clone reads clean and a fetched-but-unmerged one warns."""
+    One-sided by design — no fetch in the warning path itself, so an
+    unfetched clone reads clean and a fetched-but-unmerged one warns.
+
+    BON_SYNC=off here: on boards where the guritu sync engages (tracked
+    items.jsonl + upstream), the write verbs fetch and converge for real,
+    superseding this warning. The warning remains the only guard for
+    boards outside the sync's preconditions, which is what this pins."""
+    import os
     import subprocess
+    sync_off = {**os.environ, "BON_SYNC": "off"}
     origin = tmp_path / "origin.git"
     subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
     a, b, c = tmp_path / "a", tmp_path / "b", tmp_path / "c"
@@ -805,25 +812,25 @@ def test_new_staleness_warn_is_one_sided(tmp_path):
     subprocess.run(["git", "clone", "-q", str(origin), str(b)], check=True, capture_output=True)
 
     # Clone A files an item and pushes — B's clone is now behind origin.
-    r = run_bon("new", "Filed on A", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=a)
+    r = run_bon("new", "Filed on A", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=a, env=sync_off)
     assert r.returncode == 0
     _git(a, "add", "-A")
     _git(a, "commit", "-q", "-m", "item")
     _git(a, "push", "-q", "origin", "HEAD")
 
     # Behind but UNFETCHED: reads clean — the documented blindness the rite's fetch closes.
-    r1 = run_bon("new", "On B before fetch", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=b)
+    r1 = run_bon("new", "On B before fetch", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=b, env=sync_off)
     assert r1.returncode == 0
     assert "behind the last-fetched origin" not in r1.stderr
 
     # After a fetch the same write warns.
     _git(b, "fetch", "-q")
-    r2 = run_bon("new", "On B after fetch", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=b)
+    r2 = run_bon("new", "On B after fetch", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=b, env=sync_off)
     assert r2.returncode == 0
     assert "behind the last-fetched origin" in r2.stderr
 
     # A current clone stays silent.
     subprocess.run(["git", "clone", "-q", str(origin), str(c)], check=True, capture_output=True)
-    r3 = run_bon("new", "On C current", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=c)
+    r3 = run_bon("new", "On C current", "--why", "w", "--what", "x", "--done", "d", "-q", cwd=c, env=sync_off)
     assert r3.returncode == 0
     assert "behind the last-fetched origin" not in r3.stderr

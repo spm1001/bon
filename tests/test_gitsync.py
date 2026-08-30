@@ -1,0 +1,288 @@
+"""Tests for CLI-owned git sync on JSONL boards (bon-guritu).
+
+The fixture builds a bare origin plus two clones and drives BOTH clones
+through the bon CLI only — the --done criterion is that convergence needs
+no human git. Hermetic git: global/system config are pointed at /dev/null
+so a developer's gpgsign or hooks can't leak into the run.
+"""
+import json
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from bon.gitsync import merge_items
+from conftest import run_bon
+
+GIT_ENV = dict(
+    os.environ,
+    GIT_CONFIG_GLOBAL="/dev/null",
+    GIT_CONFIG_SYSTEM="/dev/null",
+    GIT_TERMINAL_PROMPT="0",
+)
+
+
+def git(cwd, *args):
+    return subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        capture_output=True, text=True, env=GIT_ENV,
+    )
+
+
+def bon(cwd, *args):
+    return run_bon(*args, cwd=cwd, env=GIT_ENV)
+
+
+def board_titles(clone: Path) -> set[str]:
+    titles = set()
+    for line in (clone / ".bon" / "items.jsonl").read_text().splitlines():
+        if line.strip():
+            titles.add(json.loads(line)["title"])
+    return titles
+
+
+def board_items(clone: Path) -> dict[str, dict]:
+    out = {}
+    for line in (clone / ".bon" / "items.jsonl").read_text().splitlines():
+        if line.strip():
+            item = json.loads(line)
+            out[item["id"]] = item
+    return out
+
+
+def new_item(clone: Path, title: str) -> str:
+    result = bon(clone, "new", title, "--why", "w", "--what", "x", "--done", "d", "-q")
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip().splitlines()[-1]
+
+
+@pytest.fixture
+def two_clones(tmp_path):
+    """Bare origin + clone A carrying an adopted board + fresh clone B."""
+    origin = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "--bare", "-b", "main", str(origin)],
+                   capture_output=True, text=True, env=GIT_ENV, check=True)
+
+    a = tmp_path / "A"
+    git(tmp_path, "clone", str(origin), str(a))
+    git(a, "config", "user.name", "Clone A")
+    git(a, "config", "user.email", "a@test.local")
+    (a / "seed.txt").write_text("seed\n")
+    git(a, "add", "seed.txt")
+    git(a, "commit", "-m", "initial")
+    git(a, "push", "-u", "origin", "main")
+
+    # Board adoption: init, then commit the board — tracking items.jsonl
+    # is the deliberate step that switches the sync on.
+    result = bon(a, "init", "--prefix", "t")
+    assert result.returncode == 0, result.stderr
+    git(a, "add", "-f", ".bon")
+    git(a, "commit", "-m", "adopt board")
+    git(a, "push")
+
+    b = tmp_path / "B"
+    git(tmp_path, "clone", str(origin), str(b))
+    git(b, "config", "user.name", "Clone B")
+    git(b, "config", "user.email", "b@test.local")
+    return a, b, origin
+
+
+class TestDivergentClonesConverge:
+    def test_two_clones_editing_different_items_converge(self, two_clones):
+        """The --done criterion: convergence with no human git."""
+        a, b, origin = two_clones
+
+        id_a = new_item(a, "Item from A")
+        # The verb committed and pushed by itself.
+        status = git(a, "status", "--porcelain", "--", ".bon")
+        assert status.stdout.strip() == ""
+        assert "bon: new" in git(origin, "log", "--format=%s", "-1").stdout
+
+        # B never saw Item from A — its verb must fetch, rebase, and push.
+        id_b = new_item(b, "Item from B")
+        assert board_titles(b) == {"Item from A", "Item from B"}
+        assert git(b, "status", "--porcelain", "--", ".bon").stdout.strip() == ""
+
+        # A's next verb converges A too.
+        result = bon(a, "edit", id_a, "--why", "updated on A")
+        assert result.returncode == 0, result.stderr
+        assert board_titles(a) == {"Item from A", "Item from B"}
+
+        # Origin holds everything: a third clone sees both items.
+        c = a.parent / "C"
+        git(a.parent, "clone", str(origin), str(c))
+        assert board_titles(c) == {"Item from A", "Item from B"}
+        assert id_b in board_items(c)
+
+    def test_same_item_edit_is_one_loud_conflict(self, two_clones):
+        a, b, origin = two_clones
+        item_id = new_item(a, "Contested item")
+
+        # B converges first (via its own verb), then A edits and pushes.
+        new_item(b, "B warms up")
+        result = bon(a, "edit", item_id, "--why", "A's why")
+        assert result.returncode == 0, result.stderr
+
+        # B, behind again, edits the same item: loud refusal, nothing lost.
+        result = bon(b, "edit", item_id, "--why", "B's why")
+        assert result.returncode != 0
+        assert "conflict" in result.stderr.lower()
+        assert item_id in result.stderr
+        # Origin's version is in B's tree; B's change was not applied.
+        assert board_items(b)[item_id]["brief"]["why"] == "A's why"
+
+
+class TestOfflineBehaviour:
+    def test_offline_writes_locally_warns_once_pushes_later(self, two_clones):
+        a, b, origin = two_clones
+        item_id = new_item(a, "Shared item")
+        new_item(b, "B converges")  # brings Shared item into B
+
+        url = git(b, "remote", "get-url", "origin").stdout.strip()
+        git(b, "remote", "set-url", "origin", str(b.parent / "nonexistent.git"))
+
+        result = bon(b, "edit", item_id, "--how", "offline change")
+        assert result.returncode == 0, result.stderr
+        assert "could not reach the remote" in result.stderr
+        # Committed locally, ready to travel.
+        assert git(b, "log", "--format=%s", "-1").stdout.startswith("bon: edit")
+        assert board_items(b)[item_id]["brief"]["how"] == "offline change"
+
+        # Back online: the next verb carries the backlog to origin.
+        git(b, "remote", "set-url", "origin", url)
+        result = bon(b, "edit", item_id, "--done", "done differently")
+        assert result.returncode == 0, result.stderr
+        c = b.parent / "C-offline"
+        git(b.parent, "clone", str(origin), str(c))
+        item = board_items(c)[item_id]
+        assert item["brief"]["how"] == "offline change"
+        assert item["brief"]["done"] == "done differently"
+
+
+class TestGuards:
+    def test_dirty_tree_defers_rebase_and_push(self, two_clones):
+        a, b, origin = two_clones
+        new_item(b, "B item")          # B pushes; A is now behind
+        (a / "seed.txt").write_text("uncommitted local work\n")
+
+        origin_tip = git(origin, "rev-parse", "main").stdout.strip()
+        result = bon(a, "new", "A item", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0, result.stderr
+        assert "uncommitted changes" in result.stderr
+        # No rebase happened: the dirty file is intact, no rebase state dir.
+        assert (a / "seed.txt").read_text() == "uncommitted local work\n"
+        assert not (a / ".git" / "rebase-merge").exists()
+        # Nothing was pushed.
+        assert git(origin, "rev-parse", "main").stdout.strip() == origin_tip
+
+    def test_unpushed_non_board_commits_block_the_push(self, two_clones):
+        a, b, origin = two_clones
+        (a / "seed.txt").write_text("code work\n")
+        git(a, "add", "seed.txt")
+        git(a, "commit", "-m", "wip: deliberate unpushed code")
+
+        origin_tip = git(origin, "rev-parse", "main").stdout.strip()
+        result = bon(a, "new", "Board move", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0, result.stderr
+        assert "non-board" in result.stderr
+        # Board committed locally, but the wip commit was not published.
+        assert git(origin, "rev-parse", "main").stdout.strip() == origin_tip
+
+    def test_untracked_board_never_syncs(self, tmp_path):
+        repo = tmp_path / "solo"
+        repo.mkdir()
+        git(tmp_path, "init", "-b", "main", str(repo))
+        git(repo, "config", "user.name", "Solo")
+        git(repo, "config", "user.email", "solo@test.local")
+        (repo / "seed.txt").write_text("seed\n")
+        git(repo, "add", "seed.txt")
+        git(repo, "commit", "-m", "initial")
+
+        result = bon(repo, "init", "--prefix", "t")
+        assert result.returncode == 0, result.stderr
+        result = bon(repo, "new", "Local only", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0, result.stderr
+        # No sync commit was minted; the board file is simply untracked.
+        assert git(repo, "log", "--format=%s", "-1").stdout.strip() == "initial"
+
+    def test_sync_marker_off_disables(self, two_clones):
+        a, b, origin = two_clones
+        (a / ".bon" / "sync").write_text("off\n")
+        tip = git(a, "rev-parse", "HEAD").stdout.strip()
+        result = bon(a, "new", "Unsynced", "--why", "w", "--what", "x",
+                     "--done", "d", "-q")
+        assert result.returncode == 0, result.stderr
+        assert git(a, "rev-parse", "HEAD").stdout.strip() == tip
+
+
+class TestMergeItems:
+    def base(self):
+        return [
+            {"id": "t-one", "title": "one", "v": 1},
+            {"id": "t-two", "title": "two", "v": 1},
+        ]
+
+    def test_disjoint_edits_merge(self):
+        base = self.base()
+        ours = [dict(base[0], v=2), base[1]]
+        theirs = [base[0], dict(base[1], v=3)]
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == []
+        by_id = {i["id"]: i for i in merged}
+        assert by_id["t-one"]["v"] == 2
+        assert by_id["t-two"]["v"] == 3
+
+    def test_both_modified_differently_conflicts(self):
+        base = self.base()
+        ours = [dict(base[0], v=2), base[1]]
+        theirs = [dict(base[0], v=3), base[1]]
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == ["t-one"]
+
+    def test_both_modified_identically_is_clean(self):
+        base = self.base()
+        ours = [dict(base[0], v=2), base[1]]
+        theirs = [dict(base[0], v=2), base[1]]
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == []
+
+    def test_our_delete_their_modify_conflicts(self):
+        base = self.base()
+        ours = [base[0]]  # deleted t-two (archive)
+        theirs = [base[0], dict(base[1], v=9)]
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == ["t-two"]
+
+    def test_our_modify_their_delete_conflicts(self):
+        base = self.base()
+        ours = [base[0], dict(base[1], v=9)]
+        theirs = [base[0]]
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == ["t-two"]
+
+    def test_clean_delete_applies(self):
+        base = self.base()
+        ours = [base[0]]  # archived t-two
+        theirs = list(base)
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == []
+        assert {i["id"] for i in merged} == {"t-one"}
+
+    def test_both_added_same_id_different_content_conflicts(self):
+        base = self.base()
+        ours = base + [{"id": "t-new", "title": "ours"}]
+        theirs = base + [{"id": "t-new", "title": "theirs"}]
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == ["t-new"]
+
+    def test_their_addition_survives_our_write(self):
+        base = self.base()
+        ours = base + [{"id": "t-mine", "title": "mine"}]
+        theirs = base + [{"id": "t-theirs", "title": "theirs"}]
+        merged, conflicts = merge_items(base, ours, theirs)
+        assert conflicts == []
+        assert {i["id"] for i in merged} == {"t-one", "t-two", "t-mine", "t-theirs"}

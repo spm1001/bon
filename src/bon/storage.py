@@ -1,4 +1,5 @@
 """Storage operations for bon items."""
+import copy
 import json
 import os
 import subprocess
@@ -253,9 +254,18 @@ def load_items() -> list[dict]:
     return _load_items_jsonl(_data_dir() / "items.jsonl")
 
 
-def _load_items_jsonl(path: Path) -> list[dict]:
+# Board state as loaded, keyed by items.jsonl path. The git sync's
+# item-grain merge diffs a save against this, so a write after a rebase
+# can't clobber items another clone changed (the resena lesson at git
+# grain). Deep-copied: cli.py mutates the loaded dicts in place.
+_LOAD_SNAPSHOTS: dict[str, list[dict]] = {}
+
+
+def _load_items_jsonl(path: Path, record_snapshot: bool = True) -> list[dict]:
     """Parse, validate, and dedup a specific items.jsonl file."""
     if not path.exists():
+        if record_snapshot:
+            _LOAD_SNAPSHOTS[str(path)] = []
         return []
 
     seen: dict[str, dict] = {}  # id -> item (best version wins)
@@ -293,7 +303,10 @@ def _load_items_jsonl(path: Path) -> list[dict]:
             file=sys.stderr,
         )
 
-    return _normalise_waiting_for(list(seen.values()))
+    result = _normalise_waiting_for(list(seen.values()))
+    if record_snapshot:
+        _LOAD_SNAPSHOTS[str(path)] = copy.deepcopy(result)
+    return result
 
 
 def validate_item(item: dict, strict: bool = False) -> None:
@@ -338,9 +351,43 @@ def save_items(items: list[dict]) -> None:
     if _get_backend() == "dolt":
         from bon.dolt import dolt_save_items
         dolt_save_items(items)
-    else:
-        _save_items_jsonl(_data_dir() / "items.jsonl", items)
+        _refresh_bottle_quietly(_data_dir())
+        return
+    path = _data_dir() / "items.jsonl"
+    ctx = _presync_jsonl(path, items)
+    if ctx is not None:
+        items = ctx[1]
+    _save_items_jsonl(path, items)
     _refresh_bottle_quietly(_data_dir())
+    if ctx is not None:
+        from bon.gitsync import finalize
+        finalize(ctx[0])
+
+
+def _presync_jsonl(path: Path, items: list[dict]):
+    """Run the git sync's pre-write pass for a JSONL board (bon-guritu).
+
+    Returns (ctx, items_to_write) when sync engages, else None. A
+    same-item conflict raises BonError here — before anything is written,
+    so neither side's edit is silently dropped. Any other sync failure
+    degrades to an unsynced save: losing the sync must never lose the
+    write.
+    """
+    from bon.gitsync import prepare, presync
+    try:
+        ctx = prepare(path)
+        if ctx is None:
+            return None
+        merged = presync(
+            ctx, items, _LOAD_SNAPSHOTS.get(str(path)),
+            lambda: _load_items_jsonl(path, record_snapshot=False),
+        )
+        return (ctx, merged)
+    except BonError:
+        raise
+    except (OSError, subprocess.SubprocessError) as e:
+        warn(f"board sync: skipped ({e}) — saving locally.")
+        return None
 
 
 def _save_items_jsonl(path: Path, items: list[dict]) -> None:
@@ -550,9 +597,17 @@ def save_items_at(board: dict, items: list[dict]) -> None:
         from bon.dolt import dolt_save_items
         # board_root: register the TARGET repo's identity, not cwd's (bon-nolido)
         dolt_save_items(items, prefix=board["prefix"], board_root=board["root"])
-    else:
-        _save_items_jsonl(board["dir"] / "items.jsonl", items)
+        _refresh_bottle_quietly(board["dir"])
+        return
+    path = board["dir"] / "items.jsonl"
+    ctx = _presync_jsonl(path, items)
+    if ctx is not None:
+        items = ctx[1]
+    _save_items_jsonl(path, items)
     _refresh_bottle_quietly(board["dir"])
+    if ctx is not None:
+        from bon.gitsync import finalize
+        finalize(ctx[0])
 
 
 def archive_ids_at(board: dict) -> set[str]:

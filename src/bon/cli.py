@@ -172,6 +172,11 @@ def cmd_init(args):
     else:
         if not (bon_dir / "items.jsonl").exists():
             (bon_dir / "items.jsonl").touch()
+        # Board-local merge attributes: concurrent clones' different-item
+        # edits union cleanly under the CLI-owned sync (bon-guritu).
+        if not (bon_dir / ".gitattributes").exists():
+            from bon.gitsync import GITATTRIBUTES_CONTENT
+            (bon_dir / ".gitattributes").write_text(GITATTRIBUTES_CONTENT)
         print(f"{verb} .bon/ with prefix '{prefix}'")
 
     print()

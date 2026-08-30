@@ -288,6 +288,24 @@ bon migrate --to dolt                      # Existing project to Dolt
 bon migrate --to jsonl                     # Back to JSONL
 ```
 
+**JSONL boards sync themselves on write (bon-guritu, `src/bon/gitsync.py`).** Every
+mutating verb on a JSONL board runs fetch → rebase → item-grain merge → write →
+commit → push, so teammates' clones converge with no git discipline. Engagement is
+self-gating: items.jsonl must be git-TRACKED (committing the board is the deliberate
+adoption step — fresh `bon init` boards and gitignored `.bon/` repos never sync), the
+branch needs a configured upstream, and `.bon/sync` containing `off` disables it
+(`~/notes` carries that marker: notes-sync owns every git write there; `BON_SYNC=off`
+in the environment is the per-process override). Semantics worth knowing: a same-item
+edit on two clones is ONE loud conflict before anything is written — origin's version
+stays in the tree, the verb's change is not applied, nothing is lost; offline degrades
+to write + commit locally with one warning, and a later verb pushes the backlog; a
+push is refused (with the reason named) when unpushed commits touch non-board files,
+so a board verb can never publish code as a side effect. The item-grain three-way
+merge (`merge_items`) is the same grain lesson as Dolt's diff-at-save: a whole-file
+write after an integrate would clobber the other clone. `bon init` seeds
+`.bon/.gitattributes` (`*.jsonl merge=union`) so the git-level merge is line-wise
+under rebase.
+
 ## Key Files
 
 | Need to... | Read... |
