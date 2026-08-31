@@ -34,7 +34,7 @@ Capture what matters while context is rich, then commit and exit.
 ```
 Orient        → find scripts, verify .bon, close-context.sh → context, HANDOFF_DIR, SESSION_ID
 Reflect       → review session's work, propose Now/Bon plan → user reviews
-Act           → execute, craft handoff, commit → overnight Claude reviews
+Act           → execute, craft handoff, cold-read it, commit → overnight Claude reviews
 ```
 
 ---
@@ -232,6 +232,8 @@ Wait for approval or adjustment before doing anything.
 
 Work through the list. Finish the quick fixes, close off completed Bon items - generally leave things how you'd like to find them.
 
+**Closing something a fresh reader ought to check first?** `bon step --no-complete` on the final step finishes the tactical without closing the card, so the verdict can wait for the check instead of the check chasing the verdict — `bon step` otherwise auto-completes on the last step, which closes the card before anyone has read the work. `bon reopen` undoes a close that got ahead of itself.
+
 ### File the new bons
 
 When filing bons, the `--why` should explain what's at stake — not just describe the work. Use `bon new --json` for anything with technical content. Capture enough detail in the `--how` that a future Claude could pick it up without your context load.
@@ -378,6 +380,20 @@ for f in <handoff-dir>/*.md; do b=$(basename "$f"); [ "$b" = LEDGER.md ] && cont
 
 Candidate mode included — the ledger append is a Write-tool edit, no CLI needed, and the candidate-bearing handoffs are exactly the ones the sweep must not drop. A repo with its own richer ledger convention (prose-heavy lines, extra columns): keep its register, but lead the line with the checkbox so the sweep can see it.
 
+
+### Cold eyes on the handoff (bon-dimadu)
+
+Before committing, hand the finished handoff to one fresh-context subagent. Every other claim in this rite was checked by the session that made it; the handoff is written *after* all of that, so nothing has ever read the finished artefact cold — and its Opportunities section is the baton the next session's hook puts in front of whoever opens. Measured on 2026-08-30: one such read returned 19 findings on a single file, none of them fabrication.
+
+**The bar is always** (Sameer, 2026-08-31), skippable only with a reason you state in the close summary — "the handoff is four lines and cites nothing" is a fine reason; "the session went smoothly" is not one, because a smooth session is exactly where an unchecked claim slides through.
+
+Give the reader the whole file and a narrow brief. The measured failure class is specific, so name it rather than asking for scepticism in general:
+
+> Read this handoff as the next Claude, who has none of the writing session's context and all of its responsibility. Three questions. (1) What here would mislead you — quote the sentence and say what you would wrongly believe. (2) What did that session evidently know that is missing — name the gap, not a wish. (3) Read each Opportunities bullet's FIRST SENTENCE ALONE: the session-start hook trims them to that, so a bullet whose first sentence misleads in isolation is broken however good the rest is. Also flag any finding stated without a verdict, and any next move stated without an owner. If nothing would mislead you, say so and list what you checked — an examined all-clear is a real answer, and inventing a finding to look useful is worse than none.
+
+Two things make that prompt hard to rubber-stamp, and both are deliberate. It asks for artefacts a bare agreement cannot produce — a quoted sentence, a named gap, an owner — so "looks good" does not fit the shape of the ask. And it licences an honest all-clear, so the reader is never pushed into manufacturing findings to justify itself.
+
+Then fold what lands. A finding you accept gets fixed in the file before the commit; one you reject gets a sentence in the close summary saying why, because "the cold reader raised X and I disagreed, for Y" is itself useful to the next session. Keep the reader on a peer-quality model — a cheaper verifier than the writer is the rubber stamp this step exists to avoid.
 
 ### Net board motion (bon-racafo)
 
