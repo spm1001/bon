@@ -60,9 +60,11 @@ answer looks exactly like a good one, so four things are refused or announced:
   value pulled in is never reported as dropped) and, when `--repos` and `--job`
   compose, the boards `--repos` matched that `--job` then discarded.
 
-The last three of those four were each found by an adversarial pass rather
-than by design, which is the honest provenance to carry: the first version of
-this hardening still widened silently on `--repos=bon`.
+Provenance, since it is the useful part: the empty-flag and no-match exits
+shipped by design, while the whole first bullet and both refinements in the
+last one came out of adversarial rounds AFTER the card looked finished. The
+first version of this hardening still surveyed all 52 boards, silently, on
+`--repos=bon`; the second still dropped a value after `--window-days`.
 
 Usage:
     uv run --script audit_survey.py                        # JSON to stdout
@@ -897,13 +899,21 @@ def apply_job_filter(
     return kept
 
 
-# Every option this script understands, and whether it takes values.
+# Every option this script understands, and HOW MANY values it takes:
+# 0 = bare switch, 1 = exactly one, None = one or more.
+#
+# The arity is the load-bearing part, not decoration. A boolean "takes values"
+# left `--repos bon --window-days 7 notes` accepting `notes` as belonging to
+# `--window-days`, which reads only argv[idx+1) — so a scope value the caller
+# typed was dropped at exit 0 with empty stderr, which is this card's fault
+# reappearing inside the guard built to end it (found by the post-repair
+# essayeur, 2026-08-31).
 KNOWN_FLAGS = {
-    "--roots": True,
-    "--repos": True,
-    "--job": True,
-    "--window-days": True,
-    "--full-dones": False,
+    "--roots": None,
+    "--repos": None,
+    "--job": None,
+    "--window-days": 1,
+    "--full-dones": 0,
 }
 
 
@@ -923,7 +933,8 @@ def reject_unknown_argv(argv: list[str]) -> None:
     The empty-value check next door is one door; this is the corridor.
     """
     seen: set[str] = set()
-    takes_values: str | None = None
+    current: str | None = None
+    taken = 0
     known = ", ".join(sorted(KNOWN_FLAGS))
 
     for tok in argv:
@@ -952,14 +963,26 @@ def reject_unknown_argv(argv: list[str]) -> None:
                 )
                 sys.exit(2)
             seen.add(tok)
-            takes_values = tok if KNOWN_FLAGS[tok] else None
-        elif takes_values is None:
+            current = tok if KNOWN_FLAGS[tok] != 0 else None
+            taken = 0
+        elif current is None:
             print(
                 f"Unexpected argument {tok!r} — it follows no option that "
                 f"takes values.\nKnown options: {known}",
                 file=sys.stderr,
             )
             sys.exit(2)
+        else:
+            taken += 1
+            arity = KNOWN_FLAGS[current]
+            if arity is not None and taken > arity:
+                print(
+                    f"{current} takes {arity} value(s); {tok!r} is one too "
+                    f"many. It would have been read by nothing at all — which "
+                    f"is how a scope value gets dropped in silence.",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
 
 
 def main():

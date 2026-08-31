@@ -528,3 +528,45 @@ class TestUnknownArgvEndToEnd:
         r = self._run("--repo", "bon")
         assert r.returncode == 2
         assert r.stdout == ""
+
+
+class TestFlagArity:
+    """`--repos bon --window-days 7 notes` surveyed only `bon`, exit 0,
+    empty stderr — `notes` belonged to nothing and was read by nothing.
+    The corridor accepted it because "takes values" carried no arity, so
+    the card's own fault reappeared inside the guard built to end it.
+    """
+
+    def test_the_refuting_invocation_now_refuses(self, capsys):
+        with pytest.raises(SystemExit) as e:
+            audit_survey.reject_unknown_argv(
+                ["--repos", "bon", "--window-days", "7", "notes"]
+            )
+        assert e.value.code == 2
+        err = capsys.readouterr().err
+        assert "notes" in err
+        assert "--window-days" in err
+
+    def test_window_days_accepts_exactly_one(self):
+        audit_survey.reject_unknown_argv(["--window-days", "14"])
+
+    def test_multi_value_flags_still_unbounded(self):
+        audit_survey.reject_unknown_argv(
+            ["--repos", "a", "b", "c", "d", "--job", "x", "y"]
+        )
+
+    def test_arity_resets_between_flags(self):
+        # --window-days 7 then --repos with several: the counter must reset,
+        # or the second flag inherits the first's exhausted budget.
+        audit_survey.reject_unknown_argv(
+            ["--window-days", "7", "--repos", "a", "b", "c"]
+        )
+
+    def test_end_to_end_does_not_survey_the_estate(self):
+        r = subprocess.run(
+            [sys.executable, str(SCRIPT),
+             "--repos", "bon", "--window-days", "7", "notes"],
+            capture_output=True, text=True,
+        )
+        assert r.returncode == 2
+        assert r.stdout == ""
