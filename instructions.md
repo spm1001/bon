@@ -6,7 +6,7 @@ Auto-loaded via `~/.claude/rules/bon.md`. Carries always-on rules only — skill
 
 When `.bon/` exists, invoke `Skill(open)` at session start and before bon CLI commands — it provides context that makes the rest of the session better.
 
-Bon is the default tracker. Check bon briefs for staleness before executing.
+Bon is the default tracker. Check bon briefs for staleness before executing — the open skill's "Three legs of staleness" names the method, and it is three commands, not an investigation.
 
 When a skill or tool fails during real work: file a Field Report bon item in the repo that owns it.
 

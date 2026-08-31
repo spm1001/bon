@@ -189,12 +189,27 @@ A target carrying its own visiting protocol in CLAUDE.md (route → read on entr
 1. **`bon show <id>`** — verify the item exists, check its type and brief
    - If the ID came from a handoff or memory, it may have been archived. Verify first.
    - If `Type: outcome`, pick one of its actions instead.
-2. **`bon work <id>`** — initialize tactical steps from `--what`
+2. **Three legs of staleness** — see below. About thirty seconds; skip for a card you filed this session.
+3. **`bon work <id>`** — initialize tactical steps from `--what`
    - Shows "Approach:" context from `--how` when present
    - If `--what` has no numbered steps, provide explicit ones: `bon work <id> "Step 1" "Step 2"`
    - **A `Baton (date): <handoff>` line means another session last worked this thread** (bon-jeweke: the newest handoff citing this item in its `items:` frontmatter). Read that handoff before starting — it is the directional briefing addressed to whoever picks the thread up, which is now you. A fresh item shows no Baton line.
-3. **Work through with checkpoints:** `bon step` after each
-4. **Final step auto-completes** the action
+4. **Work through with checkpoints:** `bon step` after each
+5. **Final step auto-completes** the action
+
+### Three legs of staleness (bon-kejika)
+
+A brief is written at the moment of least knowledge about the work, and everything after that makes it wronger. The bon instruction shard has long said to check briefs for staleness before executing, without naming a method — this is the method, borrowed from the dispatch loop, where it caught two of ten queue lines describing work that had already shipped before any worker rebuilt it (2026-08-30). A solo session drawing a card down has the same exposure and nobody above it to catch the miss.
+
+One command each, on the brief you just read:
+
+1. **Do the named artefacts still exist?** `ls` the paths the brief names. Renames are invisible from a brief, and a path that moved reads as a path that was never built.
+2. **Has the card been overtaken?** Read the tail of `--how`, which `bon show` has already printed. Supersession notes, `PARKED for Sameer:` lines and other lanes' claims all land there — bon refuses a second `bon work` anywhere in one clone, so a parallel lane's claim arrives as appended brief prose rather than in `bon work --status` (bon-kapipu).
+3. **Is a sibling already building it?** `bon list` and look for an open item producing the same artefact. Near-duplicate items spike when several sessions run in parallel, and the board is where that becomes visible.
+
+**A failing leg is information, not a stop sign.** Say what you found before starting rather than discovering it forty minutes into an implementation: `bon edit ID --append-how "STALE <date>: <what you found>"`, then either pick something else or re-brief the card and carry on. Where the evidence needs a human — the desire may have changed, not just the facts — park it in the same append and move on.
+
+Three legs is the whole check. A fourth, or a fifteen-minute investigation, is the failure mode this is guarding against: an orientation nobody finishes is worse than one that occasionally misses.
 
 **Constraints:**
 - **Actions only** — `bon work` on an outcome will error
