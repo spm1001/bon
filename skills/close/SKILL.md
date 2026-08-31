@@ -257,13 +257,18 @@ Your handoff has two specific audiences.
 
 #### Template
 
-```markdown
-# Handoff — {DATE}
+The head block is real YAML frontmatter (fond-v2, 2026-08-31). Every old reader survives the fences — the `^purpose:` grep, the `# Handoff —` date ranker and the `items:` baton scan are all line-anchored, so a fond-v1 file with bare keys still parses — but the fences let frontmatter-aware tooling (mit-kg's `kg gen ledger` renders its swept column and gist from them) read the same lines as structured data. One YAML footgun: a `: ` (colon-space) inside the purpose line breaks the block's parse — readers then degrade gracefully to fond-v1 behaviour, but reword with a dash instead.
 
+```markdown
+---
 session_id: {SESSION_ID}
-purpose: {one line — what the session was for}
+purpose: {one line — what the session was for; no ": " — use a dash}
+author: {your OKF actor id, e.g. claude/fable-5}
 items: {bon IDs this session WORKED — closed, stepped, or materially advanced. One physical line, comma-separated, full IDs. NOT items merely filed at close: their brief carries its own origin, and listing them would brief the next runner on a thread no session has run. Omit the line when none}
-format: fond-v1
+format: fond-v2
+---
+
+# Handoff — {DATE}
 
 ## For the next Claude
 

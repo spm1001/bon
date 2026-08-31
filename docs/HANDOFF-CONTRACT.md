@@ -45,18 +45,22 @@ Each handoffs directory may carry a `LEDGER.md`: one line per handoff, newest fi
 ### Metadata (first 5 lines)
 
 ```
-# Handoff — YYYY-MM-DD
-
+---
 session_id: <uuid or identifier>
-purpose: <one-line summary>
+purpose: <one-line summary — no ": " (colon-space), which breaks the YAML parse>
+author: <OKF actor id, e.g. claude/fable-5>
 items: <bon IDs worked, comma-separated>
-format: fond-v1
+format: fond-v2
+---
+
+# Handoff — YYYY-MM-DD
 ```
 
 - `session_id` — identifies the originating session. Used for debugging and log correlation.
 - `purpose` — human-readable summary.
 - `items` — optional (v7, bon-jeweke): the bon IDs this session WORKED (closed, stepped, materially advanced — never merely filed, whose briefs carry their own origin). One physical line, comma-separated, full IDs. This is the baton's address — `bon work` surfaces the newest handoff citing the drawn item at draw-down, so the thread's briefing reaches its next runner rather than whoever opens next. Absent when no board items were worked, and in all pre-v7 handoffs.
-- `format` — template version. `fond-v1` indicates the two-zone layout below. Absent in legacy handoffs.
+- `author` — optional (v8): the writing session's OKF actor id (`claude/<model>`, `human:<id>`, `process:<id>`). Frontmatter-aware renderers (mit-kg's `kg gen ledger`) show it per line.
+- `format` — template version. `fond-v1` indicates the two-zone layout below with bare metadata lines; `fond-v2` is the same layout with the metadata fenced as real YAML frontmatter. Absent in legacy handoffs.
 
 ### Two-Zone Layout (fond-v1)
 
@@ -162,7 +166,7 @@ Reads the Compost zone (`## For Claudes to come`) and synthesizes into understan
 
 ## Versioning
 
-This is v7.
+This is v8.
 
 - **v1** (Jan 2026): Initial contract. `~/.claude/handoffs/` location, flat sections.
 - **v2** (Feb 2026): Path encoding widened. Still `~/.claude/handoffs/`.
@@ -171,3 +175,4 @@ This is v7.
 - **v5** (Jul 2026): Candidate mode (bon-pujawo). An optional `### Candidates` block in Zone 1 lets a no-writer session (board visible, writer unreachable — e.g. Cowork) record board mutations for a writer-bearing `/open` to mint. Additive and optional; the handoff format stays `fond-v1`.
 - **v6** (Aug 2026): `.bon/handoffs/` retired as a resolution rung (bon-sedoze). The visible `handoffs/` is now the default for a fresh board, not just an opt-in, and the reader no longer looks under `.bon/`. Because bon ships publicly, the same change carries the migration: `handoff_migrate_legacy` converges a legacy pile onto the visible dir on the back of the next open or close, so no consumer sees a session with their handoffs missing. The v4 note above is the state this supersedes — kept because a reader may still hold it.
 - **v7** (Aug 2026): The ledger sweep (bon-supuko) and the baton (bon-jeweke). `LEDGER.md` per handoffs dir with `- [ ]` processed-markers; the close appends, the open sweeps ALL unticked lines and ticks them — latest-wins survives only as the fallback for un-ledgered repos. Metadata gains the optional `items:` field (the bon IDs a session worked); `bon work` surfaces the newest handoff citing the drawn item, so the thread briefing follows the ticket. Both additive: no existing file changes shape.
+- **v8** (Aug 2026): fond-v2 — the metadata block gains `---` fences (real YAML frontmatter) and an optional `author:` field. Motivated by mit-kg's generated ledger (kg-gonose): a frontmatter-aware renderer reads `purpose`/`author`/`swept` as data, while every fond-v1 consumer survives unchanged because all are line-anchored — the `^purpose:` grep (open-context.sh), the `# Handoff —` date ranker, and the `items:` baton scan each match the same lines fenced or bare. Verified against all three before shipping. fond-v1 files stay valid forever; a `: ` inside a fenced value breaks that block's YAML parse, degrading that file to fond-v1 behaviour rather than erroring.
