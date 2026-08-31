@@ -2,7 +2,7 @@
 
 One line per handoff, newest first. `- [ ]` = not yet processed by an /open sweep; every close appends its line in the same change that writes the handoff (HANDOFF-CONTRACT v7, bon-supuko).
 
-- [ ] 2026-08-30 [2026-08-30-2318-fb49cab3.md](2026-08-30-2318-fb49cab3.md) — The Common Core five land as one session and publish before the mit rite fork (bon-guritu, bon-supuko, bon-jeweke, bon-nalube, bon-hedatu)
+- [x] 2026-08-30 [2026-08-30-2318-fb49cab3.md](2026-08-30-2318-fb49cab3.md) — The Common Core five land as one session and publish before the mit rite fork (bon-guritu, bon-supuko, bon-jeweke, bon-nalube, bon-hedatu) (processed 2026-08-31)
 - [x] ---------- [fond-seed.md](fond-seed.md) — pre-ledger history (processed at adoption 2026-08-30)
 - [x] ---------- [fe586a29.md](fe586a29.md) — pre-ledger history (processed at adoption 2026-08-30)
 - [x] ---------- [fe0ee116.md](fe0ee116.md) — pre-ledger history (processed at adoption 2026-08-30)
