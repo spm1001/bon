@@ -2491,6 +2491,58 @@ def _gitignored_durable_advisory() -> list[str]:
     ]
 
 
+# A DATED stamp, not the words. The generated bridge doc now carries an "Open —
+# close this out when the migration lands" section telling the reader what to
+# append, so a bare word-match would read every fresh doc as already closed —
+# a check that could never fire. The date is the part only a human can supply.
+CLOSEOUT_STAMP = re.compile(r"closed[ -]out\s+\d{4}-\d{2}-\d{2}", re.IGNORECASE)
+
+
+def _bridge_doc_advisory() -> list[str]:
+    """Advisory lines for an id-migration bridge doc with no close-out stamp (bon-kefoba).
+
+    A bridge doc exists to answer "where did that id go", which makes it the
+    FIRST thing a future reader consults and the LAST thing a migration sweep
+    thinks to check. It is written in the present tense about an in-flight
+    change — "these two pointers want updating", "the correct target is
+    genuinely unknown" — and that tense is what goes stale. The sweep cannot
+    catch it either: grep the retired id and the bridge doc turns up looking
+    like a correct record, because on the day it was written it was one.
+    That is how bon-zigupa's migration finished with its own bridge doc still
+    telling readers to do work that was already done (2026-08-31, caught by
+    an essayeur rather than by the session that did the sweep).
+
+    So the check is presence-of-a-stamp, not correctness-of-content: a bridge
+    doc naming no close-out is flagged, and appending one dated section
+    silences it forever. Deliberately NOT parsing the migrated ids — the
+    estate's own rename doctrine says never to key on an id-shaped pattern,
+    and a stamp is a claim the human made rather than one we inferred.
+    """
+    data_dir = _data_dir()
+    # `.bon/` is where reprefix-board.py writes them; `docs/` catches the
+    # hand-made ones that predate the tool (cornichon's, 2026-08-08).
+    candidates = sorted(data_dir.glob("id-migration-*.md")) + sorted(
+        (data_dir.parent / "docs").glob("id-migration-*.md")
+    )
+    found = []
+    for path in candidates:
+        try:
+            body = path.read_text(errors="replace")
+        except OSError:
+            continue
+        if not CLOSEOUT_STAMP.search(body):
+            found.append(path.name)
+    if not found:
+        return []
+    return [
+        f"id-migration bridge doc with no close-out stamp: {', '.join(found)}",
+        "A bridge doc is written in the present tense about a migration in flight, so once the",
+        "last pointer is corrected it starts telling the next reader to do work already done —",
+        "and it is the first artefact they consult. Append one dated 'Closed out YYYY-MM-DD'",
+        "section saying what landed; leave the original text as the record of what was true then.",
+    ]
+
+
 def cmd_doctor(args):
     """Check items.jsonl for health issues."""
     check_initialized()
@@ -2548,6 +2600,11 @@ def cmd_doctor(args):
         if stale:
             print("\nStale claims (advisory — not counted as issues):")
             for line in stale:
+                print(f"  {line}")
+        bridges = _bridge_doc_advisory()
+        if bridges:
+            print("\nUnclosed migration bridge (advisory — not counted as issues):")
+            for line in bridges:
                 print(f"  {line}")
         gitignored = _gitignored_durable_advisory()
         if gitignored:
@@ -2734,6 +2791,11 @@ def cmd_doctor(args):
         for line in stale:
             print(f"  {line}")
 
+    bridges = _bridge_doc_advisory()
+    if bridges:
+        print("\nUnclosed migration bridge (advisory — not counted as issues):")
+        for line in bridges:
+            print(f"  {line}")
     gitignored = _gitignored_durable_advisory()
     if gitignored:
         print("\nSync hazard (advisory — not counted as issues):")

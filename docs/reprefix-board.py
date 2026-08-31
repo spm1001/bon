@@ -130,6 +130,22 @@ lookup = [f"# id migration {date.today().isoformat()} — prefix {old_prefix} ->
           "| old | new |", "|---|---|"]
 for old, new in sorted(id_map.items()):
     lookup.append(f"| {old} | {new} |")
+# State the close-out obligation at birth (bon-kefoba). This file is written
+# in the PRESENT tense about a migration still in flight, and that tense is
+# what goes stale: once the last pointer is corrected it starts telling the
+# next reader to do work already done — and being the artefact that answers
+# "where did that id go", it is the first thing they consult. A sweep for the
+# retired id finds it and it reads like a correct record, because on the day
+# it was written it was one. `bon doctor` flags a bridge doc carrying no
+# close-out stamp, so the marker below is what silences it.
+lookup += ["",
+           "## Open — close this out when the migration lands", "",
+           "While this section says Open, the pointers below may still need",
+           "correcting and this file is a live instruction, not a record.",
+           "When the last pointer is corrected, APPEND a dated section headed",
+           "`Closed out YYYY-MM-DD` saying what landed — do not rewrite the text",
+           "above, which is the record of what was true on the day. `bon doctor`",
+           "reports this file until that stamp exists."]
 lookup_text = "\n".join(lookup) + "\n"
 
 if not apply:

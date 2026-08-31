@@ -1,5 +1,6 @@
 """Tests for bon doctor command."""
 import json
+import re
 
 import pytest
 
@@ -447,3 +448,99 @@ def test_doctor_no_sync_advisory_outside_git(bon_dir):
 
     assert "Sync hazard" not in result.stdout
     assert "All clear." in result.stdout
+
+
+# ---------- unclosed migration bridge docs (bon-kefoba) ----------
+#
+# A bridge doc exists to answer "where did that id go", which makes it the
+# first artefact a future reader consults and the last one a migration sweep
+# thinks to check. It is written in the present tense about a change in
+# flight, and that tense goes stale — bon-zigupa finished with its own bridge
+# doc still telling readers to do work already done.
+
+BRIDGE = "id-migration-2026-08-30.md"
+
+
+def _bridge_board(tmp_path, body, where=".bon"):
+    repo = tmp_path / "repo"
+    (repo / ".bon").mkdir(parents=True)
+    (repo / ".bon" / "prefix").write_text("test\n")
+    (repo / ".bon" / "items.jsonl").write_text("")
+    target = repo / where
+    target.mkdir(parents=True, exist_ok=True)
+    (target / BRIDGE).write_text(body)
+    return repo
+
+
+def test_bridge_doc_without_a_stamp_is_flagged(tmp_path):
+    repo = _bridge_board(tmp_path, "# id migration\n\nThese pointers want updating.\n")
+    result = run_bon("doctor", cwd=repo)
+    assert result.returncode == 0
+    assert BRIDGE in result.stdout
+    assert "Unclosed migration bridge" in result.stdout
+
+
+def test_a_dated_stamp_silences_it(tmp_path):
+    repo = _bridge_board(
+        tmp_path,
+        "# id migration\n\nThese pointers wanted updating.\n\n"
+        "## Closed out 2026-08-31\n\nAll pointers corrected.\n",
+    )
+    result = run_bon("doctor", cwd=repo)
+    assert BRIDGE not in result.stdout
+
+
+def test_the_words_alone_do_not_count_only_a_date(tmp_path):
+    # THE CONTROL THAT MATTERS. The generated template tells the reader to
+    # append a "Closed out YYYY-MM-DD" section, so a word-match would read
+    # every freshly generated doc as already closed — a check that could
+    # never fire. Only a real date discriminates.
+    repo = _bridge_board(
+        tmp_path,
+        "# id migration\n\n## Open — close this out when the migration lands\n\n"
+        "When the last pointer is corrected, APPEND a dated section headed\n"
+        "`Closed out YYYY-MM-DD` saying what landed.\n",
+    )
+    result = run_bon("doctor", cwd=repo)
+    assert BRIDGE in result.stdout, "a template placeholder must not read as a stamp"
+
+
+def test_a_docs_bridge_doc_is_seen_too(tmp_path):
+    # cornichon's predates the tool and lives in docs/, not .bon/.
+    repo = _bridge_board(tmp_path, "# id migration\n\npointers want updating\n", where="docs")
+    result = run_bon("doctor", cwd=repo)
+    assert BRIDGE in result.stdout
+
+
+def test_no_bridge_doc_means_silence(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".bon").mkdir(parents=True)
+    (repo / ".bon" / "prefix").write_text("test\n")
+    (repo / ".bon" / "items.jsonl").write_text("")
+    result = run_bon("doctor", cwd=repo)
+    assert "Unclosed migration bridge" not in result.stdout
+
+
+def _issue_count(stdout: str) -> int:
+    m = re.search(r"(\d+) issue\(s\) found", stdout)
+    return int(m.group(1)) if m else 0
+
+
+def test_the_advisory_is_not_counted_as_an_issue(tmp_path):
+    """Advisories never inflate the issue count — the stale-claims precedent.
+
+    Compared against the SAME board without the bridge doc, because these
+    synthetic boards trip the unrelated bottle check; asserting on an absolute
+    count would have measured that instead of the thing under test.
+    """
+    without = tmp_path / "without"
+    (without / ".bon").mkdir(parents=True)
+    (without / ".bon" / "prefix").write_text("test\n")
+    (without / ".bon" / "items.jsonl").write_text("")
+    base = run_bon("doctor", cwd=without)
+
+    repo = _bridge_board(tmp_path, "# id migration\n\npointers want updating\n")
+    withdoc = run_bon("doctor", cwd=repo)
+
+    assert BRIDGE in withdoc.stdout, "control: the advisory must actually be firing"
+    assert _issue_count(withdoc.stdout) == _issue_count(base.stdout)
