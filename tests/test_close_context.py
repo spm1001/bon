@@ -723,3 +723,76 @@ class TestBoardMotionTimezone:
         _stub_bon(home, [])
         out = self._run_tz(repo, home, "Europe/London")
         assert "no dated handoff found" in out["MOTION_SINCE"]
+
+
+class TestMigrationBridgeSurfacing:
+    """close-context.sh greps `bon doctor` for the bridge advisory, which
+    retypes the wording cli.py emits. Nothing bound the two, so rewording the
+    advisory would have killed the /close surfacing silently with nothing
+    going red (bon-kefoba's post-repair essayeur). These pin the coupling.
+    """
+
+    def _dev_bon(self, home: Path) -> None:
+        """A `bon` on PATH that runs THIS repo's source, not the stale install."""
+        bindir = home / "bin"
+        bindir.mkdir(parents=True, exist_ok=True)
+        stub = bindir / "bon"
+        stub.write_text(
+            "#!/bin/sh\n"
+            f'exec env PYTHONPATH={REPO_ROOT / "src"} python3 -m bon.cli "$@"\n'
+        )
+        stub.chmod(0o755)
+
+    def _run(self, cwd: Path, home: Path):
+        return subprocess.run(
+            ["bash", str(CLOSE_CONTEXT)],
+            capture_output=True, text=True, cwd=cwd,
+            env={
+                "HOME": str(home),
+                "PATH": f"{home}/bin:/usr/local/bin:/usr/bin:/bin",
+                "TZ": "UTC",
+                "BON_TEST_NOW_HM": "1200",
+                "CLAUDE_CODE_SESSION_ID": "abcd1234-1111-2222-3333-444444444444",
+            },
+        )
+
+    def test_an_unclosed_bridge_doc_reaches_the_close_rite(self, tmp_path):
+        repo, home = _board(tmp_path)
+        (repo / ".bon" / "id-migration-2026-08-30.md").write_text(
+            "# id migration\n\nthese pointers want updating\n"
+        )
+        self._dev_bon(home)
+        r = self._run(repo, home)
+        assert "=== MIGRATION BRIDGE ===" in r.stdout
+        assert "BRIDGE_UNCLOSED=id-migration-2026-08-30.md" in r.stdout
+        assert "BRIDGE_CUE=" in r.stdout
+
+    def test_a_stamped_doc_stays_silent(self, tmp_path):
+        repo, home = _board(tmp_path)
+        (repo / ".bon" / "id-migration-2026-08-30.md").write_text(
+            "# id migration\n\n## Closed out 2026-08-31\n\nall pointers corrected\n"
+        )
+        self._dev_bon(home)
+        r = self._run(repo, home)
+        assert "MIGRATION BRIDGE" not in r.stdout
+
+    def test_no_bridge_doc_stays_silent(self, tmp_path):
+        repo, home = _board(tmp_path)
+        self._dev_bon(home)
+        r = self._run(repo, home)
+        assert "MIGRATION BRIDGE" not in r.stdout
+
+    def test_the_script_survives_a_bon_that_fails(self, tmp_path):
+        # The whole script must not die when the CLI errors — a Dolt board
+        # with the server down exits non-zero, and pipefail plus set -e once
+        # killed close-context mid-output, losing every later section.
+        repo, home = _board(tmp_path)
+        bindir = home / "bin"
+        bindir.mkdir(parents=True, exist_ok=True)
+        stub = bindir / "bon"
+        stub.write_text('#!/bin/sh\necho "boom" >&2\nexit 1\n')
+        stub.chmod(0o755)
+        r = self._run(repo, home)
+        assert r.returncode == 0, r.stderr
+        # Sections AFTER the board-motion block must still be emitted.
+        assert "TODAY=" in r.stdout, "the script died before reaching META"

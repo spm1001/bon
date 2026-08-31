@@ -2533,6 +2533,10 @@ def _bridge_doc_advisory() -> list[str]:
         try:
             body = path.read_text(errors="replace")
         except OSError:
+            # An unreadable candidate is not an absent one. Skipping silently
+            # would read "cannot see it" as "nothing to see" — the fault this
+            # whole advisory exists to prevent, turned on the detector itself.
+            found.append(f"{path.name} (unreadable)")
             continue
         # A stamp dated in the FUTURE is a promise, not a close-out — "will be
         # closed out 2026-12-01 once the sweep lands" matched the pattern and

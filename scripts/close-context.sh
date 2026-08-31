@@ -51,7 +51,14 @@ validate_dependencies
 # at summary time from one source of truth rather than a copy in skill prose.
 emit_board_motion() {
     local since="$1" root="$2" cmd="$3"
-    (cd "$root" && "$cmd" log -n 500 --json 2>/dev/null) \
+    # `|| true` inside the subshell, for the second time in this file and the
+    # same reason: on a Dolt board with the server down, `bon log` exits 1,
+    # pipefail lifts that to the pipeline, and `set -e` then kills the whole
+    # script HERE — losing every section after BOARD MOTION, including the
+    # migration-bridge block below. The bon-cuvice death again, and the
+    # comment forty lines up guards a different pipeline against exactly it.
+    # Found by bon-kefoba's essayeur in code this session had already shipped.
+    (cd "$root" && { "$cmd" log -n 500 --json 2>/dev/null || true; }) \
         | MOTION_SINCE="$since" python3 -c '
 import json, os, sys
 
