@@ -2,6 +2,7 @@
 
 One line per handoff, newest first. `- [ ]` = not yet processed by an /open sweep; every close appends its line in the same change that writes the handoff (HANDOFF-CONTRACT v7, bon-supuko).
 
+- [ ] 2026-09-01 [2026-09-01-0051-97e40180.md](2026-09-01-0051-97e40180.md) — The /close cold reader gets a budget, a findings-only rule and a completion marker, so a dead read is detectable whenever the closer checks for the marker: shipped in suite 1.84.2, verified by four live reads including the mature repo that killed the first reader, and corrected twice by a negative control that refused to die (bon-besozi, bon-lugetu)
 - [ ] 2026-08-31 [2026-08-31-2248-9fd9df2c.md](2026-08-31-2248-9fd9df2c.md) — Day-one audit of the cold-eyes gate: 14 reads measured, two new tail mechanisms, evidence folded into bon-besozi and the card queued for solo execution
 - [ ] 2026-08-31 [2026-08-31-1424-8ee05ceb.md](2026-08-31-1424-8ee05ceb.md) — Seven rite cards in one batch: /open gains staleness legs and an orientation breadcrumb, /close gains a cold-eyes gate and a board-motion tally, the survey's scope flags stop guessing, a stale migration bridge doc announces itself (bon-kejika, bon-libito, bon-racafo, bon-zevajo, bon-lateje, bon-dimadu, bon-kefoba)
 - [x] 2026-08-30 [2026-08-30-2318-fb49cab3.md](2026-08-30-2318-fb49cab3.md) — The Common Core five land as one session and publish before the mit rite fork (bon-guritu, bon-supuko, bon-jeweke, bon-nalube, bon-hedatu) (processed 2026-08-31)
