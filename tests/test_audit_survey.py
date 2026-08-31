@@ -570,3 +570,46 @@ class TestFlagArity:
         )
         assert r.returncode == 2
         assert r.stdout == ""
+
+
+class TestRemainingScopeEdges:
+    """Round-3 essayeur WATCH items: two more ways a scope value changed the
+    answer without saying so, plus a stale shipped example.
+    """
+
+    def _run(self, *args):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True, text=True,
+        )
+
+    def test_negative_window_refused(self):
+        # Accepted at exit 0 before: the dones cutoff landed in the future
+        # (empty recent-wins) while git read the same string as a past window
+        # and reported commits — two halves of one output disagreeing.
+        r = self._run("--window-days", "-7")
+        assert r.returncode == 2
+        assert "negative" in r.stderr
+        assert r.stdout == ""
+
+    def test_absent_root_refused_when_it_is_the_only_one(self):
+        # Silently dropped the survey from 52 boards to 19 at exit 0.
+        r = self._run("--roots", "/nonexistent/zzz")
+        assert r.returncode == 2
+        assert "/nonexistent/zzz" in r.stderr
+        assert r.stdout == ""
+
+    def test_absent_root_only_warns_when_another_root_exists(self, tmp_path):
+        # `--roots ~/repos ~/Repos` is a legitimate cross-platform spelling
+        # where one side is always missing — warn, never refuse.
+        r = self._run("--roots", str(tmp_path), "/nonexistent/zzz",
+                      "--window-days", "1")
+        assert r.returncode == 0
+        assert "/nonexistent/zzz" in r.stderr
+
+    def test_the_docstring_job_example_names_a_real_slug(self):
+        # A shipped example the shipped script refuses is a doc bug; the old
+        # one said `toolmaking`, a slug no board carries.
+        doc = SCRIPT.read_text().split('"""')[1]
+        assert "--job toolmaking" not in doc
+        assert "--job batterie" in doc

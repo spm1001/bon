@@ -69,7 +69,7 @@ first version of this hardening still surveyed all 52 boards, silently, on
 Usage:
     uv run --script audit_survey.py                        # JSON to stdout
     uv run --script audit_survey.py --repos trousse passe  # Filter by label
-    uv run --script audit_survey.py --job toolmaking       # Filter by jobs group
+    uv run --script audit_survey.py --job batterie         # Filter by jobs group
     uv run --script audit_survey.py --roots ~/repos        # Explicit roots
     uv run --script audit_survey.py --window-days 14       # Recent-wins window
     uv run --script audit_survey.py --full-dones           # Lift the per-board
@@ -993,6 +993,28 @@ def main():
     root_vals = require_values(flag_values(argv, "--roots"), "--roots")
     if root_vals is not None:
         roots = [Path(v).expanduser() for v in root_vals]
+        # A root that isn't there contributes nothing and says nothing: a
+        # typo'd --roots silently dropped the survey from 52 boards to 19 at
+        # exit 0 (measured 2026-08-31). Same family as the --repos hole this
+        # card closed, aimed at a different flag. Warn per missing root and
+        # refuse only when NONE exist — `--roots ~/repos ~/Repos` is a
+        # legitimate cross-platform spelling where one side is always absent.
+        missing = [r for r in roots if not r.is_dir()]
+        if missing:
+            print(
+                "--roots: no such director"
+                + ("y" if len(missing) == 1 else "ies") + ": "
+                + ", ".join(str(m) for m in missing),
+                file=sys.stderr,
+            )
+        if missing and len(missing) == len(roots):
+            print(
+                "Every --roots value is missing, so the filesystem sweep would "
+                "silently cover nothing. Refusing rather than reporting a "
+                "smaller estate as if it were the whole one.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
     elif os.environ.get("REPOS_DIR"):
         roots = [Path(os.environ["REPOS_DIR"])]
     else:
@@ -1007,8 +1029,20 @@ def main():
         idx = argv.index("--window-days")
         try:
             window_days = int(argv[idx + 1])
-        except (IndexError, ValueError):
+        except (IndexError, ValueError, OverflowError):
             print("--window-days needs an integer argument", file=sys.stderr)
+            sys.exit(2)
+        if window_days < 0:
+            # A negative window puts the dones cutoff in the FUTURE, so the
+            # recent-wins list empties while the git signal — which reads the
+            # same string as a past offset — reports commits. Two halves of one
+            # output disagreeing is worse than either being empty.
+            print(
+                f"--window-days must not be negative (got {window_days}): the "
+                f"dones cutoff would land in the future while the git signal "
+                f"still reads it as a past window.",
+                file=sys.stderr,
+            )
             sys.exit(2)
 
     output = survey(
