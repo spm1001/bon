@@ -20,7 +20,7 @@ Estate-wide backlog review encoded as a repeatable 5-phase workflow. Replaces th
 
 **Second principle: Survey everywhere, verify locally.** The survey sees every board in the shared Dolt database — including repos with no clone on this machine. Verification needs the actual working tree. When they diverge, say so explicitly: an item you can see but can't verify is NOT_VERIFIABLE_HERE, never trust-the-brief.
 
-**Third principle: the rite is core; the ceremony is an accent.** /review is the outer loop's close, and its scope is a dial — the same five phases run estate-wide (the default), on a few repos or one (`--repos`), or on one jobs-group (no survey flag exists for groups: run the full survey and narrow Phases 2–4 to that group's boards — the survey's `job` field carries the split). The pyramid document and the dispatch-queue lanes are the operator's personal ceremony riding that spine: the queue-population step (Phase 1, assembly step 4) is a **socket** — variation point `review.populate-queue`, pluggable per team — and a review with no dispatch queue runs the rite complete without it. Verified verdicts, landed repricings and the adjudicated summary are the rite's product everywhere; the populated lanes are the ceremony's product where the queue exists. Nothing downstream depends on a queue existing.
+**Third principle: the rite is core; the ceremony is an accent.** /review is the outer loop's close, and its scope is a dial — the same five phases run estate-wide (the default), on a few repos or one (`--repos`), or on one jobs-group (`--job <slug>`). The pyramid document and the dispatch-queue lanes are the operator's personal ceremony riding that spine: the queue-population step (Phase 1, assembly step 4) is a **socket** — variation point `review.populate-queue`, pluggable per team — and a review with no dispatch queue runs the rite complete without it. Verified verdicts, landed repricings and the adjudicated summary are the rite's product everywhere; the populated lanes are the ceremony's product where the queue exists. Nothing downstream depends on a queue existing.
 
 ## When to Use
 
@@ -51,11 +51,15 @@ Run the audit survey to get structured data on all open items:
 uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 ```
 
-Or filter to specific repos:
+Or scope it — by repo, or by jobs group:
 
 ```bash
 uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse passe gueridon
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --job batterie
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --full-dones   # lift the per-board dones cap
 ```
+
+**Scoping refuses rather than guessing (bon-libito).** `--repos` matches a whole label or its whole final path segment, so `--repos sonner` finds `spm1001/sonner` while `--repos passe` no longer sweeps in `spm1001/passe-partout`. Three refusals, because a scope flag returning the wrong-sized answer looks exactly like a good one: a flag with no values after it exits 2 (it used to widen silently to the whole estate — measured 2026-08-31 at 52 repos and 864 items, while the caller believed it was scoped); a value naming no board exits 2 listing the substring near-misses; and a value that matches while leaving near-misses behind names them on stderr, so a narrowing can never pass unnoticed. Read that stderr — it is the only place the narrowing appears.
 
 **How it surveys (hybrid):** one global Dolt query is the primary index — it covers every Dolt-backed board in the estate, cloned here or not, including boards outside the scan roots (`~/.dotfiles`). The filesystem scan only reads JSONL boards. Repo labels come from Dolt's self-registering `repos` mapping table (`bon register`).
 
@@ -72,7 +76,7 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --repos trousse pass
 | `not_cloned_here: true` | No clone under the scan roots — surveyed, not verifiable here. Caveat: this really means "not under the scan roots"; `~/.dotfiles` is the known board that IS local anyway. |
 | `origin_url` | Where a fresh clone would come from, when registered. |
 | `open_child_count` (on outcomes) | Open children in the same board — closing this outcome would strand them (the kegewe trap). Non-zero means re-home or close children first. |
-| `recent_dones` / `recent_done_count` | Items closed inside `window_days` (default 30), newest first. The list is capped at 10; the count is the TRUE total — trust the count, not the list length. Feeds the pyramid's Recent Progress lines. |
+| `recent_dones` / `recent_done_count` | Items closed inside `window_days` (default 30), newest first. The list is capped at 10; the count is the TRUE total — trust the count, not the list length. Feeds the pyramid's Recent Progress lines. **`--full-dones` lifts the cap** — right for the queue-line annotation join, which needs every close to match a line against its card. The cap is not cosmetic: 15 boards were being truncated on 2026-08-31, `~/.claude` at 129 dones and mise-en-space at 91. |
 | `git` | Light motion signal for boards with a clone here: `commits_window` + `last_commit` (date and subject). Absent for uncloned boards and non-repos. |
 | `job` | The board's jobs-group slug (Dolt: `repos.job` via `bon register --job`; JSONL: `.bon/job` marker). Drives the pyramid grouping. |
 | `jobs_unassigned` (top-level) | Boards reporting items but carrying no job — surface these for assignment, never guess a group. |
