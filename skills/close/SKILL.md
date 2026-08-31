@@ -377,6 +377,24 @@ for f in <handoff-dir>/*.md; do b=$(basename "$f"); [ "$b" = LEDGER.md ] && cont
 Candidate mode included — the ledger append is a Write-tool edit, no CLI needed, and the candidate-bearing handoffs are exactly the ones the sweep must not drop. A repo with its own richer ledger convention (prose-heavy lines, extra columns): keep its register, but lead the line with the checkbox so the sweep can see it.
 
 
+### Net board motion (bon-racafo)
+
+Once the board work is done — the Now items, the new bons filed, anything knocked out and `bon done`'d — re-derive the tally and state it in one line:
+
+```bash
+"$BON_SCRIPTS/close-context.sh" --motion-only "<the MOTION_SINCE value the full run printed>"
+```
+
+Re-derive rather than reusing the Orient figures: this rite *mints and closes items after the context script ran*, so the earlier numbers are stale in exactly the direction that matters. The window is since the previous close, not since this session started — wider on purpose, because per-session windows leave motion nobody counts. Where you can see some of it wasn't yours, say so.
+
+Then one line, using the script's numbers and naming the ids:
+
+> Board motion since the last close: closed 3 (bon-a, bon-b, bon-c), minted 2 (bon-x, bon-y), 2 carried forward.
+
+**Minting is capture, not debt.** A session that files five discoveries and closes two did its job — chasing them instead would have been the error. `MOTION_CARRIED` is the honest growth figure, since a card minted and closed within the window never touched the backlog. So there is no target here and nothing to optimise: the line exists so board growth is visible now rather than surfacing weeks later when a review ceremony trips over it (2026-08-30: 13 closed, 11 minted, one line that reframed the whole review conversation).
+
+Report what the script printed. It computes from `bon log` precisely so the figure isn't yours to shade, and it names every id so a filing left out is visible to anyone who scrolls. If it prints `MOTION_ERROR` or `MOTION_TRUNCATED`, say that instead of a number you'd have to guess at.
+
 ### Commit and go
 
 Stage relevant files (including the handoff), commit in modular commits with descriptive messages, and offer to push. Each commit cites the bon it serves — trailing `(bon-ID)` in the subject or body — when the work was tracked; untracked work commits without one. If nothing's dirty, just move on — not every session produces code changes.

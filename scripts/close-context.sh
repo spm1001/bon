@@ -29,6 +29,91 @@ validate_dependencies
 # /open READER (open-context.sh) in lockstep on the same convention.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-handoff.sh"
 
+# === BOARD MOTION (bon-racafo) ===
+# Cards closed versus cards minted since the previous close. Sessions file
+# discoveries rather than chase them — correctly — so a productive session
+# quietly replenishes the board, and that residue has to be SEEN rather than
+# left implicit in the per-item notes.
+#
+# The counts are DERIVED here, never narrated by the closing Claude. That is
+# the point: this card's falsifier is evasive behaviour when nobody is
+# watching, whose scoreboard face is pressure to close rather than file
+# honestly, and an agent cannot inflate a count it did not compute. Two more
+# properties earn their keep for the same reason — every id is NAMED, so a
+# suppressed filing is visible to anyone who scrolls; and CARRIED (minted in
+# the window and still open) sits beside the totals so a card minted and
+# closed within the session cannot read as board growth.
+#
+# Callable twice on purpose. The full script runs at Orient, but /close mints
+# new bons and closes knocked-out ones later, in Act — so an Orient-time tally
+# would undercount exactly the filings this exists to surface, and in the one
+# direction the falsifier cares about. `--motion-only <since>` re-derives it
+# at summary time from one source of truth rather than a copy in skill prose.
+emit_board_motion() {
+    local since="$1" root="$2" cmd="$3"
+    (cd "$root" && "$cmd" log -n 500 --json 2>/dev/null) \
+        | MOTION_SINCE="$since" python3 -c '
+import json, os, sys
+
+since = os.environ["MOTION_SINCE"]
+try:
+    events = json.load(sys.stdin)
+except Exception:
+    print("MOTION_ERROR=could not read bon log — state the tally as unavailable")
+    sys.exit(0)
+
+# bon log stamps UTC with a trailing Z; compare as plain strings on the
+# common prefix so no timezone maths enters a shell script.
+window = [e for e in events if (e.get("time") or "").rstrip("Z") >= since]
+closed = sorted({e["id"] for e in window if e.get("verb") == "completed"})
+minted = sorted({e["id"] for e in window if e.get("verb") == "created"})
+carried = sorted(set(minted) - set(closed))
+
+print(f"MOTION_CLOSED={len(closed)}" + (" " + ", ".join(closed) if closed else ""))
+print(f"MOTION_MINTED={len(minted)}" + (" " + ", ".join(minted) if minted else ""))
+print(f"MOTION_CARRIED={len(carried)}" + (" " + ", ".join(carried) if carried else ""))
+# The cap only hides something if the OLDEST event returned is still inside
+# the window; otherwise the log reached past it and the counts are exact.
+# A cap that cannot have trimmed anything must not cry wolf.
+if len(events) >= 500 and events and (events[-1].get("time") or "").rstrip("Z") >= since:
+    print("MOTION_TRUNCATED=true — the log cap was reached and the oldest "
+          "event is still inside the window, so these counts are floors")
+'
+}
+
+# Find the board root and CLI the same way the main BON section does.
+_motion_board() {
+    local walk start
+    walk=$(pwd -P); start="$walk"
+    while [ "$walk" != "/" ]; do
+        if [ -d "$walk/.bon" ] && { [ "$walk" = "$start" ] || [ -f "$walk/.bon/prefix" ]; }; then
+            echo "$walk"; return 0
+        fi
+        [ -e "$walk/.git" ] && break
+        walk=$(dirname "$walk")
+    done
+    return 1
+}
+
+if [ "${1:-}" = "--motion-only" ]; then
+    MOTION_SINCE_ARG="${2:-}"
+    if [ -z "$MOTION_SINCE_ARG" ]; then
+        echo "MOTION_ERROR=--motion-only needs the MOTION_SINCE value the full run printed"
+        exit 2
+    fi
+    MROOT=$(_motion_board) || {
+        echo "MOTION_ERROR=no board found from $(pwd -P)"; exit 0
+    }
+    MCMD=$(command -v bon 2>/dev/null || echo "$HOME/repos/spm1001/bon/.venv/bin/bon")
+    if [ ! -x "$MCMD" ]; then
+        echo "MOTION_ERROR=bon CLI not found"; exit 0
+    fi
+    echo "=== BOARD MOTION ==="
+    echo "MOTION_SINCE=$MOTION_SINCE_ARG (re-derived at summary time)"
+    emit_board_motion "$MOTION_SINCE_ARG" "$MROOT" "$MCMD"
+    exit 0
+fi
+
 # === TIME ===
 echo "=== TIME ==="
 CURRENT_HOUR=$(date +%H)
@@ -279,6 +364,51 @@ if [ -e "$HANDOFF_DIR/$HANDOFF_FILE" ]; then
     HANDOFF_FILE="${HANDOFF_BASE}-${SUFFIX}.md"
 fi
 echo "HANDOFF_FILE=$HANDOFF_FILE"
+
+# Window for the tally: the newest handoff's filename date prefix. Fixed-width
+# and string-sortable across both the dated and the dated+HHMM conventions, and
+# deliberately not mtime — clones and sync rebases flatten mtimes (bon-wakaju).
+# Note this window is "since the previous close", not "since this session
+# started", which is wider on purpose: per-session windows leave gaps that
+# nobody counts, and the label says which window it is.
+if [ -n "${BON_ROOT:-}" ] && [ -n "${BON_CMD:-}" ] && [ -x "$BON_CMD" ]; then
+    MOTION_SINCE=""
+    MOTION_SINCE_SRC="fallback"
+    if [ -n "${HANDOFF_DIR:-}" ] && [ -d "$HANDOFF_DIR" ]; then
+        # `|| true` is load-bearing under `set -euo pipefail`: a grep matching
+        # nothing exits 1, pipefail propagates it, and set -e then kills the
+        # whole script mid-output — the bon-cuvice death, which took every
+        # section after this one with it until a test caught it. Capture, then
+        # test the RESULT for emptiness rather than the pipeline for success.
+        LAST_HANDOFF=$(ls -1 "$HANDOFF_DIR" 2>/dev/null \
+            | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}' | sort | tail -1 || true)
+        if [ -n "$LAST_HANDOFF" ]; then
+            MOTION_DATE="${LAST_HANDOFF:0:10}"
+            case "$LAST_HANDOFF" in
+                [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]-*)
+                    MOTION_HHMM="${LAST_HANDOFF:11:4}"
+                    MOTION_SINCE="${MOTION_DATE}T${MOTION_HHMM:0:2}:${MOTION_HHMM:2:2}:00"
+                    ;;
+                *)
+                    MOTION_SINCE="${MOTION_DATE}T00:00:00"
+                    ;;
+            esac
+            MOTION_SINCE_SRC="previous handoff ($LAST_HANDOFF)"
+        fi
+    fi
+    if [ -z "$MOTION_SINCE" ]; then
+        MOTION_SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%S' 2>/dev/null \
+            || date -u -v-24H '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || echo "")
+        MOTION_SINCE_SRC="last 24h (no dated handoff found — window is not this session)"
+    fi
+
+    if [ -n "$MOTION_SINCE" ]; then
+        echo ""
+        echo "=== BOARD MOTION ==="
+        echo "MOTION_SINCE=$MOTION_SINCE ($MOTION_SINCE_SRC)"
+        emit_board_motion "$MOTION_SINCE" "$BON_ROOT" "$BON_CMD"
+    fi
+fi
 
 # (The HANDOFF_GITIGNORED / HANDOFF_ADD_CMD force-add probe lived here until
 # bon-sedoze. It existed for one shape: a repo gitignoring `.bon/` wholesale,

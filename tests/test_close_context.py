@@ -24,6 +24,7 @@ under `.bon/`, so that shape cannot arise. (bon doctor still advises on the
 artefacts that DO remain there — understanding.md, the bottle, a JSONL board.)
 """
 
+import json
 import subprocess
 from datetime import date
 from pathlib import Path
@@ -393,3 +394,229 @@ def test_clean_repo_emits_no_migration_keys(tmp_path):
     out = run_close(repo, tmp_path / "home")
     assert "HANDOFF_MIGRATED" not in out
     assert "HANDOFF_MIGRATE_INCOMPLETE" not in out
+
+
+# ---------- board motion (bon-racafo) ----------
+#
+# Closed-versus-minted since the previous close, DERIVED by the script rather
+# than narrated by the closing Claude — the card's falsifier is evasive
+# behaviour when nobody is watching, and an agent cannot inflate a count it
+# did not compute. These tests pin the window arithmetic, the carried
+# residual, and the two guards on the re-runnable path.
+
+def _stub_bon(home: Path, events: list[dict]) -> None:
+    """Put a fake `bon` on PATH that answers `log --json` with `events`.
+
+    A stub rather than a real board because the window arithmetic is what is
+    under test, and real timestamps would make the expectations a race.
+    """
+    bindir = home / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(events)
+    stub = bindir / "bon"
+    stub.write_text(
+        "#!/bin/bash\n"
+        'if [ "$1" = "log" ]; then\n'
+        f"  cat <<'JSONEOF'\n{payload}\nJSONEOF\n"
+        "  exit 0\n"
+        "fi\n"
+        'echo "○ stub board"\n'
+    )
+    stub.chmod(0o755)
+
+
+def _ev(verb: str, ident: str, time: str) -> dict:
+    return {"time": time, "verb": verb, "id": ident, "title": ident, "type": "action"}
+
+
+def _run_close_with_bon(cwd: Path, home: Path, **kw) -> dict:
+    """run_close, but with the stub bin dir ahead of the isolated PATH."""
+    env = {
+        "HOME": str(home),
+        "PATH": f"{home}/bin:/usr/local/bin:/usr/bin:/bin",
+        "BON_TEST_NOW_HM": kw.get("now_hm", "1200"),
+        "CLAUDE_CODE_SESSION_ID": "abcd1234-1111-2222-3333-444444444444",
+    }
+    result = subprocess.run(
+        ["bash", str(CLOSE_CONTEXT)],
+        capture_output=True, text=True, cwd=cwd, env=env,
+    )
+    parsed = {}
+    for line in result.stdout.splitlines():
+        if "=" in line and not line.startswith("="):
+            key, _, value = line.partition("=")
+            parsed[key] = value
+    parsed["_stdout"] = result.stdout
+    return parsed
+
+
+def _board(tmp_path: Path) -> tuple[Path, Path]:
+    """A repo with a board and a handoffs dir, plus an isolated HOME."""
+    home = tmp_path / "home"
+    home.mkdir()
+    repo = tmp_path / "repo"
+    (repo / ".bon").mkdir(parents=True)
+    (repo / ".bon" / "prefix").write_text("bon\n")
+    (repo / "handoffs").mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    return repo, home
+
+
+class TestBoardMotionWindow:
+    def test_window_comes_from_the_newest_handoff_filename_with_hhmm(self, tmp_path):
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-30-2318-fb49cab3.md").write_text("# Handoff\n")
+        (repo / "handoffs" / "2026-08-12-0900-aaaaaaaa.md").write_text("# Handoff\n")
+        _stub_bon(home, [])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_SINCE"].startswith("2026-08-30T23:18:00")
+        assert "2026-08-30-2318-fb49cab3.md" in out["MOTION_SINCE"]
+
+    def test_old_format_filename_falls_back_to_that_day_start(self, tmp_path):
+        # Pre-supuko handoffs carry no HHMM, so the honest window is the day.
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-08-599066b2.md").write_text("# Handoff\n")
+        _stub_bon(home, [])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_SINCE"].startswith("2026-08-08T00:00:00")
+
+    def test_no_dated_handoff_falls_back_to_24h_and_says_so(self, tmp_path):
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "fond-seed.md").write_text("# Handoff\n")
+        _stub_bon(home, [])
+        out = _run_close_with_bon(repo, home)
+        assert "last 24h" in out["MOTION_SINCE"]
+        assert "not this session" in out["MOTION_SINCE"]
+
+    def test_undated_files_never_outrank_a_dated_one(self, tmp_path):
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-30-2318-fb49cab3.md").write_text("# Handoff\n")
+        (repo / "handoffs" / "zzz-undated.md").write_text("# Handoff\n")
+        (repo / "handoffs" / "LEDGER.md").write_text("# ledger\n")
+        _stub_bon(home, [])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_SINCE"].startswith("2026-08-30T23:18:00")
+
+
+class TestBoardMotionCounts:
+    def _repo_with_events(self, tmp_path, events):
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-30-2318-fb49cab3.md").write_text("# Handoff\n")
+        _stub_bon(home, events)
+        return repo, home
+
+    def test_counts_and_ids_inside_the_window(self, tmp_path):
+        repo, home = self._repo_with_events(tmp_path, [
+            _ev("completed", "bon-aaa", "2026-08-31T09:00:00Z"),
+            _ev("created", "bon-bbb", "2026-08-31T09:30:00Z"),
+            _ev("completed", "bon-ccc", "2026-08-31T10:00:00Z"),
+        ])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_CLOSED"] == "2 bon-aaa, bon-ccc"
+        assert out["MOTION_MINTED"] == "1 bon-bbb"
+        assert out["MOTION_CARRIED"] == "1 bon-bbb"
+
+    def test_events_before_the_window_are_excluded(self, tmp_path):
+        # The known-bad arm: an event just before the boundary must not count.
+        repo, home = self._repo_with_events(tmp_path, [
+            _ev("completed", "bon-old", "2026-08-30T23:17:59Z"),
+            _ev("completed", "bon-new", "2026-08-30T23:18:01Z"),
+        ])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_CLOSED"] == "1 bon-new"
+
+    def test_minted_and_closed_in_window_is_not_carried(self, tmp_path):
+        # The residual that stops a mint-and-close reading as board growth.
+        repo, home = self._repo_with_events(tmp_path, [
+            _ev("created", "bon-same", "2026-08-31T09:00:00Z"),
+            _ev("completed", "bon-same", "2026-08-31T09:05:00Z"),
+            _ev("created", "bon-kept", "2026-08-31T09:10:00Z"),
+        ])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_MINTED"] == "2 bon-kept, bon-same"
+        assert out["MOTION_CARRIED"] == "1 bon-kept"
+
+    def test_other_verbs_are_ignored(self, tmp_path):
+        repo, home = self._repo_with_events(tmp_path, [
+            _ev("stepped", "bon-aaa", "2026-08-31T09:00:00Z"),
+            _ev("edited", "bon-bbb", "2026-08-31T09:00:00Z"),
+            _ev("waited", "bon-ccc", "2026-08-31T09:00:00Z"),
+        ])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_CLOSED"] == "0"
+        assert out["MOTION_MINTED"] == "0"
+
+    def test_empty_window_reports_zeroes_not_silence(self, tmp_path):
+        repo, home = self._repo_with_events(tmp_path, [])
+        out = _run_close_with_bon(repo, home)
+        assert out["MOTION_CLOSED"] == "0"
+        assert out["MOTION_CARRIED"] == "0"
+
+    def test_truncation_flag_stays_quiet_when_the_log_reaches_past_the_window(
+        self, tmp_path
+    ):
+        # 500 events, but the oldest predates the window — nothing can be
+        # hidden, so a cap warning here would be crying wolf.
+        events = [_ev("completed", f"bon-{i}", "2026-08-31T09:00:00Z")
+                  for i in range(499)]
+        events.append(_ev("completed", "bon-old", "2026-01-01T00:00:00Z"))
+        repo, home = self._repo_with_events(tmp_path, events)
+        out = _run_close_with_bon(repo, home)
+        assert "MOTION_TRUNCATED" not in out
+
+    def test_truncation_flag_fires_when_the_oldest_event_is_still_in_window(
+        self, tmp_path
+    ):
+        events = [_ev("completed", f"bon-{i}", "2026-08-31T09:00:00Z")
+                  for i in range(500)]
+        repo, home = self._repo_with_events(tmp_path, events)
+        out = _run_close_with_bon(repo, home)
+        assert out.get("MOTION_TRUNCATED", "").startswith("true")
+
+
+class TestMotionOnly:
+    def test_re_derives_for_a_supplied_window(self, tmp_path):
+        repo, home = _board(tmp_path)
+        _stub_bon(home, [_ev("created", "bon-late", "2026-08-31T11:00:00Z")])
+        r = subprocess.run(
+            ["bash", str(CLOSE_CONTEXT), "--motion-only", "2026-08-30T23:18:00"],
+            capture_output=True, text=True, cwd=repo,
+            env={"HOME": str(home), "PATH": f"{home}/bin:/usr/bin:/bin"},
+        )
+        assert r.returncode == 0
+        assert "MOTION_MINTED=1 bon-late" in r.stdout
+        assert "re-derived at summary time" in r.stdout
+
+    def test_missing_window_argument_refuses(self, tmp_path):
+        repo, home = _board(tmp_path)
+        _stub_bon(home, [])
+        r = subprocess.run(
+            ["bash", str(CLOSE_CONTEXT), "--motion-only"],
+            capture_output=True, text=True, cwd=repo,
+            env={"HOME": str(home), "PATH": f"{home}/bin:/usr/bin:/bin"},
+        )
+        assert r.returncode == 2
+        assert "MOTION_ERROR" in r.stdout
+
+    def test_no_board_says_so_rather_than_reporting_zeroes(self, tmp_path):
+        # Zeroes would read as "a quiet session"; this is "no board here".
+        bare = tmp_path / "bare"
+        bare.mkdir()
+        home = tmp_path / "home"
+        (home / "bin").mkdir(parents=True)
+        r = subprocess.run(
+            ["bash", str(CLOSE_CONTEXT), "--motion-only", "2026-08-30T23:18:00"],
+            capture_output=True, text=True, cwd=bare,
+            env={"HOME": str(home), "PATH": f"{home}/bin:/usr/bin:/bin"},
+        )
+        assert "MOTION_ERROR=no board found" in r.stdout
+        assert "MOTION_CLOSED" not in r.stdout
+
+
+def test_board_motion_absent_when_the_cli_is_missing(tmp_path):
+    # The pre-existing harness has no bon on PATH; the block must stay silent
+    # rather than emitting a zero tally the closing Claude would then report.
+    repo, home = _board(tmp_path)
+    (repo / "handoffs" / "2026-08-30-2318-fb49cab3.md").write_text("# Handoff\n")
+    out = run_close(repo, home)
+    assert "MOTION_CLOSED" not in out
