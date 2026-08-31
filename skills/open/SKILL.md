@@ -203,9 +203,9 @@ A brief is written at the moment of least knowledge about the work, and everythi
 
 One command each, on the brief you just read:
 
-1. **Do the named artefacts still exist?** `ls` the paths the brief names. Renames are invisible from a brief, and a path that moved reads as a path that was never built.
-2. **Has the card been overtaken?** Read the tail of `--how`, which `bon show` has already printed. Supersession notes, `PARKED for Sameer:` lines and other lanes' claims all land there — bon refuses a second `bon work` anywhere in one clone, so a parallel lane's claim arrives as appended brief prose rather than in `bon work --status` (bon-kapipu).
-3. **Is a sibling already building it?** `bon list` and look for an open item producing the same artefact. Near-duplicate items spike when several sessions run in parallel, and the board is where that becomes visible.
+1. **Do the named artefacts still exist?** `ls` the paths the brief names. Renames are invisible from a brief, and a path that moved reads as a path that was never built. Paths only — where the artefact is a database column, a doc section or a deployed behaviour, note that the leg didn't apply and move on rather than going looking.
+2. **Has the card been overtaken?** Read the tail of `--how`, which `bon show` has already printed — no command. Supersession notes, `PARKED for Sameer:` lines and other lanes' claims all land there, because bon refuses a second `bon work` anywhere in one clone, so a parallel lane's claim arrives as appended brief prose rather than in `bon work --status` (bon-kapipu).
+3. **Is a sibling already building it?** Scan the hierarchy you already presented at orientation for an open item producing the same artefact; re-run `bon list` only if the session has been going a while. Near-duplicate items spike when several sessions run in parallel, and the board is where that becomes visible.
 
 **A failing leg is information, not a stop sign.** Say what you found before starting rather than discovering it forty minutes into an implementation: `bon edit ID --append-how "STALE <date>: <what you found>"`, then either pick something else or re-brief the card and carry on. Where the evidence needs a human — the desire may have changed, not just the facts — park it in the same append and move on.
 
