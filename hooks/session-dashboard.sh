@@ -214,10 +214,27 @@ else
     # no assistant entry yet, so fall back to the configured default model
     # (settings.json) — self-corrects from turn 2 via the transcript.
     # Bare 200k only as last resort.
+    # The transcript's .message.model carries the BASE id only — measured on
+    # tube 2026-08-31 across ~6.1k assistant entries: claude-opus-5,
+    # claude-fable-5, claude-opus-4-8, claude-sonnet-5, and never a "[1m]"
+    # suffix. So the "[1m]" arm below could never fire off a transcript id and
+    # only *fable* ever matched, which is exactly why this misreported the
+    # Opus [1m] lane alone. The variant is only knowable from the CONFIGURED
+    # model, so read that on EVERY turn rather than only when the transcript
+    # is silent. Read it from the config dir this session is actually on: a
+    # commis-seat session's settings live in ~/.claude-commis, not ~/.claude.
+    #
+    # Safe to infer the window from configuration here because this branch
+    # runs only when there is no sidecar at all — i.e. a session with no
+    # statusline render (background/headless), which is also a session where
+    # nobody can type `/model <base-id>` to shrink the window out from under
+    # the configured value.
+    CONFIGURED=$(jq -r '.model // empty' \
+        "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" 2>/dev/null || true)
     if [ -z "$MODEL" ]; then
-        MODEL=$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null || true)
+        MODEL="$CONFIGURED"
     fi
-    case "$MODEL" in
+    case "$MODEL $CONFIGURED" in
         *fable*|*"[1m]"*) MAX_TOKENS=1000000 ;;
         *) if [ "$TOTAL_IN" -gt 200000 ] 2>/dev/null; then
                MAX_TOKENS=1000000
