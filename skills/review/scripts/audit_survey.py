@@ -47,13 +47,22 @@ scopes the survey to one or more jobs groups.
 Scoping is loud, never quiet (bon-libito). `--repos` and `--job` match WHOLE
 labels — for repos, the whole label or its whole final path segment, so
 `--repos sonner` finds `spm1001/sonner` but `--repos passe` no longer sweeps in
-`spm1001/passe-partout`. Three refusals guard the flags, because a scope flag
-that silently returns the wrong-sized answer looks exactly like a good one:
-a flag given with no values exits rather than widening to the estate; a value
-matching no board exits, listing the substring near-misses so a caller relying
-on the old substring behaviour is told what to type; and a value that DOES
-match while leaving near-misses behind says so on stderr, so a narrowing
-relative to the old semantics can never pass unnoticed.
+`spm1001/passe-partout`. A scope flag that quietly returns the wrong-sized
+answer looks exactly like a good one, so four things are refused or announced:
+
+* an unrecognised, misspelled, `=`-joined or repeated option exits — the parse
+  refuses what it cannot read rather than ignoring it;
+* a flag given with no values exits rather than widening to the estate;
+* a value matching no board exits, listing the substring near-misses, so a
+  caller relying on the old substring behaviour is told exactly what to type;
+* a narrowing is named on stderr — both the near-misses one `--repos` value
+  excludes (computed against the union of all values' hits, so a label another
+  value pulled in is never reported as dropped) and, when `--repos` and `--job`
+  compose, the boards `--repos` matched that `--job` then discarded.
+
+The last three of those four were each found by an adversarial pass rather
+than by design, which is the honest provenance to carry: the first version of
+this hardening still widened silently on `--repos=bon`.
 
 Usage:
     uv run --script audit_survey.py                        # JSON to stdout
@@ -682,7 +691,9 @@ def survey(
         results = apply_repo_filter(results, repo_filter)
 
     if job_filter:
-        results = apply_job_filter(results, job_filter)
+        results = apply_job_filter(
+            results, job_filter, report_drops=bool(repo_filter)
+        )
 
     # Light git signal for every board with a clone here — the pyramid's
     # "recent wins" line wants motion, and board writes alone under-report it.
@@ -791,13 +802,21 @@ def apply_repo_filter(results: list[dict], repo_filter: list[str]) -> list[dict]
       a narrowing relative to the old behaviour can never pass unnoticed.
     """
     labels = [r["repo"] for r in results]
+    # Near-misses are computed against the union of ALL values' hits, not one
+    # value's. `--repos passe passe-partout` otherwise reported
+    # spm1001/passe-partout as excluded while the second value was pulling it
+    # in — a loud channel that lies is worse than a quiet one, because the
+    # whole design rests on believing it.
+    per_value = {v: [l for l in labels if match_repo(l, v)] for v in repo_filter}
+    all_hits = {l for hits in per_value.values() for l in hits}
+
     kept: list[str] = []
     misses: list[str] = []
     notes: list[str] = []
 
     for value in repo_filter:
-        hits = [l for l in labels if match_repo(l, value)]
-        near = [l for l in labels if value in l and l not in hits]
+        hits = per_value[value]
+        near = [l for l in labels if value in l and l not in all_hits]
         if not hits:
             misses.append(
                 f"  {value!r} matched no board"
@@ -828,7 +847,9 @@ def apply_repo_filter(results: list[dict], repo_filter: list[str]) -> list[dict]
     return [r for r in results if r["repo"] in keep]
 
 
-def apply_job_filter(results: list[dict], job_filter: list[str]) -> list[dict]:
+def apply_job_filter(
+    results: list[dict], job_filter: list[str], report_drops: bool = False
+) -> list[dict]:
     """Filter by jobs-group slug — the dial the skill text already described.
 
     Jobs were readable in the output but not selectable, so the review skill's
@@ -837,6 +858,13 @@ def apply_job_filter(results: list[dict], job_filter: list[str]) -> list[dict]:
     slugs are curated by `bon register --job` / `.bon/job`, so a near-miss is a
     typo, not a shorthand — and an unknown slug exits naming the live set rather
     than returning a confidently empty survey.
+
+    `report_drops` is set when a repo filter ran first, and it exists because
+    composing the two filters reopened the exact hole the card was closing:
+    `--repos bon notes --job batterie` returned only `bon`, exit 0, silent —
+    a board the caller had named by hand, matched by `--repos`, dropped here
+    with no signal (found by this card's essayeur, 2026-08-31). Naming a board
+    and then discarding it needs to be said out loud.
     """
     known = sorted({r["job"] for r in results if r.get("job")})
     unknown = [j for j in job_filter if j not in known]
@@ -848,12 +876,95 @@ def apply_job_filter(results: list[dict], job_filter: list[str]) -> list[dict]:
             file=sys.stderr,
         )
         sys.exit(2)
+
     wanted = set(job_filter)
-    return [r for r in results if r.get("job") in wanted]
+    kept = [r for r in results if r.get("job") in wanted]
+
+    if report_drops:
+        dropped = [r for r in results if r.get("job") not in wanted]
+        if dropped:
+            named = ", ".join(
+                f"{r['repo']} (job={r['job']})" if r.get("job")
+                else f"{r['repo']} (no job assigned)"
+                for r in sorted(dropped, key=lambda r: r["repo"])
+            )
+            print(
+                f"--job further narrowed what --repos matched — "
+                f"{len(dropped)} board(s) dropped: {named}",
+                file=sys.stderr,
+            )
+
+    return kept
+
+
+# Every option this script understands, and whether it takes values.
+KNOWN_FLAGS = {
+    "--roots": True,
+    "--repos": True,
+    "--job": True,
+    "--window-days": True,
+    "--full-dones": False,
+}
+
+
+def reject_unknown_argv(argv: list[str]) -> None:
+    """Refuse any token the parser does not understand.
+
+    The parse reads each flag by `argv.index`, so anything it fails to
+    recognise is silently ignored — and an ignored SCOPE flag is the original
+    bug wearing a different hat. Measured 2026-08-31 against the first version
+    of this hardening: `--repos=bon`, the ordinary GNU spelling, surveyed all
+    52 boards and 864 items at exit 0 with nothing on stderr, because the
+    token `--repos=bon` is simply not the token `--repos`. `--repo`, `--jobs`
+    and a repeated `--repos` all failed the same way.
+
+    So the guard is the parse itself: every token is either a known option or
+    a value belonging to the option before it, and anything else stops the run.
+    The empty-value check next door is one door; this is the corridor.
+    """
+    seen: set[str] = set()
+    takes_values: str | None = None
+    known = ", ".join(sorted(KNOWN_FLAGS))
+
+    for tok in argv:
+        if tok.startswith("--"):
+            if tok not in KNOWN_FLAGS:
+                hint = ""
+                head = tok.split("=", 1)[0]
+                if "=" in tok and head in KNOWN_FLAGS:
+                    hint = (
+                        f"\nValues follow a space, not an '=': "
+                        f"`{head} {tok.split('=', 1)[1]}`"
+                    )
+                print(
+                    f"Unrecognised option {tok!r} — refusing rather than "
+                    f"ignoring it, because an ignored scope flag surveys the "
+                    f"whole estate while looking scoped.\n"
+                    f"Known options: {known}{hint}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            if tok in seen:
+                print(
+                    f"{tok} given more than once — only the first would have "
+                    f"been read. Pass all its values after a single {tok}.",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            seen.add(tok)
+            takes_values = tok if KNOWN_FLAGS[tok] else None
+        elif takes_values is None:
+            print(
+                f"Unexpected argument {tok!r} — it follows no option that "
+                f"takes values.\nKnown options: {known}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
 
 def main():
     argv = sys.argv[1:]
+    reject_unknown_argv(argv)
 
     # Root priority: --roots flag > REPOS_DIR env > defaults
     root_vals = require_values(flag_values(argv, "--roots"), "--roots")

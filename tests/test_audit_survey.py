@@ -393,3 +393,138 @@ class TestEmptyFlagEndToEnd:
         r = self._run("--roots")
         assert r.returncode == 2
         assert r.stdout == ""
+
+
+# ---------- repairs from the bon-libito essayeur, 2026-08-31 ----------
+#
+# Three holes the first version of the hardening left, each found by an
+# adversarial pass rather than by design. Every test below is keyed to the
+# exact invocation that exposed it.
+
+class TestComposedFilterNarrowingIsLoud:
+    """`--repos bon notes --job batterie` returned only `bon`, silently.
+
+    A board the caller had named by hand, matched by --repos, discarded by
+    --job with no signal — the card's own axis failing as plainly as it can.
+    """
+
+    def _mixed(self):
+        return _results(
+            labels=["bon", "notes"],
+            jobs={"bon": "batterie", "notes": "knowledge-work"},
+        )
+
+    def test_the_refuting_invocation_now_reports(self, capsys):
+        out = audit_survey.apply_job_filter(
+            self._mixed(), ["batterie"], report_drops=True
+        )
+        assert [r["repo"] for r in out] == ["bon"]
+        err = capsys.readouterr().err
+        assert "notes" in err
+        assert "knowledge-work" in err
+        assert "--repos" in err
+
+    def test_silent_without_a_repo_filter(self, capsys):
+        # No --repos means the caller named no board by hand, so a job filter
+        # dropping boards is just the filter working. Nothing to announce.
+        audit_survey.apply_job_filter(self._mixed(), ["batterie"])
+        assert capsys.readouterr().err == ""
+
+    def test_jobless_board_dropped_is_named_as_jobless(self, capsys):
+        mixed = _results(labels=["bon", "notes"], jobs={"bon": "batterie"})
+        audit_survey.apply_job_filter(mixed, ["batterie"], report_drops=True)
+        assert "no job assigned" in capsys.readouterr().err
+
+    def test_no_drops_reports_nothing(self, capsys):
+        only = _results(labels=["bon"], jobs={"bon": "batterie"})
+        audit_survey.apply_job_filter(only, ["batterie"], report_drops=True)
+        assert capsys.readouterr().err == ""
+
+
+class TestNearMissesUseUnionOfHits:
+    """`--repos passe passe-partout` called passe-partout "NOT matched"
+    while the second value was putting it in the output. A loud channel
+    that lies is worse than a quiet one — the design rests on believing it.
+    """
+
+    def test_label_claimed_by_another_value_is_not_reported_as_excluded(
+        self, capsys
+    ):
+        out = audit_survey.apply_repo_filter(
+            _results(), ["passe", "passe-partout"]
+        )
+        assert sorted(r["repo"] for r in out) == [
+            "passe", "spm1001/passe-partout",
+        ]
+        assert capsys.readouterr().err == ""
+
+    def test_genuine_exclusion_still_reported(self, capsys):
+        out = audit_survey.apply_repo_filter(_results(), ["passe"])
+        assert [r["repo"] for r in out] == ["passe"]
+        assert "spm1001/passe-partout" in capsys.readouterr().err
+
+
+class TestRejectUnknownArgv:
+    """`--repos=bon` surveyed all 52 boards at exit 0 with empty stderr —
+    the original bug, straight through a door the empty-flag guard never
+    watched. The parse now refuses what it cannot read.
+    """
+
+    def _expect_exit(self, argv):
+        with pytest.raises(SystemExit) as e:
+            audit_survey.reject_unknown_argv(argv)
+        assert e.value.code == 2
+
+    def test_equals_form_rejected_with_a_hint(self, capsys):
+        self._expect_exit(["--repos=bon"])
+        err = capsys.readouterr().err
+        assert "--repos=bon" in err
+        assert "--repos bon" in err          # the hint names the right spelling
+
+    def test_singular_misspelling_rejected(self, capsys):
+        self._expect_exit(["--repo", "bon"])
+        assert "--repo'" in capsys.readouterr().err
+
+    def test_plural_job_misspelling_rejected(self):
+        self._expect_exit(["--jobs", "batterie"])
+
+    def test_repeated_flag_rejected(self, capsys):
+        self._expect_exit(["--repos", "bon", "--repos", "notes"])
+        assert "more than once" in capsys.readouterr().err
+
+    def test_stray_positional_rejected(self, capsys):
+        self._expect_exit(["bon"])
+        assert "follows no option" in capsys.readouterr().err
+
+    def test_positional_after_a_bare_flag_rejected(self):
+        # --full-dones takes no values, so a token after it belongs to nothing.
+        self._expect_exit(["--full-dones", "bon"])
+
+    def test_valid_argv_passes(self):
+        audit_survey.reject_unknown_argv(
+            ["--repos", "bon", "notes", "--job", "batterie",
+             "--window-days", "14", "--full-dones"]
+        )
+
+    def test_empty_argv_passes(self):
+        audit_survey.reject_unknown_argv([])
+
+
+class TestUnknownArgvEndToEnd:
+    """Exits before any survey work, so these are fast."""
+
+    def _run(self, *args):
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), *args],
+            capture_output=True, text=True,
+        )
+
+    def test_equals_form_does_not_survey_the_estate(self):
+        r = self._run("--repos=bon")
+        assert r.returncode == 2
+        assert r.stdout == ""       # the bug was a full 2.5MB estate dump here
+
+    def test_unknown_flag_does_not_survey_the_estate(self):
+        r = self._run("--repo", "bon")
+        assert r.returncode == 2
+        assert r.stdout == ""
