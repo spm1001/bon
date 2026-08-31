@@ -430,10 +430,18 @@ def _ev(verb: str, ident: str, time: str) -> dict:
 
 
 def _run_close_with_bon(cwd: Path, home: Path, **kw) -> dict:
-    """run_close, but with the stub bin dir ahead of the isolated PATH."""
+    """run_close, but with the stub bin dir ahead of the isolated PATH.
+
+    TZ is pinned to UTC by default so the window's local-to-UTC conversion is
+    a no-op and these expectations mean what they say on any machine. The
+    conversion itself is exercised under a real zone in TestBoardMotionTimezone
+    — keeping the two concerns apart is what stopped this suite noticing that
+    the boundary was an hour out for half the year.
+    """
     env = {
         "HOME": str(home),
         "PATH": f"{home}/bin:/usr/local/bin:/usr/bin:/bin",
+        "TZ": kw.get("tz", "UTC"),
         "BON_TEST_NOW_HM": kw.get("now_hm", "1200"),
         "CLAUDE_CODE_SESSION_ID": "abcd1234-1111-2222-3333-444444444444",
     }
@@ -620,3 +628,79 @@ def test_board_motion_absent_when_the_cli_is_missing(tmp_path):
     (repo / "handoffs" / "2026-08-30-2318-fb49cab3.md").write_text("# Handoff\n")
     out = run_close(repo, home)
     assert "MOTION_CLOSED" not in out
+
+
+class TestBoardMotionTimezone:
+    """The window boundary comes from a handoff filename (LOCAL time) and the
+    events from `bon log` (UTC). Compared as one clock they differ by the UTC
+    offset: under BST the first hour of every window was dropped, and an item
+    minted 30 minutes after the previous close reported MOTION_MINTED=0 live.
+
+    The earlier tests could not catch this — they fabricate both the filename
+    and the event stamps with no real clock relating them, so the boundary
+    looked exact while live it was 3,600 seconds out. These pin a REAL
+    conversion by running under a named zone.
+    """
+
+    def _run_tz(self, cwd: Path, home: Path, tz: str) -> dict:
+        result = subprocess.run(
+            ["bash", str(CLOSE_CONTEXT)],
+            capture_output=True, text=True, cwd=cwd,
+            env={
+                "HOME": str(home),
+                "PATH": f"{home}/bin:/usr/local/bin:/usr/bin:/bin",
+                "TZ": tz,
+                "BON_TEST_NOW_HM": "1200",
+                "CLAUDE_CODE_SESSION_ID": "abcd1234-1111-2222-3333-444444444444",
+            },
+        )
+        parsed = {}
+        for line in result.stdout.splitlines():
+            if "=" in line and not line.startswith("="):
+                key, _, value = line.partition("=")
+                parsed[key] = value
+        return parsed
+
+    def test_bst_boundary_converts_to_utc(self, tmp_path):
+        # Handoff at 12:48 LOCAL on a BST date == 11:48 UTC.
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-31-1248-deadbeef.md").write_text("# H\n")
+        _stub_bon(home, [])
+        out = self._run_tz(repo, home, "Europe/London")
+        assert out["MOTION_SINCE"].startswith("2026-08-31T11:48:00")
+
+    def test_the_live_repro_now_counts(self, tmp_path):
+        # An item created at 12:18Z is 13:18 BST — half an hour AFTER a close
+        # at 12:48 BST. It reported MOTION_MINTED=0 before the conversion.
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-31-1248-deadbeef.md").write_text("# H\n")
+        _stub_bon(home, [_ev("created", "bon-after", "2026-08-31T12:18:34Z")])
+        out = self._run_tz(repo, home, "Europe/London")
+        assert out["MOTION_MINTED"] == "1 bon-after"
+
+    def test_an_event_genuinely_before_the_close_still_excluded(self, tmp_path):
+        # The control the conversion must not break: 11:00Z is 12:00 BST,
+        # genuinely before the 12:48 BST close, so it stays out.
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-31-1248-deadbeef.md").write_text("# H\n")
+        _stub_bon(home, [_ev("created", "bon-before", "2026-08-31T11:00:00Z")])
+        out = self._run_tz(repo, home, "Europe/London")
+        assert out["MOTION_MINTED"] == "0"
+
+    def test_utc_zone_is_a_no_op(self, tmp_path):
+        # Under UTC the conversion must change nothing — otherwise the fix
+        # would be trading a BST bug for a GMT one.
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-31-1248-deadbeef.md").write_text("# H\n")
+        _stub_bon(home, [])
+        out = self._run_tz(repo, home, "UTC")
+        assert out["MOTION_SINCE"].startswith("2026-08-31T12:48:00")
+
+    def test_undated_day_boundary_also_converts(self, tmp_path):
+        # A pre-supuko filename means midnight LOCAL, which is 23:00Z the
+        # previous day under BST — not 00:00Z.
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-08-599066b2.md").write_text("# H\n")
+        _stub_bon(home, [])
+        out = self._run_tz(repo, home, "Europe/London")
+        assert out["MOTION_SINCE"].startswith("2026-08-07T23:00:00")

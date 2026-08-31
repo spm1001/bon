@@ -62,8 +62,9 @@ except Exception:
     print("MOTION_ERROR=could not read bon log — state the tally as unavailable")
     sys.exit(0)
 
-# bon log stamps UTC with a trailing Z; compare as plain strings on the
-# common prefix so no timezone maths enters a shell script.
+# bon log stamps UTC with a trailing Z, and `since` is UTC too — the caller
+# converts, because handoff filenames carry LOCAL time. Both sides UTC means
+# the string compare is a real instant comparison rather than a coincidence.
 window = [e for e in events if (e.get("time") or "").rstrip("Z") >= since]
 closed = sorted({e["id"] for e in window if e.get("verb") == "completed"})
 minted = sorted({e["id"] for e in window if e.get("verb") == "created"})
@@ -81,18 +82,25 @@ if len(events) >= 500 and events and (events[-1].get("time") or "").rstrip("Z") 
 '
 }
 
-# Find the board root and CLI the same way the main BON section does.
-_motion_board() {
-    local walk start
-    walk=$(pwd -P); start="$walk"
-    while [ "$walk" != "/" ]; do
-        if [ -d "$walk/.bon" ] && { [ "$walk" = "$start" ] || [ -f "$walk/.bon/prefix" ]; }; then
-            echo "$walk"; return 0
-        fi
-        [ -e "$walk/.git" ] && break
-        walk=$(dirname "$walk")
-    done
-    return 1
+# Handoff FILENAMES carry local time (`date +%H%M`); `bon log` stamps UTC with
+# a trailing Z. Comparing them as one clock silently drops the first hour of
+# every window under BST, and double-counts under GMT — measured live on
+# 2026-08-31, when an item minted half an hour after the previous close
+# reported MOTION_MINTED=0. Worse, at-close filings land minutes after Orient,
+# so their UTC stamps sit up to an hour BEFORE the next window's local-time
+# boundary: they would have been invisible to both tallies, which is exactly
+# the filing this feature exists to make visible.
+#
+# Input "YYYY-MM-DD HH:MM:SS" in LOCAL time; output the same instant in UTC.
+# Two-step via epoch because BSD `date -u -j -f` reads its INPUT as UTC too,
+# so the one-liner that works on tube would be wrong on the Macs this ships to.
+_local_to_utc() {
+    local epoch
+    epoch=$(date -d "$1" +%s 2>/dev/null) \
+        || epoch=$(date -j -f '%Y-%m-%d %H:%M:%S' "$1" +%s 2>/dev/null) \
+        || return 1
+    date -u -d "@$epoch" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null \
+        || date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null
 }
 
 if [ "${1:-}" = "--motion-only" ]; then
@@ -101,7 +109,7 @@ if [ "${1:-}" = "--motion-only" ]; then
         echo "MOTION_ERROR=--motion-only needs the MOTION_SINCE value the full run printed"
         exit 2
     fi
-    MROOT=$(_motion_board) || {
+    MROOT=$(board_root "$(pwd -P)") || {
         echo "MOTION_ERROR=no board found from $(pwd -P)"; exit 0
     }
     MCMD=$(command -v bon 2>/dev/null || echo "$HOME/repos/spm1001/bon/.venv/bin/bon")
@@ -169,21 +177,12 @@ fi
 # === BON STATUS (default tracker) ===
 echo ""
 echo "=== BON ==="
-# Walk up to the board root, mirroring the CLI's discovery: at CWD any
-# .bon counts; above it only one with a prefix file (skips bare handoff
-# stashes like ~/.bon); a .git boundary stops the walk so a nested repo
-# never adopts an outer repo's board.
-BON_ROOT=""
-BWALK=$(pwd -P)
-BSTART="$BWALK"
-while [ "$BWALK" != "/" ]; do
-    if [ -d "$BWALK/.bon" ] && { [ "$BWALK" = "$BSTART" ] || [ -f "$BWALK/.bon/prefix" ]; }; then
-        BON_ROOT="$BWALK"
-        break
-    fi
-    [ -e "$BWALK/.git" ] && break
-    BWALK=$(dirname "$BWALK")
-done
+# Board root via lib-handoff's shared resolver: at CWD any .bon counts;
+# above it only one with a prefix file (skips bare handoff stashes like
+# ~/.bon); a .git boundary stops the walk so a nested repo never adopts an
+# outer repo's board. This file used to carry its own byte-alike copy of that
+# walk, and bon-racafo briefly added a third — one rule, one reader.
+BON_ROOT=$(board_root "$(pwd -P)" || true)
 
 if [ -n "$BON_ROOT" ]; then
     # Find bon CLI - check PATH first, then known location
@@ -387,10 +386,12 @@ if [ -n "${BON_ROOT:-}" ] && [ -n "${BON_CMD:-}" ] && [ -x "$BON_CMD" ]; then
             case "$LAST_HANDOFF" in
                 [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9]-*)
                     MOTION_HHMM="${LAST_HANDOFF:11:4}"
-                    MOTION_SINCE="${MOTION_DATE}T${MOTION_HHMM:0:2}:${MOTION_HHMM:2:2}:00"
+                    MOTION_SINCE=$(_local_to_utc \
+                        "$MOTION_DATE ${MOTION_HHMM:0:2}:${MOTION_HHMM:2:2}:00") || MOTION_SINCE=""
                     ;;
                 *)
-                    MOTION_SINCE="${MOTION_DATE}T00:00:00"
+                    MOTION_SINCE=$(_local_to_utc "$MOTION_DATE 00:00:00") \
+                        || MOTION_SINCE=""
                     ;;
             esac
             MOTION_SINCE_SRC="previous handoff ($LAST_HANDOFF)"

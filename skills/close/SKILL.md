@@ -393,7 +393,9 @@ Then one line, using the script's numbers and naming the ids:
 
 **Minting is capture, not debt.** A session that files five discoveries and closes two did its job — chasing them instead would have been the error. `MOTION_CARRIED` is the honest growth figure, since a card minted and closed within the window never touched the backlog. So there is no target here and nothing to optimise: the line exists so board growth is visible now rather than surfacing weeks later when a review ceremony trips over it (2026-08-30: 13 closed, 11 minted, one line that reframed the whole review conversation).
 
-Report what the script printed. It computes from `bon log` precisely so the figure isn't yours to shade, and it names every id so a filing left out is visible to anyone who scrolls. If it prints `MOTION_ERROR` or `MOTION_TRUNCATED`, say that instead of a number you'd have to guess at.
+Report what the script printed. It computes from `bon log` precisely so the figure isn't yours to shade, and naming the ids makes what you *did* file auditable at a glance. Be clear about the limit, though: the tally counts board items, so a discovery you never filed at all has no id and leaves no gap — nothing here can see it. That one is guarded by the triage step above and by capturing generously, not by this line.
+
+If the script prints `MOTION_ERROR` or `MOTION_TRUNCATED`, say that instead of a number you'd have to guess at.
 
 ### Commit and go
 
