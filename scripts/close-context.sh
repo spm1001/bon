@@ -400,7 +400,16 @@ if [ -n "${BON_ROOT:-}" ] && [ -n "${BON_CMD:-}" ] && [ -x "$BON_CMD" ]; then
     if [ -z "$MOTION_SINCE" ]; then
         MOTION_SINCE=$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%S' 2>/dev/null \
             || date -u -v-24H '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || echo "")
-        MOTION_SINCE_SRC="last 24h (no dated handoff found — window is not this session)"
+        # Two different reasons land here and they want different messages: no
+        # dated handoff at all, versus one whose timestamp would not convert
+        # (a local time that does not exist on a DST-skip day, or a malformed
+        # name). Saying "none found" when one WAS found points a future
+        # debugger away from the cause, while the window itself stays honest.
+        if [ -n "${LAST_HANDOFF:-}" ]; then
+            MOTION_SINCE_SRC="last 24h — $LAST_HANDOFF has an unconvertible timestamp (window is not this session)"
+        else
+            MOTION_SINCE_SRC="last 24h (no dated handoff found — window is not this session)"
+        fi
     fi
 
     if [ -n "$MOTION_SINCE" ]; then

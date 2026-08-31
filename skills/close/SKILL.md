@@ -382,7 +382,8 @@ Candidate mode included — the ledger append is a Write-tool edit, no CLI neede
 Once the board work is done — the Now items, the new bons filed, anything knocked out and `bon done`'d — re-derive the tally and state it in one line:
 
 ```bash
-"$BON_SCRIPTS/close-context.sh" --motion-only "<the MOTION_SINCE value the full run printed>"
+# Pass the bare timestamp only — not the parenthesised gloss beside it.
+"$BON_SCRIPTS/close-context.sh" --motion-only "<the timestamp the full run printed, e.g. 2026-08-31T11:48:00>"
 ```
 
 Re-derive rather than reusing the Orient figures: this rite *mints and closes items after the context script ran*, so the earlier numbers are stale in exactly the direction that matters. The window is since the previous close, not since this session started — wider on purpose, because per-session windows leave motion nobody counts. Where you can see some of it wasn't yours, say so.

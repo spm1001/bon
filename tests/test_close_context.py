@@ -704,3 +704,22 @@ class TestBoardMotionTimezone:
         _stub_bon(home, [])
         out = self._run_tz(repo, home, "Europe/London")
         assert out["MOTION_SINCE"].startswith("2026-08-07T23:00:00")
+
+    def test_unconvertible_timestamp_names_the_file_not_absence(self, tmp_path):
+        # A DST-skipped local time (or a malformed name) fails conversion and
+        # falls through to the 24h window. Saying "no dated handoff found"
+        # there points a debugger away from the cause — the handoff WAS found.
+        repo, home = _board(tmp_path)
+        (repo / "handoffs" / "2026-08-31-2599-deadbeef.md").write_text("# H\n")
+        _stub_bon(home, [])
+        out = self._run_tz(repo, home, "Europe/London")
+        assert "last 24h" in out["MOTION_SINCE"]
+        assert "2026-08-31-2599-deadbeef.md" in out["MOTION_SINCE"]
+        assert "no dated handoff found" not in out["MOTION_SINCE"]
+
+    def test_genuinely_absent_handoff_still_says_absent(self, tmp_path):
+        # The control: the other branch must keep its own honest message.
+        repo, home = _board(tmp_path)
+        _stub_bon(home, [])
+        out = self._run_tz(repo, home, "Europe/London")
+        assert "no dated handoff found" in out["MOTION_SINCE"]
