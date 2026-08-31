@@ -137,6 +137,20 @@ the second session was one unnoticed glance from presenting a different repo's
 board as its own (bon-potipe). Wrong-board orientation fails silently, so the
 collision-proof path is the whole guard.
 
+**Then declare the orientation** (bon-lateje). The estate's launch pattern has moved: sessions start in a high-level folder and `/open REPONAME` orients against a repo, but the statusline shows the directory the process was launched in — so a session working `mit-kg` reads as sitting in `~`. The dissolve is not to track the session but to have it *declare*, here, at the moment it commits to a board:
+
+```bash
+mkdir -p ~/.claude/state/oriented
+printf '%s %s\n' "$CLAUDE_PID" "/absolute/path/of/the/repo/you/just/oriented/on" \
+  > ~/.claude/state/oriented/"$CLAUDE_CODE_SESSION_ID"
+```
+
+Write it on **every** `/open`, not only a roaming one. A session that roams to another repo and later comes back would otherwise leave a breadcrumb still naming where it went, and the statusline would confidently show the wrong repo — which is the exact failure the card exists to prevent. Overwriting on every orientation keeps the file true by construction; when it names the launch dir the statusline draws nothing, so the plain in-repo case looks precisely as it does today.
+
+Three things are contract with the reader (`statusline.local.sh`, carte-kasepo) rather than free choices: the filename is the session id **from the environment**, never inferred from the newest file — deriving identity from ambient state is how two sessions come to read each other's state; the PID goes *inside* the file rather than in its name, because a session id survives `claude --resume` while a PID does not; and the format is one line, `<pid> <absolute path>`. The reader checks the PID with `kill -0` and renders nothing at all when the breadcrumb is absent, malformed or dead — a confidently wrong location is worse than a coarse right one, so if you cannot name the repo with certainty, write nothing.
+
+(A subagent has its own child session id but its parent's `CLAUDE_PID`, so a breadcrumb it writes is keyed to an id the statusline never looks up. Harmless — it renders for nobody — and not worth a guard.)
+
 ### 4. Personal Half (variation point `open.personal`)
 
 `open.personal` names a POINT INSIDE this one rite — there is exactly one /open for everyone, never a personal /open beside a team one; the personal half is a file this step reads, silently absent on most machines. The spine ends at the hierarchy; what a given operator wants rendered between the hierarchy and the direction pick — a dispatch-queue digest, a calendar glance, nothing — is theirs, and lives in their personal half (`~/.claude/mit-accent.md`, spec: `docs/ACCENT.md`). The session-start hook prints `ACCENT=<path>` when the file exists. The four personal variation points are named by ownership, uniformly — `open.personal`, `close.personal`, `plan.personal`, `review.personal` (settled by the operator, 2026-08-30; "personal" not "local", because local means per-machine on this estate and this split is per-person) — and whatever the operator calls the content inside their own file is theirs to change without touching core.
@@ -177,6 +191,7 @@ The ritual is reliable only if you supply what the harness will not — each beh
 5. **No tactical nudges for the target.** The UserPromptSubmit injection keys on the launch cwd, so step discipline is manual: `cd TARGET && bon work --status` on each return. Mirror hazard: claims key on the invoking cwd, so two roaming sessions working the same target read as one session to the claim guard — declare the lane where a collision is plausible.
 6. **Check the target's billing pin.** A repo can pin its own billing route (an `env` block in its `.claude/settings.local.json`, or a launcher-level pin registry); pins bind at launch, so a roaming session silently dodges them. If the target carries a pin this session isn't honouring, say so in one line before heavy work — the user owns the lane choice.
 7. **Tell /close where you were.** Handoff placement is work-based, not launch-based (the /close skill's placement table) — name the repo(s) actually worked, so the handoff lands in the target's `handoffs/`, not the launch cwd's.
+8. **Declare the orientation** — step 3's breadcrumb, and this is the case it was built for: a roaming session is precisely the one whose statusline is otherwise wrong all session. Write it for TARGET, and rewrite it whenever you roam again.
 
 A target carrying its own visiting protocol in CLAUDE.md (route → read on entry → search before mint → register on write) is stating this same rite in local terms — follow the stricter. The list covers the seams found so far, not every seam; where it runs out, reason from the mechanism: nothing launch-scoped follows you, everything on-demand does.
 
