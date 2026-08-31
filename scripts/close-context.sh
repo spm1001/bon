@@ -418,6 +418,21 @@ if [ -n "${BON_ROOT:-}" ] && [ -n "${BON_CMD:-}" ] && [ -x "$BON_CMD" ]; then
         echo "MOTION_SINCE=$MOTION_SINCE ($MOTION_SINCE_SRC)"
         emit_board_motion "$MOTION_SINCE" "$BON_ROOT" "$BON_CMD"
     fi
+
+    # An id-migration bridge doc with no dated close-out (bon-kefoba). `bon
+    # doctor` reports this, but doctor is opt-in and nothing on the estate runs
+    # it unbidden — so the check was a detector nobody consults, which is not
+    # what the card promised. Surfaced here because /close is the moment a
+    # migration's last pointer usually gets corrected. One line, and silent
+    # when there is nothing to say.
+    BRIDGE_LINE=$( (cd "$BON_ROOT" && "$BON_CMD" doctor 2>/dev/null) \
+        | grep -m1 'bridge doc with no close-out stamp' || true)
+    if [ -n "$BRIDGE_LINE" ]; then
+        echo ""
+        echo "=== MIGRATION BRIDGE ==="
+        echo "BRIDGE_UNCLOSED=${BRIDGE_LINE#*: }"
+        echo "BRIDGE_CUE=this migration's bridge doc still reads as in-flight. If the migration has landed, append a dated 'Closed out YYYY-MM-DD' section saying what landed — leave the text above it as the record of what was true then."
+    fi
 fi
 
 # (The HANDOFF_GITIGNORED / HANDOFF_ADD_CMD force-add probe lived here until

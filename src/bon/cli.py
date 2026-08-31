@@ -2495,7 +2495,7 @@ def _gitignored_durable_advisory() -> list[str]:
 # close this out when the migration lands" section telling the reader what to
 # append, so a bare word-match would read every fresh doc as already closed —
 # a check that could never fire. The date is the part only a human can supply.
-CLOSEOUT_STAMP = re.compile(r"closed[ -]out\s+\d{4}-\d{2}-\d{2}", re.IGNORECASE)
+CLOSEOUT_STAMP = re.compile(r"closed[ -]out\s+(\d{4}-\d{2}-\d{2})", re.IGNORECASE)
 
 
 def _bridge_doc_advisory() -> list[str]:
@@ -2518,19 +2518,28 @@ def _bridge_doc_advisory() -> list[str]:
     estate's own rename doctrine says never to key on an id-shaped pattern,
     and a stamp is a claim the human made rather than one we inferred.
     """
+    from datetime import date
+
     data_dir = _data_dir()
     # `.bon/` is where reprefix-board.py writes them; `docs/` catches the
-    # hand-made ones that predate the tool (cornichon's, 2026-08-08).
-    candidates = sorted(data_dir.glob("id-migration-*.md")) + sorted(
-        (data_dir.parent / "docs").glob("id-migration-*.md")
+    # hand-made ones that predate the tool (cornichon's, 2026-08-08). Both
+    # recursive: a doc one directory deeper escaped a flat glob entirely.
+    candidates = sorted(data_dir.rglob("id-migration-*.md")) + sorted(
+        (data_dir.parent / "docs").rglob("id-migration-*.md")
     )
+    today = date.today().isoformat()
     found = []
     for path in candidates:
         try:
             body = path.read_text(errors="replace")
         except OSError:
             continue
-        if not CLOSEOUT_STAMP.search(body):
+        # A stamp dated in the FUTURE is a promise, not a close-out — "will be
+        # closed out 2026-12-01 once the sweep lands" matched the pattern and
+        # silenced the check forever. The regex cannot read tense; it can read
+        # a calendar.
+        stamps = [m for m in CLOSEOUT_STAMP.findall(body) if m <= today]
+        if not stamps:
             found.append(path.name)
     if not found:
         return []
@@ -2621,6 +2630,14 @@ def cmd_doctor(args):
             print(f"  {issue}")
         if issues:
             print(f"\n{len(issues)} issue(s) found.")
+        # The advisories are about artefacts BESIDE the items file, so an
+        # absent board is no reason to skip them — and this is exactly the
+        # dormant board doctor exists to serve.
+        bridges = _bridge_doc_advisory()
+        if bridges:
+            print("\nUnclosed migration bridge (advisory — not counted as issues):")
+            for line in bridges:
+                print(f"  {line}")
         return
 
     raw_text = path.read_text()

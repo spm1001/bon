@@ -544,3 +544,49 @@ def test_the_advisory_is_not_counted_as_an_issue(tmp_path):
 
     assert BRIDGE in withdoc.stdout, "control: the advisory must actually be firing"
     assert _issue_count(withdoc.stdout) == _issue_count(base.stdout)
+
+
+def test_a_future_dated_stamp_is_a_promise_not_a_closeout(tmp_path):
+    # "will be closed out 2026-12-01 once the sweep lands" matched the pattern
+    # and silenced the check forever. The regex cannot read tense — it can
+    # read a calendar.
+    repo = _bridge_board(
+        tmp_path,
+        "# id migration\n\nThis doc will be closed out 2099-12-01 once the sweep lands.\n",
+    )
+    result = run_bon("doctor", cwd=repo)
+    assert BRIDGE in result.stdout
+
+
+def test_a_past_dated_stamp_beside_a_future_one_still_counts(tmp_path):
+    # The control for the check above: a real close-out must not be voided by
+    # some unrelated future date sitting in the same file.
+    repo = _bridge_board(
+        tmp_path,
+        "# id migration\n\nClosed out 2026-08-31 — all pointers corrected.\n\n"
+        "Revisit closed out 2099-01-01 if the fork is ever un-archived.\n",
+    )
+    result = run_bon("doctor", cwd=repo)
+    assert BRIDGE not in result.stdout
+
+
+def test_a_bridge_doc_one_directory_deeper_is_still_found(tmp_path):
+    # A flat glob missed docs/migrations/… entirely.
+    repo = _bridge_board(
+        tmp_path, "# id migration\n\npointers want updating\n", where="docs/migrations"
+    )
+    result = run_bon("doctor", cwd=repo)
+    assert BRIDGE in result.stdout
+
+
+def test_a_board_with_no_items_file_still_gets_the_advisory(tmp_path):
+    # doctor returned early at "No items.jsonl found" BEFORE the advisory —
+    # with the unstamped doc sitting right there. A dormant board is exactly
+    # the case doctor's own docstring says it exists to serve.
+    repo = tmp_path / "repo"
+    (repo / ".bon").mkdir(parents=True)
+    (repo / ".bon" / "prefix").write_text("test\n")
+    (repo / ".bon" / BRIDGE).write_text("# id migration\n\npointers want updating\n")
+    result = run_bon("doctor", cwd=repo)
+    assert "No items.jsonl found" in result.stdout, "control: the early path ran"
+    assert BRIDGE in result.stdout
