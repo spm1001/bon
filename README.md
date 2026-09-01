@@ -169,9 +169,7 @@ Use `--ready` to answer "what can I work on right now?" without clutter from blo
 Track progress through an action's steps:
 
 ```bash
-# Initialize steps (parses from --what if numbered). Inside Claude Code this also
-# re-declares the session's orientation breadcrumb for this board, so the
-# statusline follows the draw-down (bon-monevu).
+# Initialize steps (parses from --what if numbered)
 bon work bon-def
 
 # Or provide explicit steps

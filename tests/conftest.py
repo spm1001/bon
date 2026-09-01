@@ -23,21 +23,6 @@ def _hermetic_invocation_log(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _hermetic_harness_env(monkeypatch):
-    """Strip the Claude Code session identity from the test environment.
-
-    `bon work` re-declares the statusline orientation breadcrumb at
-    ~/.claude/state/oriented/$CLAUDE_CODE_SESSION_ID (bon-monevu). run_bon()
-    spawns a subprocess that inherits os.environ, so a suite run from inside a
-    Claude session would otherwise rewrite the OPERATOR's live breadcrumb with a
-    tmp path on every work test — the exact lie the breadcrumb exists to prevent.
-    Tests that probe the breadcrumb set the variables explicitly on their own
-    env, with HOME pointed at a temp dir."""
-    for var in ("CLAUDE_CODE_SESSION_ID", "CLAUDE_PID", "CLAUDE_CODE_CHILD_SESSION"):
-        monkeypatch.delenv(var, raising=False)
-
-
-@pytest.fixture(autouse=True)
 def _reset_storage_cache():
     """Reset cached data dir and backend between tests so monkeypatch.chdir works."""
     _reset_data_dir()
