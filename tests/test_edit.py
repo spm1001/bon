@@ -607,3 +607,69 @@ class TestAppendHow:
         r = run_bon("edit", oid, "--append-how", "Post-close note.", cwd=bon_dir)
         assert r.returncode == 0, r.stderr
         assert _how_of(bon_dir, oid).endswith("Post-close note.")
+
+
+# ---------------------------------------------------------------------------
+# --append-note — atomic annotation of the CLOSING note (bon-zikele)
+# ---------------------------------------------------------------------------
+# Same shape as --append-how, on the field a correcting session actually
+# reaches for. On 2026-09-01 a hand-rolled read-modify-write destroyed a
+# closing adjudication because `bon show --json` exposes the field as
+# `done_note` while `bon edit` writes it as `--note`: a .get("note")
+# returned the default and the correction replaced the record.
+
+def _note_of(bon_dir, item_id):
+    r = run_bon("show", item_id, "--json", cwd=bon_dir)
+    return json.loads(r.stdout).get("done_note")
+
+
+def _mk_done(bon_dir, note=None):
+    oid = _mk(bon_dir)
+    args = ["done", oid, "-q"]
+    if note:
+        args += ["--note", note]
+    r = run_bon(*args, cwd=bon_dir)
+    assert r.returncode == 0, r.stderr
+    return oid
+
+
+class TestAppendNote:
+    def test_append_to_existing(self, bon_dir):
+        oid = _mk_done(bon_dir, note="Original adjudication.")
+        r = run_bon("edit", oid, "--append-note", "CORRECTED: measured otherwise.",
+                    cwd=bon_dir)
+        assert r.returncode == 0, r.stderr
+        assert _note_of(bon_dir, oid) == (
+            "Original adjudication.\n\nCORRECTED: measured otherwise.")
+
+    def test_append_to_absent_sets(self, bon_dir):
+        oid = _mk_done(bon_dir)
+        r = run_bon("edit", oid, "--append-note", "First note.", cwd=bon_dir)
+        assert r.returncode == 0, r.stderr
+        assert _note_of(bon_dir, oid) == "First note."
+
+    def test_append_via_json_stdin(self, bon_dir):
+        oid = _mk_done(bon_dir, note="Base.")
+        r = run_bon("edit", oid, cwd=bon_dir,
+                    input='{"append_note": "Quotes \\"survive\\" the pipe."}')
+        assert r.returncode == 0, r.stderr
+        assert _note_of(bon_dir, oid) == 'Base.\n\nQuotes "survive" the pipe.'
+
+    def test_conflict_with_note_errors(self, bon_dir):
+        oid = _mk_done(bon_dir, note="Base.")
+        r = run_bon("edit", oid, "--note", "X", "--append-note", "Y", cwd=bon_dir)
+        assert r.returncode == 1
+        assert "ambiguous" in r.stderr
+        assert _note_of(bon_dir, oid) == "Base."  # untouched
+
+    def test_empty_append_errors(self, bon_dir):
+        oid = _mk_done(bon_dir, note="Base.")
+        r = run_bon("edit", oid, "--append-note", "  ", cwd=bon_dir)
+        assert r.returncode == 1
+        assert _note_of(bon_dir, oid) == "Base."
+
+    def test_open_item_errors(self, bon_dir):
+        oid = _mk(bon_dir)
+        r = run_bon("edit", oid, "--append-note", "Too early.", cwd=bon_dir)
+        assert r.returncode == 1
+        assert "still open" in r.stderr

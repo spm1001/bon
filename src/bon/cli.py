@@ -1076,7 +1076,7 @@ def cmd_status(args):
 # remove. Unknown keys are a hard error for the same reason; a typo that
 # quietly drops a field is worse than one that stops.
 EDIT_BRIEF_KEYS = ("why", "how", "what", "done", "badly")
-EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief", "area", "append_how")
+EDIT_TOP_KEYS = ("title", "parent", "outcome", "order", "note", "brief", "area", "append_how", "append_note")
 
 
 def edit_args_from_stdin(args, *, explicit: bool = False):
@@ -1109,7 +1109,7 @@ def edit_args_from_stdin(args, *, explicit: bool = False):
     if unknown:
         error(
             f"Unknown field(s): {', '.join(sorted(unknown))}\n"
-            "Valid: title, outcome (or parent), order, note, area, append_how, "
+            "Valid: title, outcome (or parent), order, note, area, append_how, append_note, "
             "brief{why, how, what, done} — brief fields may also be given flat."
         )
 
@@ -1143,6 +1143,10 @@ def edit_args_from_stdin(args, *, explicit: bool = False):
         if not isinstance(data["note"], str):
             error("'note' must be a string")
         args.note = data["note"]
+    if "append_note" in data:
+        if not isinstance(data["append_note"], str):
+            error("'append_note' must be a string")
+        args.append_note = data["append_note"]
     if "area" in data:
         # null clears, same as "" — a JSON author's natural spelling of "unset"
         value = data["area"]
@@ -1170,6 +1174,7 @@ def edit_flags_given(args) -> bool:
         getattr(args, "note", None) is not None,
         getattr(args, "area", None) is not None,
         getattr(args, "append_how", None) is not None,
+        getattr(args, "append_note", None) is not None,
         args.order is not None,
     ])
 
@@ -1189,7 +1194,7 @@ def cmd_edit(args):
     if not edit_flags_given(args):
         error(
             "At least one edit flag required: --title, --outcome, --why, --how, "
-            "--append-how, --what, --done, --note, --order, --area — or pipe JSON to stdin"
+            "--append-how, --what, --done, --note, --append-note, --order, --area — or pipe JSON to stdin"
         )
 
     items = load_items()
@@ -1276,6 +1281,26 @@ def cmd_edit(args):
             edited["done_note"] = args.note
         else:
             edited.pop("done_note", None)
+    if getattr(args, "append_note", None) is not None:
+        # The --append-how shape, on the field a CORRECTING session reaches
+        # for. Hand-rolled read-modify-write destroyed a closing adjudication
+        # on 2026-09-01: `bon show --json` exposes this field as `done_note`
+        # while `bon edit` writes it as `--note`, so a .get("note") returned
+        # its default and the correction replaced the record (bon-zikele).
+        if args.note is not None:
+            error("--note and --append-note together are ambiguous — pick one")
+        if item["status"] != "done":
+            error(
+                f"--append-note appends to the closing note, and {item['id']} "
+                f"is still open.\n"
+                f"Close it with one instead: bon done {item['id']} --note \"...\""
+            )
+        if not args.append_note.strip():
+            error("--append-note needs text (to clear the note, use --note '')")
+        existing = edited.get("done_note")
+        edited["done_note"] = (
+            f"{existing}\n\n{args.append_note}" if existing else args.append_note
+        )
 
     # Validate
     validate_edit(item, edited, items, prefix)
@@ -2943,6 +2968,9 @@ def _main(inv):
     edit_parser.add_argument("--area", help="New area ('' clears)")
     edit_parser.add_argument("--append-how", dest="append_how",
                              help="Append a paragraph to brief.how (atomic — no read-modify-write)")
+    edit_parser.add_argument("--append-note", dest="append_note",
+                             help="Append a paragraph to the closing note, done items only "
+                                  "(atomic — no read-modify-write)")
     edit_parser.add_argument("--json", action="store_true", dest="json_input",
                              help="Read fields as JSON from stdin (the default when stdin is piped and no flag is given)")
     add_output_flags(edit_parser, quiet=True)
