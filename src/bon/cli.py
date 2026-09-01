@@ -1940,6 +1940,49 @@ def print_baton(item_id: str) -> None:
     print("  The last session on this thread. Read it before starting.")
 
 
+def declare_orientation() -> None:
+    """Re-declare this session's orientation breadcrumb for the board just claimed.
+
+    The statusline renders "~ ⇒ repo" from ~/.claude/state/oriented/<session id>,
+    one line: "<pid> <absolute repo path>" — the contract the open skill's step 3
+    writes (bon-lateje; reader: carte-kasepo). The session id is the key because
+    it survives `claude --resume`; the PID is only a liveness token. /open writes
+    it for the repo oriented ON; the draw-down is where a session commits to
+    WORK, and the two differ often enough to matter — a session that /opens one
+    repo and draws a card down on another board would otherwise show the wrong
+    place for the rest of its life (bon-monevu; Sameer, 2026-09-01: follow the
+    draw-down).
+
+    Two silences, both by design. No harness env means we are not inside Claude
+    Code, so there is nothing to declare. CLAUDE_CODE_CHILD_SESSION set means a
+    dispatched worker, which inherits its parent's session id AND pid: its write
+    would overwrite the parent's breadcrumb with a token that passes every
+    liveness check. That variable has leaked into top-level sessions through tmux
+    (carte-suruta); the cost there is a skipped write and a statusline left on the
+    honest launch dir — the safe direction. A failed write is one stderr line that
+    says why, never a failed claim.
+    """
+    sid = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    pid = os.environ.get("CLAUDE_PID", "")
+    if not sid or not pid or os.environ.get("CLAUDE_CODE_CHILD_SESSION"):
+        return
+    # Validate at the edge: the id becomes a filename inside the state dir and
+    # must not be able to name anything outside it.
+    if "/" in sid or sid in (".", ".."):
+        return
+    root = os.path.realpath(_data_dir().parent)
+    state = Path.home() / ".claude" / "state" / "oriented"
+    try:
+        state.mkdir(parents=True, exist_ok=True)
+        (state / sid).write_text(f"{pid} {root}\n", encoding="utf-8")
+    except OSError as e:
+        print(
+            f"bon: orientation breadcrumb not written ({e}) — "
+            f"the statusline keeps its last reading",
+            file=sys.stderr,
+        )
+
+
 def cmd_work(args):
     """Initialize or manage tactical steps for an action."""
     check_initialized()
@@ -2130,6 +2173,7 @@ def cmd_work(args):
         item["updated_at"] = now_iso()
         item["updated_by"] = "reclaimed"
         save_items(items)
+        declare_orientation()
         print(f"Re-claimed from {old_session} (directory no longer exists)")
         print()
         print(format_tactical(item["tactical"]))
@@ -2145,6 +2189,7 @@ def cmd_work(args):
         item["updated_at"] = now_iso()
         item["updated_by"] = "reclaimed"
         save_items(items)
+        declare_orientation()
         print(f"Resumed: {item['id']} (progress intact)")
         print()
         print(format_tactical(item["tactical"], action_status=item["status"]))
@@ -2173,6 +2218,7 @@ def cmd_work(args):
     item["updated_at"] = now_iso()
     item["updated_by"] = "worked"
     save_items(items)
+    declare_orientation()
 
     how = item.get("brief", {}).get("how")
     if how:
