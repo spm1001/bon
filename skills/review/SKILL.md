@@ -94,6 +94,16 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py --full-dones   # lif
 
 Alongside the pyramid, give the survey's one-line vitals: total open, `visibility_note` (a headline jump is usually clones appearing, not work), old-item flags, orphaned prefixes.
 
+**Net motion (the balance line).** One more vital, from a second script — is the estate minting faster than it closes?
+
+```bash
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/net_motion.py                 # last 10 ISO weeks
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/net_motion.py --from 2026-W27 --to 2026-W36
+uv run --script ${CLAUDE_SKILL_DIR}/scripts/net_motion.py --json          # for the draft
+```
+
+It buckets every item's `created_at` (minted) and `done_at` (closed) by ISO week across BOTH halves — Dolt's global `items` + `archive` tables (every prefix, mapped or not) and every JSONL board the survey would see, archives folded in — and prints minted, closed and **net = closed − minted** (negative: the backlog grew) for all / Dolt / JSONL, then a per-board table of who carries the growth. Read it with three things in hand (bon-dajusi, measured 2026-09-03): the **residual** line per source must read 0 — it is `open now − (open at window start − Σ net)`, the whole checked against its parts, and a non-zero one names its cause (a done item with no `done_at`, an unparseable stamp) rather than hiding it; the **current week is partial** and says how many of its seven days are in — a fortnight read on a Monday is mostly last week, which is how a 2026-09-01 read saw W36 at −9 when four days later it stood at −84; and the convergence line gives the prior weeks' **median beside the mean**, because one bulk-close sweep (W28 2026: 518 closes, 213 of them on 07-08) drags a mean positive for months. A Dolt outage degrades LOUDLY — stderr warning plus `dolt: "unreachable"` — and the JSONL half still prints; present that as half a table, never as the estate. Pre-migration ghosts (`items.jsonl` beside `backend = dolt`) and an id seen in a second clone are skipped and named under Notes. Render the all-boards weekly table and the top of the growth table in the pyramid's vitals; the one-sentence reading ("does the convergence hold, and which boards carry it") is the ceremony's to write, from the numbers.
+
 **Citation cross-check (orphans).** For boards with a local clone, run:
 
 ```bash
@@ -417,3 +427,4 @@ uv run --script ${CLAUDE_SKILL_DIR}/scripts/audit_survey.py
 - `references/verification-patterns.md` — How to verify different brief types
 - `scripts/audit_survey.py` — Hybrid estate survey (Dolt-global + JSONL sweep) with recent wins, git signal, jobs grouping, age flags
 - `scripts/orphans.py` — Per-clone citation cross-check: commits vs board (CITED-BUT-OPEN close-candidates, UNKNOWN-ID typos, coverage telemetry)
+- `scripts/net_motion.py` — Estate net motion: minted vs closed per ISO week, Dolt + JSONL, per-source residual, per-board growth table (bon-dajusi)

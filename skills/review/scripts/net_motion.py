@@ -309,6 +309,10 @@ def convergence(weeks: list[dict]) -> dict:
     last2 = weeks[-2:]
     prior = weeks[:-2]
     prior_mean = sum(w["net"] for w in prior) / len(prior)
+    prior_sorted = sorted(w["net"] for w in prior)
+    mid = len(prior_sorted) // 2
+    prior_median = (prior_sorted[mid] if len(prior_sorted) % 2
+                    else (prior_sorted[mid - 1] + prior_sorted[mid]) / 2)
     last2_net = sum(w["net"] for w in last2)
     return {
         "last2_weeks": [w["week"] for w in last2],
@@ -316,6 +320,7 @@ def convergence(weeks: list[dict]) -> dict:
         "last2_mean": last2_net / 2,
         "prior_weeks": [prior[0]["week"], prior[-1]["week"]],
         "prior_mean": round(prior_mean, 1),
+        "prior_median": round(prior_median, 1),
         "weeks_minting_more": sum(1 for w in weeks if w["net"] < 0),
         "weeks_total": len(weeks),
     }
@@ -356,7 +361,9 @@ def render_text(result: dict, top: int) -> str:
         f"{'':>11} {_fmt_net(src['dolt']['sum_net']):>5} | {'':>11} {_fmt_net(src['jsonl']['sum_net']):>5}"
     )
     if cur in {w["week"] for w in weeks}:
-        lines.append(f"* {cur} is the current week — partial, through {result['today']}.")
+        days_in = (date.fromisoformat(result["today"]) - week_start(cur)).days + 1
+        lines.append(f"* {cur} is the current week — partial: {days_in} of 7 days, through {result['today']}. "
+                     f"A fortnight read on day 1–2 of a week is mostly the prior week.")
     lines.append("")
     lines.append("Whole vs parts (residual = open now − (open at window start − Σ net); 0 = the parts account for the whole):")
     for s in ("dolt", "jsonl"):
@@ -382,8 +389,9 @@ def render_text(result: dict, top: int) -> str:
         lines.append(
             f"Convergence: {conv['weeks_minting_more']} of {conv['weeks_total']} weeks minted more than they closed; "
             f"last fortnight ({conv['last2_weeks'][0]}, {conv['last2_weeks'][1]}) net {_fmt_net(conv['last2_net'])} "
-            f"({conv['last2_mean']:+.1f}/wk) against {conv['prior_mean']:+.1f}/wk over "
-            f"{conv['prior_weeks'][0]}..{conv['prior_weeks'][1]}."
+            f"({conv['last2_mean']:+.1f}/wk) against {conv['prior_mean']:+.1f}/wk mean, "
+            f"{conv['prior_median']:+.1f}/wk median, over {conv['prior_weeks'][0]}..{conv['prior_weeks'][1]} "
+            f"(median is the sweep-robust one: a bulk-close week skews the mean)."
         )
     growth = sorted(result["boards"].items(), key=lambda kv: (kv[1]["net"], -kv[1]["minted"]))
     lines.append("")
