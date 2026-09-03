@@ -402,10 +402,10 @@ def render_text(result: dict, top: int) -> str:
             f"  {label:<34}{b['backend']:<6}{b['minted']:>7}{b['closed']:>7}"
             f"{_fmt_net(b['net']):>6}{_fmt_net(b['net_last2']):>7}{b['open_now']:>6}"
         )
-    shrinking = [(l, b) for l, b in growth if b["net"] > 0]
+    shrinking = [(label, b) for label, b in growth if b["net"] > 0]
     if shrinking:
         best = sorted(shrinking, key=lambda kv: -kv[1]["net"])[:5]
-        lines.append("  shrinking: " + ", ".join(f"{l} {_fmt_net(b['net'])}" for l, b in best))
+        lines.append("  shrinking: " + ", ".join(f"{label} {_fmt_net(b['net'])}" for label, b in best))
     notes = []
     jn = result["jsonl_notes"]
     if jn["ghosts_skipped"]:
