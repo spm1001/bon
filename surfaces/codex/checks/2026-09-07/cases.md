@@ -1,0 +1,7 @@
+# Behavioural fixture provenance
+
+These are synthetic execution records for bon-ziwuda, not live customer work. The four repositories were separately initialized with JSONL boards, no upstream and a local accent. Each contained an argument-parser-only converter supporting `--format text|json`, a README still documenting `--text input.txt`, the existing converter outcome and two unfinished actions, an unswept handoff and a local queue carrying a hold plus an independent migration reminder. The fixture's user instructions prohibited network access, real personal files, other boards and further agents; generated work stayed under its temporary repository.
+
+Requests were ordinary open, plan, review and close requests. No expected answer, suspected failure or recommended fix was supplied to the executing agents. The close agent later received explicit synthetic approval for its own proposed dispositions and a local commit. Independent handoff review and live integrations were deliberately unavailable in these fixtures. Returned execution records preserve that limitation.
+
+The source links refer to the real Bon checkout used for the test. Temporary fixture paths identify the run; they are not installation paths or permanent user repositories. Original receipts are retained separately from the condensed parity assessment so unexpected actions and reported deviations remain inspectable.

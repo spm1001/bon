@@ -1,6 +1,7 @@
 # Handoffs ledger
 
-One line per handoff, newest first. `- [ ]` = not yet processed by an /open sweep; every close appends its line in the same change that writes the handoff (HANDOFF-CONTRACT v7, bon-supuko).
+One line per handoff, newest first. `- [ ] 2026-09-07 [2026-09-07-1904-01a07ce5.md](2026-09-07-1904-01a07ce5.md) — Restored all four Bon rites through a Codex runtime adapter, with isolated behavioural receipts (bon-ziwuda)
+- [ ]` = not yet processed by an /open sweep; every close appends its line in the same change that writes the handoff (HANDOFF-CONTRACT v7, bon-supuko).
 
 - [ ] 2026-09-01 [2026-09-01-0051-97e40180.md](2026-09-01-0051-97e40180.md) — The /close cold reader gets a budget, a findings-only rule and a completion marker, so a dead read is detectable whenever the closer checks for the marker: shipped in suite 1.84.2, verified by four live reads including the mature repo that killed the first reader, and corrected twice by a negative control that refused to die (bon-besozi, bon-lugetu)
 - [ ] 2026-08-31 [2026-08-31-2248-9fd9df2c.md](2026-08-31-2248-9fd9df2c.md) — Day-one audit of the cold-eyes gate: 14 reads measured, two new tail mechanisms, evidence folded into bon-besozi and the card queued for solo execution
