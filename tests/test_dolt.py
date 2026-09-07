@@ -318,6 +318,28 @@ class TestEnsurePymysql:
 
 
 class TestGetConnection:
+    @pytest.mark.parametrize("skip", [False, True])
+    def test_collector_can_connect_without_schema_writes(self, monkeypatch, skip):
+        import bon.dolt as dolt
+
+        monkeypatch.setenv("BON_DOLT_HOST", "example.invalid")
+        if skip:
+            monkeypatch.setenv("BON_SKIP_SCHEMA_INIT", "1")
+        else:
+            monkeypatch.delenv("BON_SKIP_SCHEMA_INIT", raising=False)
+        driver = MagicMock()
+        monkeypatch.setattr(dolt, "_pymysql", driver)
+        monkeypatch.setattr(dolt, "_cached_connection", None)
+        schema = MagicMock()
+        monkeypatch.setattr(dolt, "_ensure_schema", schema)
+        connection = dolt._get_connection()
+        assert connection is driver.connect.return_value
+        if skip:
+            schema.assert_not_called()
+            connection.commit.assert_not_called()
+        else:
+            schema.assert_called_once_with(connection)
+
     def test_no_config_raises(self, monkeypatch, tmp_path):
         """No env vars and no config file → helpful error."""
         for key in ("BON_DOLT_HOST", "BON_DOLT_PORT", "BON_DOLT_DATABASE",

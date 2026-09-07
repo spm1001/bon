@@ -1,0 +1,21 @@
+# Read-only opening collection
+
+The existing `scripts/open-context.sh` now accepts `--read-only [--scope nearest|board] [DIRECTORY]`. Work item: bon-cewisa. The Codex skill invokes this mode after selecting the project, then follows the maintained Open procedure. There is no new manifest, maintained snapshot or automatic Codex hook.
+
+The default invocation retains the Claude collector's migration and cache behaviour. Read-only invocation skips those mutations and uses the same shared path resolver, handoff ranking, pending/unlisted ledger detection and board rendering. It gives explicit launch, selected, repository and board paths; routing files are labelled as pointers rather than loaded instructions. Full source bodies, knowledge synthesis and candidate adjudication remain with the assistant. Git state and runtime identity remain separate observations.
+
+The nearest writing room is the default handoff scope, so a newer handoff elsewhere cannot silently replace this room's baton. Wider resolver locations are listed as unread. `--scope board` intentionally includes the ancestor handoff directories inside the board boundary; the global stash is excluded when a board exists. Unmigrated legacy files are reported without moving them. Read-only collection does not mark ledger entries processed or claim a tactical. No tactical is explicitly distinguished from no concurrent work.
+
+## Verification
+
+Synthetic fixtures in `tests/test_open_context_readonly.py` check a home launch into a room with spaces in its path; preservation of the Git index, legacy handoffs, ledgers and existing runtime cache; newer root/global handoff isolation; explicit broader scope; pending, unlisted, missing and malformed ledger entries; empty scopes; oversized previews; failed/unavailable Dolt readers; invalid arguments; and ranking independent of checkout mtimes. Fixture snapshots compare every file and directory under the isolated home before and after collection. The original collector/resolver tests exercise the unchanged default path, including migration.
+
+The oversized fixture caught exit 141: a preview using `head` closed the pipe while a large producer was still writing, so `pipefail` aborted the collector before its omission notice. Preview selection now drains the producer with `sed`; prose has an additional labelled per-line cap in read-only mode, while source paths remain complete.
+
+Source inspection also caught a hidden mutation: normal Dolt connection setup creates/migrates tables and commits, including for a CLI read. Collector reads now set `BON_SKIP_SCHEMA_INIT=1` for their child process and select the source paired with this collector through `PYTHONPATH`, using the installed Bon Python entrypoint and its transport dependencies. This avoids silently relying on an older installed module that ignores the flag; missing paired source is an explicit failure. The flag suppresses initialization only, not a general database write permission. Connection tests prove that the collector path skips schema setup/commit while the default path retains it. The collector itself invokes only list/current reads and suppresses Python bytecode writes.
+
+Validation: 112 tests passed across the read-only collector, original collector, shared handoff resolver and Dolt unit tests. Shell syntax and whitespace checks passed. The new test file passed Ruff; checking the shared Dolt file also reported an existing SIM114 in the unchanged row-conversion code, which was not folded into this change.
+
+Explicit invocation against a live room returned the correct board and understanding paths, all three currently pending room handoffs, and the wider directories as out of scope. That is a collection receipt, not a fresh assistant's complete opening or a guarantee that hooks run on every client. Live private context is retained with its owning setup project rather than copied into this public repository.
+
+Full hierarchy and substantive source reads are still required; the collector only previews top-level outcomes and standalone actions. JSONL reads are local and do not fetch remote refs: board freshness remains an Open rite check. Tests of automatic delivery, fresh-instance judgement and transcript capture are outside this change.

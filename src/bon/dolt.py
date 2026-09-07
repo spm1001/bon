@@ -161,7 +161,11 @@ def _get_connection():
             cursorclass=pymysql.cursors.DictCursor,
             autocommit=False,
         )
-        _ensure_schema(conn)
+        # Context collectors must not create/migrate tables just to read them.
+        # This only suppresses initialization; it is not a database ACL or a
+        # general write prohibition. Normal CLI callers retain initialization.
+        if os.environ.get("BON_SKIP_SCHEMA_INIT") != "1":
+            _ensure_schema(conn)
         _cached_connection = conn
         return conn
     except pymysql.err.OperationalError as e:

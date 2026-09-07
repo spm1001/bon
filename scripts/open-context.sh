@@ -5,6 +5,44 @@
 
 set -euo pipefail
 
+# The default remains the Claude hook's cached/migrating briefing. Other
+# surfaces can explicitly collect the same context without those side effects.
+READ_ONLY=0
+HANDOFF_SCOPE=nearest
+TARGET=""
+usage() {
+    echo "Usage: open-context.sh [--read-only [--scope nearest|board] [DIRECTORY]]"
+}
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --read-only) READ_ONLY=1 ;;
+        --scope)
+            [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+            HANDOFF_SCOPE="$2"; shift ;;
+        --help|-h) usage; exit 0 ;;
+        --*) usage >&2; exit 2 ;;
+        *) [ -z "$TARGET" ] || { usage >&2; exit 2; }; TARGET="$1" ;;
+    esac
+    shift
+done
+case "$HANDOFF_SCOPE" in nearest|board) ;; *) usage >&2; exit 2 ;; esac
+if [ "$READ_ONLY" -eq 0 ] && { [ -n "$TARGET" ] || [ "$HANDOFF_SCOPE" != nearest ]; }; then
+    usage >&2; exit 2
+fi
+LAUNCH_DIR=$(pwd -P)
+if [ -n "$TARGET" ]; then cd -- "$TARGET"; fi
+if [ "$READ_ONLY" -eq 1 ]; then export PYTHONDONTWRITEBYTECODE=1; fi
+
+# Bound prose previews as well as line counts. Paths remain complete, and
+# every shortened preview names the fact; the source is always read separately.
+preview() {
+    if [ "$READ_ONLY" -eq 1 ]; then
+        awk 'length($0)>240 {print substr($0,1,240) " … [preview shortened; read source]"; next} {print}'
+    else
+        cat
+    fi
+}
+
 # === CROSS-PLATFORM HELPERS ===
 if stat -c '%Y' /dev/null &>/dev/null; then
     file_mtime() { stat -c '%Y' "$1"; }
@@ -39,7 +77,7 @@ BASE_CONTEXT_DIR="$HOME/.claude/.session-context"
 CWD=$(pwd -P)
 ENCODED_PATH=$(echo "$CWD" | sed 's/[^a-zA-Z0-9-]/-/g')
 CONTEXT_DIR="$BASE_CONTEXT_DIR/$ENCODED_PATH"
-mkdir -p "$CONTEXT_DIR"
+if [ "$READ_ONLY" -eq 0 ]; then mkdir -p "$CONTEXT_DIR"; fi
 
 # === SELF-VALIDATION ===
 validate_dependencies() {
@@ -56,6 +94,51 @@ validate_dependencies
 # Shared handoff/understanding.md resolution — keeps this READER and the
 # /close WRITER (close-context.sh) in lockstep on the same convention.
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib-handoff.sh"
+
+# Both modes use the shared resolver. Read-only arrival defaults to the nearest
+# writing room; wider scopes remain visible without becoming this room's baton.
+RESOLVED_BOARD=$(board_root "$CWD" || true)
+READ_DIRS=$(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
+if [ "$READ_ONLY" -eq 1 ]; then
+    ALL_READ_DIRS="$READ_DIRS"
+    if [ "$HANDOFF_SCOPE" = nearest ]; then
+        READ_DIRS=$(handoff_write_dir "$CWD")
+    elif [ -n "$RESOLVED_BOARD" ]; then
+        READ_DIRS=$(printf '%s\n' "$READ_DIRS" | awk -v global="$HOME/.bon/handoffs" '$0 != global')
+    fi
+    echo "=== READ-ONLY OPENING CONTEXT ==="
+    echo "HOST=$(hostname)"
+    echo "LAUNCH_DIR=$LAUNCH_DIR"
+    echo "SELECTED_DIR=$CWD"
+    echo "REPOSITORY=$(git rev-parse --show-toplevel 2>/dev/null || echo unavailable)"
+    echo "BOARD_ROOT=${RESOLVED_BOARD:-none}"
+    echo "HANDOFF_SCOPE=$HANDOFF_SCOPE"
+    while IFS= read -r dir; do
+        [ -n "$dir" ] || continue
+        echo "HANDOFF_DIR=$dir"
+        if [ -f "$dir/LEDGER.md" ]; then echo "LEDGER=$dir/LEDGER.md"; fi
+    done <<< "$READ_DIRS"
+    while IFS= read -r dir; do
+        if ! printf '%s\n' "$READ_DIRS" | grep -qxF -- "$dir"; then
+            echo "OTHER_HANDOFF_DIR=$dir (outside selected scope; unread)"
+        fi
+    done <<< "$ALL_READ_DIRS"
+    for dir in "$CWD" "$RESOLVED_BOARD"; do
+        [ -n "$dir" ] || continue
+        for name in AGENTS.md CLAUDE.md START_HERE.md rooms.md; do
+            if [ -f "$dir/$name" ]; then echo "READ_SOURCE=$dir/$name (not loaded by this collector)"; fi
+        done
+        if [ "$dir" = "$RESOLVED_BOARD" ]; then break; fi
+    done
+    if [ -n "$RESOLVED_BOARD" ]; then
+        echo "BOARD_DETAIL: run bon list from $RESOLVED_BOARD"
+        if [ -d "$RESOLVED_BOARD/.bon/handoffs" ]; then
+            echo "LEGACY_HANDOFF_DIR=$RESOLVED_BOARD/.bon/handoffs (unmigrated; inspect separately)"
+        fi
+    fi
+    echo "Collection does not deliver full source bodies, synthesize knowledge, tick ledgers or claim work."
+    echo ""
+fi
 
 # === HELPERS ===
 time_ago() {
@@ -78,7 +161,7 @@ time_ago() {
 # and no line saying why. Migrating first means this session reads the
 # migrated location. Announced, never silent — it moves files in the user's
 # working tree, and they need to know to commit them.
-handoff_migrate_legacy "$CWD"
+if [ "$READ_ONLY" -eq 0 ]; then handoff_migrate_legacy "$CWD"; fi
 if [ "${HANDOFF_MIGRATED_N:-0}" -gt 0 ]; then
     echo "Migrated $HANDOFF_MIGRATED_N legacy handoff(s) from .bon/handoffs/ to $HANDOFF_MIGRATED_DEST"
     echo "  (bon now keeps handoffs visible at the board root — commit the move with your next change.)"
@@ -88,6 +171,10 @@ if [ "${HANDOFF_MIGRATED_FAILED:-0}" -eq 1 ]; then
     echo "Warning: could not migrate every handoff out of .bon/handoffs/ — the ones left there are NOT read any more."
     echo "  Move them into the repo's visible handoffs/ by hand."
     echo ""
+fi
+if [ "$READ_ONLY" -eq 0 ]; then
+    # Migration may have created a previously absent visible handoffs directory.
+    READ_DIRS=$(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
 fi
 
 # === LOCAL HANDOFF WARNING ===
@@ -169,7 +256,7 @@ while IFS= read -r HDIR; do
         BEST_KEY="$KEY"
         LATEST_FILE="$FILE"
     fi
-done < <(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
+done <<< "$READ_DIRS"
 
 if [ -n "$LATEST_FILE" ]; then
     LATEST_TIME=$(file_mtime "$LATEST_FILE")
@@ -247,7 +334,7 @@ while IFS= read -r HDIR; do
             UNPROCESSED_PATHS="${UNPROCESSED_PATHS}${F} [no ledger line — process, then ADD a ticked line for it]"$'\n'
         fi
     done
-done < <(handoff_read_dirs "$CWD" | awk '!seen[$0]++')
+done <<< "$READ_DIRS"
 # Oldest first (filenames lead YYYY-MM-DD-HHMM, so basename sort is
 # chronological) — the sweep processes in write order.
 if [ -n "$UNPROCESSED_PATHS" ]; then
@@ -262,6 +349,22 @@ BON_READ="$SCRIPT_DIR/bon-read.sh"
 BON_LIST_OUTPUT=""
 BON_READY_OUTPUT=""
 BON_CURRENT_OUTPUT=""
+BOARD_ERRORS=""
+
+# Read-only callers must distinguish a failed query from an empty result.
+# Do not suggest restarting a service from an error string: a failed read does
+# not identify the failing layer. Leave the normal hook's behaviour intact.
+read_board() {
+    local variable="$1" result status
+    shift
+    if result=$(cd "$BON_ROOT" && "$@" 2>&1); then
+        printf -v "$variable" '%s' "$result"
+    else
+        status=$?
+        BOARD_ERRORS="${BOARD_ERRORS}${variable} failed (exit $status); retry from $BON_ROOT"$'\n'
+        printf -v "$variable" '%s' ""
+    fi
+}
 
 # Walk up to the board root, mirroring the CLI's discovery: at CWD any
 # .bon counts; above it only one with a prefix file (skips bare handoff
@@ -289,7 +392,24 @@ fi
 
 # Invocations run from the board root: bon-read.sh reads .bon/ relative
 # to cwd, and older installed bon CLIs don't walk up.
-if [ "$BON_BACKEND" = "jsonl" ]; then
+if [ "$READ_ONLY" -eq 1 ] && [ "$BON_BACKEND" != none ]; then
+    if [ "$BON_BACKEND" = jsonl ] && [ -x "$BON_READ" ]; then
+        read_board BON_LIST_OUTPUT "$BON_READ" list
+        read_board BON_CURRENT_OUTPUT "$BON_READ" current
+    elif command -v bon &>/dev/null; then
+        # Use the source paired with this collector even when the installed
+        # Python entrypoint predates BON_SKIP_SCHEMA_INIT. Its interpreter still
+        # supplies the installed transport dependencies; no install/sync runs.
+        if [ ! -f "$SCRIPT_DIR/../src/bon/dolt.py" ]; then
+            BOARD_ERRORS="Collector source unavailable; refusing a potentially migrating CLI read"
+        else
+            read_board BON_LIST_OUTPUT env PYTHONPATH="$SCRIPT_DIR/../src" BON_SKIP_SCHEMA_INIT=1 bon list
+            read_board BON_CURRENT_OUTPUT env PYTHONPATH="$SCRIPT_DIR/../src" BON_SKIP_SCHEMA_INIT=1 bon show --current
+        fi
+    else
+        BOARD_ERRORS="Board reader unavailable; backend=$BON_BACKEND"
+    fi
+elif [ "$BON_BACKEND" = "jsonl" ]; then
     if [ -x "$BON_READ" ]; then
         BON_LIST_OUTPUT=$(cd "$BON_ROOT" && "$BON_READ" list 2>/dev/null || true)
         BON_READY_OUTPUT=$(cd "$BON_ROOT" && "$BON_READ" ready 2>/dev/null || true)
@@ -315,7 +435,9 @@ elif [ "$BON_BACKEND" = "dolt" ]; then
 fi
 
 # Write full hierarchy to disk (detail on demand)
-if [ -n "$BON_LIST_OUTPUT" ]; then
+if [ "$READ_ONLY" -eq 1 ]; then
+    : # No snapshot, stale-cache deletion, or runtime directory creation.
+elif [ -n "$BON_LIST_OUTPUT" ]; then
     {
         echo "# Bon Context (generated $(date '+%Y-%m-%d %H:%M'))"
         echo "# Generated for: $CWD"
@@ -345,7 +467,7 @@ fi
 # === GHOST FILE WARNING ===
 if [ "$BON_BACKEND" = "dolt" ] && [ -f ".bon/items.jsonl" ]; then
     echo "Warning: .bon/items.jsonl exists but backend is Dolt — this file is stale (pre-migration ghost)."
-    echo "  Remove it: rm .bon/items.jsonl"
+    if [ "$READ_ONLY" -eq 0 ]; then echo "  Remove it: rm .bon/items.jsonl"; fi
     echo ""
 fi
 
@@ -371,16 +493,23 @@ echo ""
 # back, so it is gone entirely (bon-tebete). This line is now the ONLY delivery
 # of the handoff: state the path, and let the reader Read it.
 if [ -n "$LATEST_FILE" ]; then
-    echo "Last session ($LATEST_STR): $LATEST_PURPOSE"
+    printf '%s\n' "Last session ($LATEST_STR): $LATEST_PURPOSE" | preview
     echo "HANDOFF=$LATEST_FILE"
     echo ""
+fi
+if [ "$READ_ONLY" -eq 1 ] && [ -z "$LATEST_FILE" ]; then
+    echo "HANDOFF=none found in selected scope"
 fi
 
 # --- 2b. Unprocessed handoffs (bon-supuko: the sweep replaces latest-wins) ---
 if [ -n "$UNPROCESSED_PATHS" ]; then
     UNPROCESSED_COUNT=$(printf '%s\n' "$UNPROCESSED_PATHS" | wc -l | tr -d ' ')
-    echo "Unprocessed handoffs ($UNPROCESSED_COUNT) — sweep oldest-first before draw-down, tick each ledger line:"
-    printf '%s\n' "$UNPROCESSED_PATHS" | head -n "$UNPROCESSED_MAX" | while IFS= read -r p; do
+    if [ "$READ_ONLY" -eq 1 ]; then
+        echo "Unprocessed handoffs ($UNPROCESSED_COUNT) — oldest first; processing remains pending:"
+    else
+        echo "Unprocessed handoffs ($UNPROCESSED_COUNT) — sweep oldest-first before draw-down, tick each ledger line:"
+    fi
+    printf '%s\n' "$UNPROCESSED_PATHS" | sed -n "1,${UNPROCESSED_MAX}p" | while IFS= read -r p; do
         echo "  UNPROCESSED=$p"
     done
     if [ "$UNPROCESSED_COUNT" -gt "$UNPROCESSED_MAX" ]; then
@@ -414,6 +543,21 @@ UNDERSTANDING_FILE=$(understanding_path "$CWD" || true)
 if [ -n "$UNDERSTANDING_FILE" ]; then
     echo "UNDERSTANDING=$UNDERSTANDING_FILE"
     echo ""
+fi
+if [ "$READ_ONLY" -eq 1 ] && [ -z "$UNDERSTANDING_FILE" ]; then
+    echo "UNDERSTANDING=not found"
+fi
+if [ "$READ_ONLY" -eq 1 ]; then
+    echo "BOARD_BACKEND=$BON_BACKEND"
+    if [ -n "$BOARD_ERRORS" ]; then
+        printf 'BOARD_READ_FAILED: %s\n' "$BOARD_ERRORS"
+    elif [ "$BON_BACKEND" = none ]; then
+        echo "BOARD_READ=not available (no supported board found)"
+    elif [ -z "$BON_LIST_OUTPUT" ]; then
+        echo "BOARD_READ=ok (no items in the default view)"
+    else
+        echo "BOARD_READ=ok (bounded preview; full hierarchy via BOARD_DETAIL above)"
+    fi
 fi
 
 # --- 4. From the last handoff's Opportunities ---
@@ -466,8 +610,8 @@ if [ -n "$LATEST_FILE" ]; then
         echo "From the last handoff's Opportunities:"
         # First sentence per bullet — the full text is in the handoff body
         # below (and on disk at the HANDOFF= path either way).
-        printf '%s\n' "$NEXT_LINES" | head -n "$SUGGESTED_MAX" | while IFS= read -r line; do
-            echo "  $(printf '%s' "$line" | sed 's/\([.!?]\) [A-Z].*/\1/')"
+        printf '%s\n' "$NEXT_LINES" | sed -n "1,${SUGGESTED_MAX}p" | while IFS= read -r line; do
+            printf '  %s\n' "$(printf '%s' "$line" | sed 's/\([.!?]\) [A-Z].*/\1/')" | preview
         done
         if [ "$SUGGESTED_TOTAL" -gt "$SUGGESTED_MAX" ]; then
             echo "  … +$((SUGGESTED_TOTAL - SUGGESTED_MAX)) more in the handoff (path above)"
@@ -504,8 +648,8 @@ if [ "$BON_BACKEND" != "none" ]; then
             # mode; tebete closes the asymmetry.
             OUTCOME_COUNT=$(printf '%s\n' "$OUTCOME_LINES" | wc -l | tr -d ' ')
             echo "Outcomes we're working towards:"
-            printf '%s\n' "$OUTCOME_LINES" | head -n "$OUTCOME_MAX" | while IFS= read -r line; do
-                echo "  $line"
+            printf '%s\n' "$OUTCOME_LINES" | sed -n "1,${OUTCOME_MAX}p" | while IFS= read -r line; do
+                printf '  %s\n' "$line" | preview
             done
             if [ "$OUTCOME_COUNT" -gt "$OUTCOME_MAX" ]; then
                 echo "  … +$((OUTCOME_COUNT - OUTCOME_MAX)) more — full list: bon list"
@@ -520,7 +664,9 @@ if [ "$BON_BACKEND" != "none" ]; then
             # list. State the remainder and where to get it.
             STANDALONE_COUNT=$(printf '%s\n' "$STANDALONE_LINES" | wc -l | tr -d ' ')
             echo "Standalone actions:"
-            printf '%s\n' "$STANDALONE_LINES" | head -n "$STANDALONE_MAX"
+            # Drain the producer even when the preview is full. head can close
+            # early and make a large producer abort under pipefail (exit 141).
+            printf '%s\n' "$STANDALONE_LINES" | sed -n "1,${STANDALONE_MAX}p" | preview
             if [ "$STANDALONE_COUNT" -gt "$STANDALONE_MAX" ]; then
                 echo "  … +$((STANDALONE_COUNT - STANDALONE_MAX)) more — full list: bon list"
             fi
@@ -530,7 +676,17 @@ if [ "$BON_BACKEND" != "none" ]; then
 fi
 
 # --- 6. Active work / nothing in progress ---
-if [ -n "${BON_DOLT_ERROR:-}" ]; then
+if [ "$READ_ONLY" -eq 1 ]; then
+    if [ -n "$BOARD_ERRORS" ]; then
+        echo "TACTICAL=unknown (board read failed)"
+    elif [ -n "$BON_CURRENT_OUTPUT" ]; then
+        echo "TACTICAL=present (board-root identity; verify ownership before advancing)"
+        printf '%s\n' "$BON_CURRENT_OUTPUT" | sed -n '1,6p' | preview
+        echo "Full tactical detail: run bon show --current from $BON_ROOT"
+    elif [ "$BON_BACKEND" != none ]; then
+        echo "TACTICAL=none reported (does not establish absence of other sessions)"
+    fi
+elif [ -n "${BON_DOLT_ERROR:-}" ]; then
     true  # Already reported above
 elif [ "$BON_BACKEND" != "none" ]; then
     if [ -z "$BON_CURRENT_OUTPUT" ]; then
@@ -540,7 +696,11 @@ elif [ "$BON_BACKEND" != "none" ]; then
 fi
 
 # --- 7. Contributions pending ---
-if [ -d ".bon/contributions" ]; then
+if [ "$READ_ONLY" -eq 1 ]; then
+    if [ -n "$BON_ROOT" ] && [ -d "$BON_ROOT/.bon/contributions" ]; then
+        echo "CONTRIBUTIONS_DIR=$BON_ROOT/.bon/contributions (pending inspection)"
+    fi
+elif [ -d ".bon/contributions" ]; then
     CONTRIB_FILES=$(ls -1 .bon/contributions/*.md 2>/dev/null || true)
     if [ -n "$CONTRIB_FILES" ]; then
         CONTRIB_COUNT=$(echo "$CONTRIB_FILES" | wc -l | tr -d ' ')
@@ -571,3 +731,5 @@ fi
 # a path rather than the body. That is not a regression — in the truncated case
 # it got neither. If it becomes a real cost, the fix is making /open fire
 # unbidden (bon-zuvocu), not re-inflating this hook.
+
+if [ "$READ_ONLY" -eq 1 ] && [ -n "$BOARD_ERRORS" ]; then exit 1; fi
