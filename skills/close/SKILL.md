@@ -458,9 +458,11 @@ If a fold changes what the session was *for*, update the `purpose:` gloss on the
 Once the board work is done — the Now items, the new bons filed, anything knocked out and `bon done`'d — re-derive the tally and state it in one line:
 
 ```bash
-# Pass the bare timestamp only — not the parenthesised gloss beside it.
-"$BON_SCRIPTS/close-context.sh" --motion-only "<the timestamp the full run printed, e.g. 2026-08-31T11:48:00>"
+# Pass the MOTION_SINCE value the full run printed — bare, without the parenthesised gloss beside it.
+"$BON_SCRIPTS/close-context.sh" --motion-only "<the MOTION_SINCE value the full run printed, e.g. 2026-08-31T11:48:00>"
 ```
+
+MOTION_SINCE, not the `NOW=` line: `NOW` is local time and the wrong window (since Orient, not since the previous close). The script still accepts a `NOW` line pasted exactly as printed (`2026-08-31 12:48`) and converts it to UTC, saying so beside the result, and it refuses a window that starts in the future rather than printing zeroes — that is the tell of a local time re-typed into the UTC shape, which is how a BST close read minted 0 on 2026-09-13 (bon-huzuhi).
 
 Re-derive rather than reusing the Orient figures: this rite *mints and closes items after the context script ran*, so the earlier numbers are stale in exactly the direction that matters. The window is since the previous close, not since this session started — wider on purpose, because per-session windows leave motion nobody counts. Where you can see some of it wasn't yours, say so.
 

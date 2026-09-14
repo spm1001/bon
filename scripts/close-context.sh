@@ -110,10 +110,56 @@ _local_to_utc() {
         || date -u -r "$epoch" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null
 }
 
+# The window the closer passes back to `--motion-only` arrives in whatever
+# shape they copied from the full run, and the full run prints TWO stamps in
+# two zones: `NOW=YYYY-MM-DD HH:MM` (local) and `MOTION_SINCE=YYYY-MM-DDTHH:MM:SS`
+# (UTC). On 2026-09-13 a BST close passed NOW, re-typed into the T shape, and
+# an item minted five minutes later read MOTION_MINTED=0 — the local hour sat
+# an hour in the future once read as UTC (bon-huzuhi). Passed exactly as
+# printed, the space shape sorted before every 'T' of that day and counted the
+# whole day instead. So: the space shape is LOCAL and converted; the T shape is
+# UTC as MOTION_SINCE prints it (a trailing Z is stripped); anything else is
+# refused by name. Output is the UTC instant, plus what it was converted from.
+_motion_arg_to_utc() {
+    local arg="$1" d='[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' hm='[0-9][0-9]:[0-9][0-9]'
+    case "$arg" in
+        $d\ $hm)                _local_to_utc "$arg:00" ;;
+        $d\ $hm:[0-9][0-9])     _local_to_utc "$arg" ;;
+        ${d}T$hm)               echo "$arg:00" ;;
+        ${d}T$hm:[0-9][0-9])    echo "$arg" ;;
+        ${d}T$hm:[0-9][0-9]Z)   echo "${arg%Z}" ;;
+        *)                      return 1 ;;
+    esac
+}
+
+# UTC "YYYY-MM-DDTHH:MM:SS" -> epoch. GNU first; the BSD form reads its input
+# as UTC under -u, which is exactly right here (and exactly wrong in
+# _local_to_utc above — same flag, opposite need).
+_utc_to_epoch() {
+    date -u -d "$1" +%s 2>/dev/null \
+        || date -u -j -f '%Y-%m-%dT%H:%M:%S' "$1" +%s 2>/dev/null
+}
+
 if [ "${1:-}" = "--motion-only" ]; then
     MOTION_SINCE_ARG="${2:-}"
     if [ -z "$MOTION_SINCE_ARG" ]; then
         echo "MOTION_ERROR=--motion-only needs the MOTION_SINCE value the full run printed"
+        exit 2
+    fi
+    MOTION_SINCE_UTC=$(_motion_arg_to_utc "$MOTION_SINCE_ARG") || {
+        echo "MOTION_ERROR=cannot read '$MOTION_SINCE_ARG' as a window start — pass the MOTION_SINCE value the full run printed (UTC, 2026-08-31T11:48:00) or its NOW line exactly as printed (local, 2026-08-31 12:48)"
+        exit 2
+    }
+    # A window that starts in the future can only be a local time read as
+    # UTC (or a typo); its counts would be zeroes that read as a quiet
+    # session, so refuse with the reason instead of printing them.
+    NOW_EPOCH=$(date -u +%s)
+    FUTURE_CHECK=""
+    SINCE_EPOCH=$(_utc_to_epoch "$MOTION_SINCE_UTC") || {
+        SINCE_EPOCH="$NOW_EPOCH"; FUTURE_CHECK="; future check skipped: date could not parse the window"
+    }
+    if [ "$SINCE_EPOCH" -gt $((NOW_EPOCH + 60)) ]; then
+        echo "MOTION_ERROR=window start ${MOTION_SINCE_UTC}Z is in the future (now $(date -u '+%Y-%m-%dT%H:%M:%S')Z) — a local time passed as UTC? Pass the MOTION_SINCE value the full run printed, or its NOW line exactly as printed"
         exit 2
     fi
     MROOT=$(board_root "$(pwd -P)") || {
@@ -124,8 +170,12 @@ if [ "${1:-}" = "--motion-only" ]; then
         echo "MOTION_ERROR=bon CLI not found"; exit 0
     fi
     echo "=== BOARD MOTION ==="
-    echo "MOTION_SINCE=$MOTION_SINCE_ARG (re-derived at summary time)"
-    emit_board_motion "$MOTION_SINCE_ARG" "$MROOT" "$MCMD"
+    if [ "$MOTION_SINCE_UTC" = "$MOTION_SINCE_ARG" ]; then
+        echo "MOTION_SINCE=$MOTION_SINCE_UTC (re-derived at summary time$FUTURE_CHECK)"
+    else
+        echo "MOTION_SINCE=$MOTION_SINCE_UTC (re-derived at summary time; UTC, converted from '$MOTION_SINCE_ARG'$FUTURE_CHECK)"
+    fi
+    emit_board_motion "$MOTION_SINCE_UTC" "$MROOT" "$MCMD"
     exit 0
 fi
 

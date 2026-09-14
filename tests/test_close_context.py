@@ -630,6 +630,77 @@ def test_board_motion_absent_when_the_cli_is_missing(tmp_path):
     assert "MOTION_CLOSED" not in out
 
 
+class TestMotionOnlyArgumentZone:
+    """The window the closer passes back arrives in whatever shape they copied
+    (bon-huzuhi). The full run prints two timestamps: `NOW=YYYY-MM-DD HH:MM`
+    (LOCAL) and `MOTION_SINCE=YYYY-MM-DDTHH:MM:SS` (UTC). On 2026-09-13 a BST
+    close passed NOW, re-typed into the T shape, and an item minted five
+    minutes later read MOTION_MINTED=0 — the local hour landed an hour into
+    the future in UTC. Passed exactly as printed, the space shape sorted
+    BEFORE every 'T' of that day and counted the whole day instead. Both
+    silent. These pin: the NOW shape is local and converted; the MOTION_SINCE
+    shape is UTC as printed; a window that starts in the future is refused
+    with a reason rather than answered with zeroes.
+    """
+
+    EVENTS = [
+        _ev("created", "bon-early", "2026-09-13T10:00:00Z"),   # morning, before the window
+        _ev("created", "bon-late", "2026-09-13T20:47:00Z"),    # 21:47 BST — 30 min after NOW
+    ]
+
+    def _motion_only(self, tmp_path: Path, since: str, tz: str = "Europe/London"):
+        repo, home = _board(tmp_path)
+        _stub_bon(home, self.EVENTS)
+        return subprocess.run(
+            ["bash", str(CLOSE_CONTEXT), "--motion-only", since],
+            capture_output=True, text=True, cwd=repo,
+            env={"HOME": str(home), "PATH": f"{home}/bin:/usr/local/bin:/usr/bin:/bin", "TZ": tz},
+        )
+
+    def test_now_line_as_printed_is_local_and_converted(self, tmp_path):
+        # NOW=2026-09-13 21:17 under BST is 20:17Z: bon-late (20:47Z) counts,
+        # bon-early (10:00Z) does not. Red on the old code: MINTED=2.
+        r = self._motion_only(tmp_path, "2026-09-13 21:17")
+        assert r.returncode == 0, r.stdout
+        assert "MOTION_MINTED=1 bon-late" in r.stdout
+        assert "MOTION_SINCE=2026-09-13T20:17:00" in r.stdout
+        assert "2026-09-13 21:17" in r.stdout   # the conversion is disclosed
+
+    def test_now_line_under_gmt_is_the_same_instant(self, tmp_path):
+        # Same shape in winter: no offset, no shift — the conversion is a
+        # real zone conversion, not a fixed hour.
+        r = self._motion_only(tmp_path, "2026-09-13 20:17", tz="UTC")
+        assert "MOTION_MINTED=1 bon-late" in r.stdout
+        assert "MOTION_SINCE=2026-09-13T20:17:00" in r.stdout
+
+    def test_motion_since_shape_is_utc_as_printed(self, tmp_path):
+        r = self._motion_only(tmp_path, "2026-09-13T20:17:00")
+        assert "MOTION_MINTED=1 bon-late" in r.stdout
+
+    def test_trailing_z_is_utc_too(self, tmp_path):
+        r = self._motion_only(tmp_path, "2026-09-13T20:17:00Z")
+        assert "MOTION_MINTED=1 bon-late" in r.stdout
+        assert "MOTION_SINCE=2026-09-13T20:17:00" in r.stdout
+
+    def test_future_window_start_is_refused_not_zeroed(self, tmp_path):
+        # The incident's exact shape: a local time re-typed into the UTC
+        # shape lands in the future. Zeroes would read as a quiet session.
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+        future = (datetime.now(ZoneInfo("Europe/London")) + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S")
+        r = self._motion_only(tmp_path, future)
+        assert r.returncode == 2, r.stdout
+        assert "MOTION_ERROR" in r.stdout
+        assert "future" in r.stdout
+        assert "MOTION_MINTED" not in r.stdout
+
+    def test_unrecognised_shape_is_refused_with_the_accepted_shapes(self, tmp_path):
+        r = self._motion_only(tmp_path, "yesterday evening")
+        assert r.returncode == 2
+        assert "MOTION_ERROR" in r.stdout
+        assert "MOTION_SINCE" in r.stdout and "NOW" in r.stdout
+
+
 class TestBoardMotionTimezone:
     """The window boundary comes from a handoff filename (LOCAL time) and the
     events from `bon log` (UTC). Compared as one clock they differ by the UTC
