@@ -2,6 +2,7 @@
 
 One line per handoff, newest first. `- [ ]` = not yet processed by an /open sweep; every close appends its line in the same change that writes the handoff (HANDOFF-CONTRACT v7, bon-supuko).
 
+- [ ] 2026-09-14 [2026-09-14-2202-7c5fa847.md](2026-09-14-2202-7c5fa847.md) — close's --motion-only reads the NOW line as local time and refuses a future window, so a BST close no longer under-counts the items it just filed; dispatched wave worker, card left for the essayeur (bon-huzuhi)
 - [ ] 2026-09-14 [2026-09-14-2045-7c5fa847.md](2026-09-14-2045-7c5fa847.md) — bon new honours waiting_for nested under brief and refuses structural keys smuggled inside brief, on both new and edit, with red-first tests; dispatched wave worker, card left for the essayeur (bon-pidajo)
 - [ ] 2026-09-07 [2026-09-07-1904-01a07ce5.md](2026-09-07-1904-01a07ce5.md) — Restored all four Bon rites through a Codex runtime adapter, with isolated behavioural receipts (bon-ziwuda)
 - [ ] 2026-09-01 [2026-09-01-0051-97e40180.md](2026-09-01-0051-97e40180.md) — The /close cold reader gets a budget, a findings-only rule and a completion marker, so a dead read is detectable whenever the closer checks for the marker: shipped in suite 1.84.2, verified by four live reads including the mature repo that killed the first reader, and corrected twice by a negative control that refused to die (bon-besozi, bon-lugetu)
