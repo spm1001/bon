@@ -453,6 +453,21 @@ class TestEditJsonStdinGuards:
         assert "wyh" in result.stderr
 
     @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
+    def test_top_level_key_nested_under_brief_is_refused(self, bon_dir_with_fixture):
+        """`title` inside brief must not ride silently beside a valid edit (bon-pidajo).
+
+        The unknown-key check used to union top-level and brief keys, so a
+        structural key under brief passed the check and was never applied.
+        """
+        result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
+                         input='{"how": "new how", "brief": {"title": "smuggled"}}')
+        assert result.returncode == 1
+        assert "Unknown field(s): title" in result.stderr
+        item = json.loads(run_bon("show", "bon-aaa", "--json", cwd=bon_dir_with_fixture).stdout)
+        assert item["title"] != "smuggled"
+        assert item["brief"].get("how") != "new how"
+
+    @pytest.mark.parametrize("bon_dir_with_fixture", ["single_outcome"], indirect=True)
     def test_same_key_flat_and_nested_is_refused(self, bon_dir_with_fixture):
         result = run_bon("edit", "bon-aaa", cwd=bon_dir_with_fixture,
                          input='{"why": "a", "brief": {"why": "b"}}')

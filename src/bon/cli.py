@@ -320,8 +320,13 @@ def item_not_found(item_id: str, prefix: str, noun: str = "Item"):
 # Top-level keys the JSON creation path honours. Anything else is a hard
 # error (bon-gezela): a silently-dropped key looks exactly like success —
 # the contract bon edit already holds (bon-cefisu). Brief subfields
-# (EDIT_BRIEF_KEYS) are accepted nested under "brief" or flat.
+# (EDIT_BRIEF_KEYS) are accepted nested under "brief" or flat, and
+# waiting_for is accepted flat or nested under "brief" (bon-pidajo) — it is
+# the one structural key people write beside why/what/done, and three items
+# were born open when it was silently dropped there. The two key sets are
+# checked SEPARATELY: unioning them let any top-level key hide inside brief.
 NEW_TOP_KEYS = ("title", "type", "parent", "outcome", "brief", "waiting_for", "area")
+NEW_BRIEF_ONLY_KEYS = ("waiting_for",)
 
 
 def waiting_for_from_json(value):
@@ -391,17 +396,20 @@ def cmd_new(args):
         if not isinstance(brief_data, dict):
             error("'brief' must be an object")
 
-        unknown = (set(data) | set(brief_data)) - set(NEW_TOP_KEYS) - set(EDIT_BRIEF_KEYS)
+        unknown = (set(data) - set(NEW_TOP_KEYS) - set(EDIT_BRIEF_KEYS)) | (
+            set(brief_data) - set(EDIT_BRIEF_KEYS) - set(NEW_BRIEF_ONLY_KEYS)
+        )
         if unknown:
             error(
                 f"Unknown field(s): {', '.join(sorted(unknown))}\n"
                 "Valid: title, type, parent (or outcome), waiting_for, area, "
-                "brief{why, how, what, done, badly} — brief fields may also be given flat."
+                "brief{why, how, what, done, badly, waiting_for} — brief fields may also be given flat."
             )
 
-        for key in EDIT_BRIEF_KEYS:
+        for key in EDIT_BRIEF_KEYS + NEW_BRIEF_ONLY_KEYS:
             if key in data and key in brief_data:
                 error(f"'{key}' given both flat and inside 'brief' — pick one")
+        for key in EDIT_BRIEF_KEYS:
             if key in data:
                 brief_data[key] = data[key]
             if key in brief_data and not isinstance(brief_data[key], str):
@@ -422,7 +430,7 @@ def cmd_new(args):
         if explicit_type not in (None, "action", "outcome"):
             error(f"'type' must be 'action' or 'outcome', got {explicit_type!r}")
 
-        waiting_for = waiting_for_from_json(data.get("waiting_for"))
+        waiting_for = waiting_for_from_json(brief_data.pop("waiting_for", data.get("waiting_for")))
 
         area = data.get("area")
         if area is not None and not isinstance(area, str):
@@ -1105,7 +1113,10 @@ def edit_args_from_stdin(args, *, explicit: bool = False):
     if not isinstance(brief, dict):
         error("'brief' must be an object")
 
-    unknown = (set(data) | set(brief)) - set(EDIT_TOP_KEYS) - set(EDIT_BRIEF_KEYS)
+    # Checked separately, not as a union: a union let a top-level key such as
+    # "title" pass the check when nested under brief and then never be
+    # applied — the bon new twin of this lost three waiting_for values (bon-pidajo).
+    unknown = (set(data) - set(EDIT_TOP_KEYS) - set(EDIT_BRIEF_KEYS)) | (set(brief) - set(EDIT_BRIEF_KEYS))
     if unknown:
         error(
             f"Unknown field(s): {', '.join(sorted(unknown))}\n"

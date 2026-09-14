@@ -526,7 +526,8 @@ class TestNewNotInitialized:
 
 
 def _read_items(bon_dir):
-    lines = (bon_dir / ".bon" / "items.jsonl").read_text().strip().split("\n")
+    # splitlines(), not split("\n"): an empty board must read as [], not [""].
+    lines = (bon_dir / ".bon" / "items.jsonl").read_text().strip().splitlines()
     return [json.loads(line) for line in lines]
 
 
@@ -709,6 +710,59 @@ class TestNewJsonKeyContract:
 
         assert result.returncode == 1
         assert "given both flat and inside 'brief'" in result.stderr
+
+    def test_waiting_for_nested_under_brief_is_honoured(self, bon_dir, monkeypatch):
+        """waiting_for inside brief creates a waiting item (bon-pidajo).
+
+        Before the fix the key passed the unknown-key check (the check unioned
+        top-level and brief keys) and was then never read: three mit-garni
+        items were born open with no warning on 2026-09-14.
+        """
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Nested blocker",
+            "brief": {"why": "w", "what": "x", "done": "d", "waiting_for": ["external review"]},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 0
+        assert "waiting for: external review" in result.stdout
+        created = next(i for i in _read_items(bon_dir) if i["title"] == "Nested blocker")
+        assert created["waiting_for"] == ["external review"]
+        assert "waiting_for" not in created["brief"]
+
+    def test_waiting_for_flat_and_nested_conflict_errors(self, bon_dir, monkeypatch):
+        """waiting_for in both places is ambiguous — refuse, as for brief fields."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "type": "action",
+            "title": "Twice blocked",
+            "waiting_for": ["a"],
+            "brief": {"why": "w", "what": "x", "done": "d", "waiting_for": ["b"]},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "'waiting_for' given both flat and inside 'brief'" in result.stderr
+        assert not any(i["title"] == "Twice blocked" for i in _read_items(bon_dir))
+
+    def test_top_level_key_nested_under_brief_errors(self, bon_dir, monkeypatch):
+        """A structural key (title, parent, area, type) inside brief is refused,
+        not silently dropped — the same union bug that lost waiting_for."""
+        monkeypatch.chdir(bon_dir)
+
+        data = json.dumps({
+            "title": "Misplaced area",
+            "brief": {"why": "w", "what": "x", "done": "d", "area": "ops", "parent": "bon-x"},
+        })
+        result = run_bon("new", cwd=bon_dir, input=data)
+
+        assert result.returncode == 1
+        assert "Unknown field(s): area, parent" in result.stderr
+        assert not any(i["title"] == "Misplaced area" for i in _read_items(bon_dir))
 
     def test_non_string_brief_value_errors(self, bon_dir, monkeypatch):
         """A non-string brief value is refused, not stored as-is."""

@@ -323,7 +323,7 @@ cat <<'EOF' | bon new -q
 EOF
 ```
 
-The JSON path honours `title`, `type`, `parent` (or `outcome`), `waiting_for` and `brief` — brief fields may also be given flat. `waiting_for` (a string or a list) lets an action be born blocked: `"waiting_for": ["bon-abc", "external review"]` creates it already waiting. Any other key is a hard error, never a silent drop — the same contract as `bon edit`.
+The JSON path honours `title`, `type`, `parent` (or `outcome`), `area`, `waiting_for` and `brief` — brief fields may also be given flat. `waiting_for` (a string or a list) lets an action be born blocked: `"waiting_for": ["bon-abc", "external review"]` creates it already waiting, and it may sit flat or inside `brief` (bon-pidajo — three items were born open when the nested form was silently dropped, 2026-09-14). Any other key is a hard error, never a silent drop — including a structural key such as `title` or `area` placed inside `brief` — the same contract as `bon edit`.
 
 **Standalone actions** — for field reports, one-off fixes, observations — use `type: "action"`:
 
